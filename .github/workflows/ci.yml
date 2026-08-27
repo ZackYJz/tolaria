@@ -20,7 +20,6 @@ env:
 jobs:
   frontend-static-quality:
     name: Frontend Static Quality Checks
-    if: github.repository == 'refactoringhq/tolaria'
     runs-on: macos-15
 
     steps:
@@ -43,6 +42,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Codacy differential gate (no new findings at any severity)
+        if: github.repository == 'refactoringhq/tolaria'
         env:
           CODACY_BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: pnpm codacy:gate
@@ -82,6 +82,7 @@ jobs:
       # Enforces minimum floors on BOTH hotspot and average code health.
       # Thresholds come from .codescene-thresholds so CI and local hooks match.
       - name: Code Health gates
+        if: github.repository == 'refactoringhq/tolaria'
         env:
           CODESCENE_PAT: ${{ secrets.CODESCENE_PAT }}
           CODESCENE_PROJECT_ID: ${{ secrets.CODESCENE_PROJECT_ID }}
@@ -140,7 +141,6 @@ jobs:
 
   frontend-tests:
     name: Frontend Tests & Coverage
-    if: github.repository == 'refactoringhq/tolaria'
     runs-on: macos-15
 
     steps:
@@ -169,7 +169,7 @@ jobs:
         # Thresholds configured in vite.config.ts — exits non-zero if coverage drops
 
       - name: Upload frontend coverage to Codecov
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.repository == 'refactoringhq/tolaria' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073
         with:
           use_oidc: true
@@ -182,7 +182,6 @@ jobs:
 
   rust-quality:
     name: Rust Tests & Quality Checks
-    if: github.repository == 'refactoringhq/tolaria'
     runs-on: macos-15
 
     steps:
@@ -220,7 +219,7 @@ jobs:
         # lib.rs/main.rs/menu.rs are Tauri boilerplate -- not meaningfully unit-testable.
 
       - name: Upload Rust coverage to Codecov
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.repository == 'refactoringhq/tolaria' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073
         with:
           use_oidc: true
@@ -243,7 +242,7 @@ jobs:
     # workflows already perform the full Linux/AppImage build after main
     # pushes, so this slower compatibility check stays available for PRs and
     # manual diagnostics without blocking every direct push.
-    if: github.repository == 'refactoringhq/tolaria' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
 
     steps:

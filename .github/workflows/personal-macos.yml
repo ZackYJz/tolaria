@@ -3,6 +3,12 @@ name: Personal macOS build
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - ".github/**"
+      - ".husky/**"
+      - "AGENTS.md"
+      - "docs/**"
+      - "site/**"
   workflow_dispatch:
 
 permissions:
