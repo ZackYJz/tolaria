@@ -20,6 +20,7 @@ env:
 jobs:
   frontend-static-quality:
     name: Frontend Static Quality Checks
+    if: github.repository == 'refactoringhq/tolaria'
     runs-on: macos-15
 
     steps:
@@ -139,6 +140,7 @@ jobs:
 
   frontend-tests:
     name: Frontend Tests & Coverage
+    if: github.repository == 'refactoringhq/tolaria'
     runs-on: macos-15
 
     steps:
@@ -180,6 +182,7 @@ jobs:
 
   rust-quality:
     name: Rust Tests & Quality Checks
+    if: github.repository == 'refactoringhq/tolaria'
     runs-on: macos-15
 
     steps:
@@ -240,7 +243,7 @@ jobs:
     # workflows already perform the full Linux/AppImage build after main
     # pushes, so this slower compatibility check stays available for PRs and
     # manual diagnostics without blocking every direct push.
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.repository == 'refactoringhq/tolaria' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-22.04
 
     steps:

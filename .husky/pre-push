@@ -106,11 +106,6 @@ echo ""
 echo "🚀 Pre-push checks (replaces CI — do not skip)"
 echo "================================================"
 
-echo ""
-echo "🛡️  Codacy differential gate (no new findings at any severity)..."
-pnpm codacy:gate
-echo "  ✅ Codacy gate OK"
-
 # ── Detect what changed ─────────────────────────────────────────────────
 PUSH_TARGET=$(git rev-parse @{push} 2>/dev/null || echo "")
 RUST_CHANGED=true
@@ -255,6 +250,8 @@ if ! run_sidecar_automatic_checks; then
 fi
 
 # ── 6. CodeScene code health gate (ratchet) ──────────────────────────────
+# Disabled for the ZackYJz personal fork by repository-owner decision.
+if false; then
 # Thresholds live in .codescene-thresholds and only ever go UP (ratchet).
 # If remote scores improved, the hook updates the file and stops so the new
 # floor is committed with normal verified hooks before the next push.
@@ -330,6 +327,8 @@ if new_hotspot > hotspot_min or new_average > average_min:
       exit 1
     fi
   fi
+fi
+
 fi
 
 END_TIME=$(date +%s)

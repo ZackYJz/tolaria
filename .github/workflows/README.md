@@ -1,5 +1,19 @@
 # CI/CD Setup
 
+## Personal macOS build
+
+The `ZackYJz/tolaria` fork builds an unsigned Apple Silicon DMG on every push
+to `main`. It can also be started manually from **Actions → Personal macOS
+build → Run workflow**. Download the resulting
+`Tolaria-Personal-macOS-Apple-Silicon` artifact from the completed run.
+
+The personal build uses the product name `Tolaria Personal`, the bundle ID
+`com.zackyjz.tolaria.personal`, and version `9999.0.0`. It does not create
+updater artifacts and does not require Apple Developer, Tauri updater,
+telemetry, CodeScene, or Codacy secrets. Because it is unsigned and not
+notarized, macOS may require approval in **System Settings → Privacy &
+Security** before first launch.
+
 ## GitHub Actions Workflow
 
 Il workflow `ci.yml` esegue i seguenti check automatici:

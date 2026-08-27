@@ -1,5 +1,12 @@
 # AGENTS.md — Tolaria App
 
+## Personal fork override
+
+This checkout targets the `ZackYJz/tolaria` personal fork. CodeScene and Codacy
+checks are not required in this fork and must not block edits, commits, pushes,
+or completion. All other testing, security, and quality requirements below
+remain applicable.
+
 ## 1. Development Process
 
 ### Mandatory-rule exception protocol

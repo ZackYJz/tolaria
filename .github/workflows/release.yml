@@ -21,6 +21,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   version:
     name: Compute alpha version
+    if: github.repository == 'refactoringhq/tolaria'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}

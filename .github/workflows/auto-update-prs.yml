@@ -10,6 +10,7 @@ on:
 jobs:
   update-prs:
     name: Update open PR branches
+    if: github.repository == 'refactoringhq/tolaria'
     runs-on: ubuntu-latest
     permissions:
       contents: write
