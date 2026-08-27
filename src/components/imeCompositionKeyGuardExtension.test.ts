@@ -146,6 +146,13 @@ describe('shouldStopComposingEditorShortcutKey', () => {
     expect(shouldStopComposingEditorShortcutKey(event, { composing: true })).toBe(true)
   })
 
+  it('matches a confirmation shortcut immediately after compositionend', () => {
+    const event = createKeyboardEvent({ key: ' ', keyCode: 32, timeStamp: 120 })
+
+    expect(shouldStopComposingEditorShortcutKey(event, { composing: false }, false, 110)).toBe(true)
+    expect(shouldStopComposingEditorShortcutKey(event, { composing: false }, false, -500)).toBe(false)
+  })
+
   it.each(COMPOSING_SHORTCUT_KEYS)('leaves normal %s available for editor input', (_name, keyEvent) => {
     const event = createKeyboardEvent({ ...keyEvent, isComposing: false })
 
@@ -240,16 +247,29 @@ describe('createImeCompositionKeyGuardExtension', () => {
     expect(event.preventDefault).not.toHaveBeenCalled()
   })
 
-  it('releases the explicit composition guard when the IME finishes', () => {
+  it('keeps the guard through a Space confirmation emitted after compositionend', () => {
     const fixture = createFixture()
     fixture.mount()
 
     fixture.fireCompositionStart()
     fixture.fireCompositionEnd()
-    const event = fixture.fireKeydown({ key: ' ', keyCode: 32 })
+    const event = fixture.fireKeydown({ key: ' ', keyCode: 32, timeStamp: 120 })
 
-    expect(event.stopImmediatePropagation).not.toHaveBeenCalled()
+    expect(event.stopImmediatePropagation).toHaveBeenCalledTimes(1)
     expect(event.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('consumes only the first confirmation shortcut after compositionend', () => {
+    const fixture = createFixture()
+    fixture.mount()
+
+    fixture.fireCompositionStart()
+    fixture.fireCompositionEnd()
+    const confirmation = fixture.fireKeydown({ key: ' ', keyCode: 32, timeStamp: 120 })
+    const deliberateSpace = fixture.fireKeydown({ key: ' ', keyCode: 32, timeStamp: 130 })
+
+    expect(confirmation.stopImmediatePropagation).toHaveBeenCalledTimes(1)
+    expect(deliberateSpace.stopImmediatePropagation).not.toHaveBeenCalled()
   })
 
   it('reopens a slash command committed by an IME after ProseMirror reconciles composition', () => {

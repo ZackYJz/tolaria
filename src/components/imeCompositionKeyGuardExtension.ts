@@ -25,6 +25,13 @@ function isCompositionEditorShortcutKey(event: KeyboardEvent): boolean {
   return isEnterKey(event) || isSpaceKey(event)
 }
 
+function isRecentCompositionEnd(event: KeyboardEvent, compositionEndedAt: number | null): boolean {
+  if (compositionEndedAt === null) return false
+
+  const elapsed = event.timeStamp - compositionEndedAt
+  return elapsed >= 0 && elapsed < COMPOSITION_SETTLE_WINDOW_MS
+}
+
 function isParagraphInput(event: InputEvent): boolean {
   return event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak'
 }
@@ -49,9 +56,14 @@ export function shouldStopComposingEditorShortcutKey(
   event: KeyboardEvent,
   view?: ComposingEditorView | null,
   compositionActive = false,
+  compositionEndedAt: number | null = null,
 ): boolean {
   return isCompositionEditorShortcutKey(event)
-    && (compositionActive || isComposingKeyboardEvent(event, view))
+    && (
+      compositionActive
+      || isComposingKeyboardEvent(event, view)
+      || isRecentCompositionEnd(event, compositionEndedAt)
+    )
 }
 
 export function shouldStopComposingParagraphInput(
@@ -70,6 +82,7 @@ export function shouldStopComposingParagraphInput(
 export const createImeCompositionKeyGuardExtension = createExtension(({ editor }) => {
   const readView = () => activeRichEditorView(editor)
   let compositionActive = false
+  let compositionEndedAt: number | null = null
   let composingEnterAt: number | null = null
 
   const reopenComposedSlashCommand = (data: string) => {
@@ -90,21 +103,31 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
   }
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (!shouldStopComposingEditorShortcutKey(event, readView(), compositionActive)) {
+    if (!shouldStopComposingEditorShortcutKey(
+      event,
+      readView(),
+      compositionActive,
+      compositionEndedAt,
+    )) {
+      compositionEndedAt = null
       composingEnterAt = null
       return
     }
 
+    compositionEndedAt = null
     if (isEnterKey(event)) composingEnterAt = event.timeStamp
     event.stopImmediatePropagation()
   }
 
   const handleCompositionStart = () => {
     compositionActive = true
+    compositionEndedAt = null
   }
 
   const handleCompositionEnd = (event: CompositionEvent) => {
+    const shouldGuardConfirmation = compositionActive || readView()?.composing === true
     compositionActive = false
+    compositionEndedAt = shouldGuardConfirmation ? event.timeStamp : null
     if (composingEnterAt !== null) composingEnterAt = event.timeStamp
     if (event.data) setTimeout(() => reopenComposedSlashCommand(event.data), 0)
   }

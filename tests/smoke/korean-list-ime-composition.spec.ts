@@ -97,7 +97,7 @@ test('composing Enter inside a Korean bullet item does not split the list item',
   await expect(bullet).toContainText('한글 시작 계속')
 })
 
-test('composing Space inside a task-list nested ordered item stays inside IME handling', async ({ page }) => {
+test('Space immediately after compositionend stays inside IME handling for a nested ordered item', async ({ page }) => {
   fs.writeFileSync(path.join(tempVaultDir, 'note', 'note-b.md'), NESTED_TASK_ORDERED_LIST_NOTE)
   await openFixtureVault(page, tempVaultDir)
   await openNote(page, 'Note B')
@@ -118,6 +118,8 @@ test('composing Space inside a task-list nested ordered item stays inside IME ha
       reachedEditorBubble = true
     }
 
+    editor?.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    editor?.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
     editor?.addEventListener('keydown', handleKeydown, { once: true })
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
@@ -125,7 +127,6 @@ test('composing Space inside a task-list nested ordered item stays inside IME ha
       code: 'Space',
       key: ' ',
     })
-    Object.defineProperty(event, 'isComposing', { value: true })
     element.dispatchEvent(event)
     editor?.removeEventListener('keydown', handleKeydown)
 
