@@ -426,6 +426,7 @@ describe('SingleEditorView', () => {
   })
 
   it('defers rich-editor change propagation until ProseMirror reconciles the IME commit', async () => {
+    vi.useFakeTimers()
     const editor = createEditor()
     let prosemirrorReconciled = false
     const reconciliationStateObservedByOnChange: boolean[] = []
@@ -444,9 +445,10 @@ describe('SingleEditorView', () => {
 
     const blockNoteView = screen.getByTestId('blocknote-view')
     blockNoteView.addEventListener('compositionend', () => {
-      queueMicrotask(() => {
+      setTimeout(() => {
         prosemirrorReconciled = true
-      })
+        state.capturedBlockNoteOnChange?.()
+      }, 20)
     }, { once: true })
 
     fireEvent.compositionStart(blockNoteView)
@@ -459,9 +461,15 @@ describe('SingleEditorView', () => {
     await act(async () => {
       await Promise.resolve()
     })
+    expect(onChange).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20)
+    })
 
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(reconciliationStateObservedByOnChange).toEqual([true])
+    vi.useRealTimers()
   })
 
   it('copies selected fenced code text without markdown escape backslashes', async () => {
