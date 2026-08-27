@@ -828,7 +828,11 @@ function useCompositionAwareEditorChange(options: {
 
     const handleCompositionEnd = () => {
       composingRef.current = false
-      queueMicrotask(flushPendingChange)
+      queueMicrotask(() => {
+        // ProseMirror queues its final DOM reconciliation from its own
+        // compositionend handler, which runs after this outer capture listener.
+        queueMicrotask(flushPendingChange)
+      })
     }
 
     container.addEventListener('compositionstart', handleCompositionStart, true)
