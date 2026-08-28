@@ -18,6 +18,33 @@ async function openSlashMenu(page: Page) {
   return menu
 }
 
+async function probeSlashMenuScroll(menu: Locator) {
+  return menu.evaluate(async (node) => {
+    const menuElement = node as HTMLElement
+    const decoration = document.querySelector<HTMLElement>('[data-decoration-id]')
+    if (!decoration) throw new Error('Missing suggestion menu decoration')
+
+    let decorationRectReads = 0
+    const originalGetBoundingClientRect = decoration.getBoundingClientRect.bind(decoration)
+    decoration.getBoundingClientRect = () => {
+      decorationRectReads += 1
+      return originalGetBoundingClientRect()
+    }
+
+    const maxScrollTop = menuElement.scrollHeight - menuElement.clientHeight
+    menuElement.scrollTop = Math.max(1, Math.floor(maxScrollTop / 2))
+    await new Promise<void>((resolve) => requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve())
+    }))
+
+    return {
+      decorationRectReads,
+      maxScrollTop,
+      scrollTop: menuElement.scrollTop,
+    }
+  })
+}
+
 async function readMenuStyles(menu: Locator) {
   return menu.evaluate((node) => {
     const style = getComputedStyle(node)
@@ -136,5 +163,16 @@ test.describe('BlockNote slash menu styling', () => {
       fillOpacity: '1',
       regularOpacity: '0',
     })
+  })
+
+  test('scrolling the slash menu does not reposition it from the editor anchor', async ({ page }) => {
+    await openAlphaProject(page)
+
+    const menu = await openSlashMenu(page)
+    const probe = await probeSlashMenuScroll(menu)
+
+    expect(probe.maxScrollTop).toBeGreaterThan(0)
+    expect(probe.scrollTop).toBeGreaterThan(0)
+    expect(probe.decorationRectReads).toBe(0)
   })
 })
