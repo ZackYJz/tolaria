@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { useCreateBlockNote } from '@blocknote/react'
 import { createTolariaCodeBlockOptions } from './codeBlockOptions'
-import { BLOCK_CONTAINER_SELECTOR } from './tolariaBlockNoteDom'
+import {
+  BLOCK_CONTAINER_SELECTOR,
+  type TolariaBlockNoteEditor,
+} from './tolariaBlockNoteDom'
+import { useCollapsedHeadingIds } from './tolariaCollapsedSections'
 import {
   Select,
   SelectContent,
@@ -27,6 +31,7 @@ type LanguageSelectControl = Element & { value: string }
 const NATIVE_LANGUAGE_CONTROL_SELECTOR =
   '.bn-block-content[data-content-type="codeBlock"] > div > select'
 const ELEMENT_NODE = 1
+const CLIPPING_OVERFLOW_VALUES = new Set(['auto', 'clip', 'hidden', 'scroll'])
 
 const LANGUAGE_OPTIONS = Object.entries(
   createTolariaCodeBlockOptions().supportedLanguages ?? {},
@@ -44,8 +49,10 @@ function languageControlTarget(
   editor: CodeBlockLanguageEditor,
   blockId: string,
   nativeControl: LanguageSelectControl,
-): CodeBlockLanguageTarget {
+): CodeBlockLanguageTarget | null {
   const rect = nativeControl.getBoundingClientRect()
+  if (!languageControlIsVisible(nativeControl, rect)) return null
+
   return {
     blockId,
     editable: editor.isEditable
@@ -55,6 +62,54 @@ function languageControlTarget(
     left: rect.left,
     top: rect.top,
   }
+}
+
+function clipsAxis(overflow: string): boolean {
+  return CLIPPING_OVERFLOW_VALUES.has(overflow)
+}
+
+function hasHiddenAncestor(element: Element): boolean {
+  let current: Element | null = element
+  while (current) {
+    if (window.getComputedStyle(current).display === 'none') return true
+    current = current.parentElement
+  }
+  return false
+}
+
+function languageControlIsVisible(
+  nativeControl: LanguageSelectControl,
+  rect: DOMRect,
+): boolean {
+  if (!nativeControl.isConnected || hasHiddenAncestor(nativeControl)) return false
+
+  // JSDOM does not perform layout, so its connected fixture controls have an empty rect.
+  if (rect.width === 0 && rect.height === 0) return true
+
+  let clipBottom = window.innerHeight
+  let clipLeft = 0
+  let clipRight = window.innerWidth
+  let clipTop = 0
+  let ancestor = nativeControl.parentElement
+
+  while (ancestor && ancestor !== document.body) {
+    const style = window.getComputedStyle(ancestor)
+    const ancestorRect = ancestor.getBoundingClientRect()
+    if (clipsAxis(style.overflowX)) {
+      clipLeft = Math.max(clipLeft, ancestorRect.left)
+      clipRight = Math.min(clipRight, ancestorRect.right)
+    }
+    if (clipsAxis(style.overflowY)) {
+      clipTop = Math.max(clipTop, ancestorRect.top)
+      clipBottom = Math.min(clipBottom, ancestorRect.bottom)
+    }
+    ancestor = ancestor.parentElement
+  }
+
+  return rect.bottom > clipTop
+    && rect.right > clipLeft
+    && rect.top < clipBottom
+    && rect.left < clipRight
 }
 
 function codeBlockLanguageTarget(
@@ -70,16 +125,28 @@ function codeBlockLanguageTarget(
 }
 
 function codeBlockLanguageTargets(editor: CodeBlockLanguageEditor): CodeBlockLanguageTarget[] {
-  return Array.from(document.querySelectorAll(NATIVE_LANGUAGE_CONTROL_SELECTOR))
+  const editorElement = editor.domElement
+  if (!(editorElement instanceof Element) || !editorElement.isConnected) return []
+
+  return Array.from(editorElement.querySelectorAll(NATIVE_LANGUAGE_CONTROL_SELECTOR))
     .map((element) => codeBlockLanguageTarget(editor, element))
     .filter((target): target is CodeBlockLanguageTarget => target !== null)
 }
 
 function sameTargets(current: CodeBlockLanguageTarget[], next: CodeBlockLanguageTarget[]): boolean {
-  return JSON.stringify(current) === JSON.stringify(next)
+  return current.length === next.length && current.every((target, index) => {
+    const nextTarget = next[index]
+    return nextTarget !== undefined
+      && target.blockId === nextTarget.blockId
+      && target.editable === nextTarget.editable
+      && target.height === nextTarget.height
+      && target.language === nextTarget.language
+      && target.left === nextTarget.left
+      && target.top === nextTarget.top
+  })
 }
 
-function addedNodeTouchesEditor(node: Node): boolean {
+function nodeTouchesEditor(node: Node): boolean {
   if (node.nodeType !== ELEMENT_NODE) return false
   const element = node as Element
   return element.matches('.bn-editor') || element.querySelector('.bn-editor') !== null
@@ -88,10 +155,13 @@ function addedNodeTouchesEditor(node: Node): boolean {
 function mutationTouchesEditor(mutation: MutationRecord): boolean {
   if (mutation.target.nodeType === ELEMENT_NODE
     && (mutation.target as Element).closest('.bn-editor')) return true
-  return Array.from(mutation.addedNodes).some(addedNodeTouchesEditor)
+  return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeTouchesEditor)
 }
 
-function useCodeBlockLanguageTargets(editor: CodeBlockLanguageEditor) {
+function useCodeBlockLanguageTargets(
+  editor: CodeBlockLanguageEditor,
+  collapsedHeadingIds: ReadonlySet<string>,
+) {
   const [targets, setTargets] = useState<CodeBlockLanguageTarget[]>([])
 
   useEffect(() => {
@@ -108,7 +178,7 @@ function useCodeBlockLanguageTargets(editor: CodeBlockLanguageEditor) {
       if (mutations.some(mutationTouchesEditor)) refresh()
     })
     observer.observe(document.body, {
-      attributeFilter: ['contenteditable'],
+      attributeFilter: ['class', 'contenteditable', 'style'],
       attributes: true,
       childList: true,
       subtree: true,
@@ -125,7 +195,7 @@ function useCodeBlockLanguageTargets(editor: CodeBlockLanguageEditor) {
       window.removeEventListener('resize', refresh)
       document.removeEventListener('scroll', refresh, true)
     }
-  }, [editor])
+  }, [collapsedHeadingIds, editor])
 
   return targets
 }
@@ -165,7 +235,7 @@ function CodeBlockLanguagePicker({
     >
       <SelectTrigger
         size="sm"
-        className="editor__code-block-language-trigger h-7 max-w-72 border-transparent bg-transparent px-2 py-0 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-1"
+        className="editor__code-block-language-trigger h-7 max-w-72 border-transparent bg-transparent px-2 py-0 text-xs text-muted-foreground shadow-none hover:bg-accent/60 hover:text-accent-foreground focus-visible:ring-1"
       >
         <SelectValue />
       </SelectTrigger>
@@ -179,7 +249,10 @@ function CodeBlockLanguagePicker({
 }
 
 export function CodeBlockLanguageControls({ editor }: { editor: CodeBlockLanguageEditor }) {
-  const targets = useCodeBlockLanguageTargets(editor)
+  const collapsedHeadingIds = useCollapsedHeadingIds(
+    editor as unknown as TolariaBlockNoteEditor,
+  )
+  const targets = useCodeBlockLanguageTargets(editor, collapsedHeadingIds)
 
   return targets.map((target) => createPortal(
     <div

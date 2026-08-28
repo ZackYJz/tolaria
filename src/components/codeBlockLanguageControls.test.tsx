@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodeBlockLanguageControls } from './codeBlockLanguageControls'
 
 function codeBlockDom() {
@@ -31,6 +31,10 @@ function codeBlockDom() {
 }
 
 describe('CodeBlockLanguageControls', () => {
+  afterEach(() => {
+    document.querySelectorAll('.bn-editor').forEach((editor) => editor.remove())
+  })
+
   it('replaces a stale disabled native picker with a live shadcn language control', async () => {
     const { editorElement, nativeControl } = codeBlockDom()
     editorElement.remove()
@@ -70,5 +74,46 @@ describe('CodeBlockLanguageControls', () => {
     expect(editor.updateBlock).toHaveBeenCalledWith('code-block-1', {
       props: { language: 'cpp' },
     })
+  })
+
+  it('removes the language control from the page with its editor', async () => {
+    const { editorElement } = codeBlockDom()
+    const editor = {
+      domElement: editorElement,
+      getBlock: vi.fn(() => ({ id: 'code-block-1', type: 'codeBlock' })),
+      isEditable: true,
+      onChange: vi.fn(() => vi.fn()),
+      updateBlock: vi.fn(),
+    }
+
+    render(<CodeBlockLanguageControls editor={editor as never} />)
+
+    await waitFor(() => expect(
+      document.querySelector('.editor__code-block-language-overlay'),
+    ).toBeInTheDocument())
+
+    editorElement.remove()
+
+    await waitFor(() => expect(
+      document.querySelector('.editor__code-block-language-overlay'),
+    ).not.toBeInTheDocument())
+  })
+
+  it('does not render controls owned by another editor', async () => {
+    const { editorElement } = codeBlockDom()
+    codeBlockDom()
+    const editor = {
+      domElement: editorElement,
+      getBlock: vi.fn(() => ({ id: 'code-block-1', type: 'codeBlock' })),
+      isEditable: true,
+      onChange: vi.fn(() => vi.fn()),
+      updateBlock: vi.fn(),
+    }
+
+    render(<CodeBlockLanguageControls editor={editor as never} />)
+
+    await waitFor(() => expect(
+      document.querySelectorAll('.editor__code-block-language-overlay'),
+    ).toHaveLength(1))
   })
 })

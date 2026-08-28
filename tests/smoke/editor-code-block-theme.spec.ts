@@ -257,8 +257,8 @@ test.describe('Editor code block theme', () => {
   test('pasted code blocks keep an editable language selector', async ({ context, page }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await openFixtureVault(page, tempVaultDir)
-    const noteItem = page.locator('[data-testid="note-list-container"]')
-      .getByText(CODE_NOTE_TITLE, { exact: true })
+    const noteList = page.locator('[data-testid="note-list-container"]')
+    const noteItem = noteList.getByText(CODE_NOTE_TITLE, { exact: true })
     await expect(noteItem).toBeVisible({ timeout: 10_000 })
     await noteItem.click()
 
@@ -281,9 +281,10 @@ test.describe('Editor code block theme', () => {
       .getAttribute('data-id')
     expect(blockId).toBeTruthy()
     const nativeLanguageSelect = pastedCodeBlock.locator('select').first()
-    const languageSelect = page.locator(
-      `.editor__code-block-language-overlay[data-code-block-id="${blockId}"] [data-slot="select-trigger"]`,
+    const languageOverlay = page.locator(
+      `.editor__code-block-language-overlay[data-code-block-id="${blockId}"]`,
     )
+    const languageSelect = languageOverlay.locator('[data-slot="select-trigger"]')
     await expect(languageSelect).toBeVisible()
     await expect(languageSelect).toBeEnabled()
     await expect(languageSelect).toContainText('Plain Text')
@@ -293,20 +294,49 @@ test.describe('Editor code block theme', () => {
     await expect.poll(() => languageSelect.evaluate((select) => {
       const style = getComputedStyle(select)
       return {
+        backgroundColor: style.backgroundColor,
+        borderTopWidth: style.borderTopWidth,
         cursor: style.cursor,
+        fontSize: style.fontSize,
         height: select.getBoundingClientRect().height,
       }
     })).toEqual({
+      backgroundColor: 'rgba(0, 0, 0, 0)',
+      borderTopWidth: '1px',
       cursor: 'pointer',
+      fontSize: '10.5px',
       height: 28,
     })
 
     await languageSelect.click()
-    await page.getByRole('option', { name: 'C++' }).click()
+    const cppOption = page.getByRole('option', { name: 'C++' })
+    await expect.poll(() => cppOption.evaluate((option) => {
+      const style = getComputedStyle(option)
+      return {
+        fontSize: style.fontSize,
+        height: option.getBoundingClientRect().height,
+      }
+    })).toEqual({ fontSize: '12.25px', height: 28 })
+    await cppOption.click()
     await expect(languageSelect).toContainText('C++')
     await expect.poll(() => fs.readFileSync(path.join(tempVaultDir, CODE_NOTE_RELATIVE_PATH), 'utf8'), {
       timeout: 10_000,
     }).toContain(`\`\`\`cpp\n${PASTED_CPP_SNIPPET}\n\`\`\``)
+
+    await languageSelect.click()
+    await expect(page.getByRole('option', { name: 'C++' })).toBeVisible()
+    await page.locator('.bn-editor h1').first().evaluate((heading) => {
+      heading.scrollIntoView({ block: 'start' })
+    })
+    await expect(languageOverlay).toHaveCount(0)
+    await expect(page.locator('[data-slot="select-content"]')).toHaveCount(0)
+
+    await pastedCodeBlock.scrollIntoViewIfNeeded()
+    await expect(languageSelect).toBeVisible()
+
+    await noteList.getByText('Note B', { exact: true }).click()
+    await expect(page.locator('.bn-editor h1').first()).toHaveText('Note B', { timeout: 5_000 })
+    await expect(languageOverlay).toHaveCount(0)
   })
 
   test('moves down within code and exits only at the final logical line', async ({ page }) => {

@@ -215,6 +215,10 @@ _display: outline
 
 # Outline Layout
 
+\`\`\`text
+Top-level code
+\`\`\`
+
 - Parent block
 
   \`\`\`typescript
@@ -234,14 +238,34 @@ _display: outline
     await expect.poll(() => fs.readFileSync(outlinePath, 'utf8')).toMatch(/_width:\s+wide/)
 
     const outlineRoot = page.locator('.editor-content-width--wide')
+    const topLevelCode = outlineRoot.locator(
+      '.bn-editor > .bn-block-group > .bn-block-outer > .bn-block > [data-content-type="codeBlock"]',
+    ).first()
     const nestedGroup = outlineRoot.locator('.bn-block-group .bn-block-group').first()
     const nestedCode = nestedGroup.locator('[data-content-type="codeBlock"]').first()
+    await expect(topLevelCode).toBeVisible()
     await expect(nestedCode).toBeVisible()
+
+    const topLevelMarker = await topLevelCode.evaluate((code) => ({
+      background: getComputedStyle(code, '::before').backgroundImage,
+      content: getComputedStyle(code, '::before').content,
+    }))
+    expect(topLevelMarker.background).toContain('radial-gradient')
+    expect(topLevelMarker.content).not.toBe('none')
+
+    const nestedCodeBlockId = await nestedCode.locator('xpath=ancestor::*[@data-id][1]')
+      .getAttribute('data-id')
+    expect(nestedCodeBlockId).toBeTruthy()
+    const nestedLanguageOverlay = page.locator(
+      `.editor__code-block-language-overlay[data-code-block-id="${nestedCodeBlockId}"]`,
+    )
+    await expect(nestedLanguageOverlay.locator('[data-slot="select-trigger"]')).toBeVisible()
 
     const parentItem = outlineRoot.locator('[data-content-type="bulletListItem"]').first()
     await parentItem.hover()
     await page.getByRole('button', { name: 'Collapse item' }).click()
     await expect(nestedCode).toBeHidden()
+    await expect(nestedLanguageOverlay).toHaveCount(0)
 
     const collapsedMarker = await parentItem.evaluate((item) => ({
       background: getComputedStyle(item, '::before').backgroundImage,
@@ -257,22 +281,28 @@ _display: outline
     })
     await page.mouse.click(markerClickPoint.x, markerClickPoint.y)
     await expect(nestedCode).toBeVisible()
+    await expect(nestedLanguageOverlay.locator('[data-slot="select-trigger"]')).toBeVisible()
 
     const geometry = await outlineRoot.evaluate((root) => {
       const editor = root.querySelector<HTMLElement>('.bn-editor')
       const parent = root.querySelector<HTMLElement>('[data-content-type="bulletListItem"]')
       const group = root.querySelector<HTMLElement>('.bn-block-group .bn-block-group')
       const code = group?.querySelector<HTMLElement>('[data-content-type="codeBlock"]')
+      const topCode = root.querySelector<HTMLElement>(
+        '.bn-editor > .bn-block-group > .bn-block-outer > .bn-block > [data-content-type="codeBlock"]',
+      )
       const titleBlock = root.querySelector<HTMLElement>('.bn-block-outer:has(h1)')
-      if (!editor || !parent || !group || !code || !titleBlock) throw new Error('Missing outline geometry target')
+      if (!editor || !parent || !group || !code || !topCode || !titleBlock) throw new Error('Missing outline geometry target')
 
       const parentStyle = getComputedStyle(parent)
       const parentMarkerStyle = getComputedStyle(parent, '::before')
       const groupRailStyle = getComputedStyle(group, '::before')
       const codeMarkerStyle = getComputedStyle(code, '::before')
+      const topCodeMarkerStyle = getComputedStyle(topCode, '::before')
       const parentRect = parent.getBoundingClientRect()
       const groupRect = group.getBoundingClientRect()
       const codeRect = code.getBoundingClientRect()
+      const topCodeRect = topCode.getBoundingClientRect()
 
       const parentBulletCenter = parentRect.left
         + Number.parseFloat(parentStyle.paddingLeft)
@@ -281,6 +311,9 @@ _display: outline
       const childBulletCenter = codeRect.left
         + Number.parseFloat(codeMarkerStyle.left)
         + Number.parseFloat(codeMarkerStyle.width) / 2
+      const topCodeBulletCenter = topCodeRect.left
+        + Number.parseFloat(topCodeMarkerStyle.left)
+        + Number.parseFloat(topCodeMarkerStyle.width) / 2
 
       return {
         childBulletBackground: codeMarkerStyle.backgroundImage,
@@ -291,6 +324,7 @@ _display: outline
         parentBulletBackground: parentMarkerStyle.backgroundImage,
         parentBulletCenter,
         titleUnderlineWidth: Number.parseFloat(getComputedStyle(titleBlock).borderBottomWidth),
+        topCodeBulletCenter,
       }
     })
 
@@ -301,6 +335,7 @@ _display: outline
     expect(geometry.childBulletBackground).toBe(geometry.parentBulletBackground)
     expect(geometry.childBulletCenter).toBeGreaterThan(geometry.parentBulletCenter)
     expect(geometry.codeLeft).toBeGreaterThan(geometry.childBulletCenter)
+    expect(Math.abs(geometry.topCodeBulletCenter - geometry.parentBulletCenter)).toBeLessThan(1)
 
     await page.getByRole('button', { name: 'Switch to normal note width' }).click()
     const normalRoot = page.locator('.editor-content-width--normal')
