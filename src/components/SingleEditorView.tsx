@@ -30,6 +30,7 @@ import { buildTypeEntryMap } from '../utils/typeColors'
 import { searchEmojis, type EmojiEntry } from '../utils/emoji'
 import { preFilterWikilinks, deduplicateByPath, MIN_QUERY_LENGTH } from '../utils/wikilinkSuggestions'
 import { resolveEntry } from '../utils/wikilink'
+import { workspacePathForEntry } from '../utils/workspaces'
 import {
   attachClickHandlers,
   enrichSuggestionItems,
@@ -755,48 +756,63 @@ function useEditorWhitespaceMouseSelection(options: {
   )
 }
 
-function useEditorContainerClickHandler(options: {
+type EditorContainerClickOptions = {
   editable: boolean
   editor: ReturnType<typeof useCreateBlockNote>
+  event: React.MouseEvent<HTMLDivElement>
   suppressNextContainerClickRef: React.MutableRefObject<boolean>
   vaultPath?: string
-}) {
+}
+
+function focusEditorAtDocumentEnd(editor: ReturnType<typeof useCreateBlockNote>) {
+  const blocks = editor.document
+  const targetBlock = findNearestTextCursorBlock(blocks, blocks.length - 1)
+  if (targetBlock) {
+    try {
+      editor.setTextCursorPosition(targetBlock.id, 'end')
+    } catch {
+      // Ignore transient BlockNote selection errors and at least restore focus.
+    }
+  }
+  editor.focus()
+}
+
+function handleEditorContainerClick(options: EditorContainerClickOptions) {
+  const { editable, editor, event, suppressNextContainerClickRef, vaultPath } = options
+  if (!editable) return
+  if (suppressNextContainerClickRef.current) {
+    suppressNextContainerClickRef.current = false
+    return
+  }
+  if (handleEditorFileBlockClick({ event, editor, vaultPath })) return
+
+  const target = eventTargetElement(event.target)
+  if (!target) return
+  if (queueTitleHeadingCursorRepair(target, editor)) return
+  if (shouldIgnoreContainerClick(target)) {
+    recoverMissingEditableSelection({
+      container: event.currentTarget,
+      editor,
+      event,
+      target,
+    })
+    return
+  }
+  focusEditorAtDocumentEnd(editor)
+}
+
+function useEditorContainerClickHandler(options: Omit<EditorContainerClickOptions, 'event'>) {
   const { editable, editor, suppressNextContainerClickRef, vaultPath } = options
 
   return useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!editable) return
-    if (suppressNextContainerClickRef.current) {
-      suppressNextContainerClickRef.current = false
-      return
-    }
-
-    if (handleEditorFileBlockClick({ event: e, editor, vaultPath })) return
-
-    const target = eventTargetElement(e.target)
-    if (!target) return
-    if (queueTitleHeadingCursorRepair(target, editor)) return
-    if (shouldIgnoreContainerClick(target)) {
-      recoverMissingEditableSelection({
-        container: e.currentTarget,
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      handleEditorContainerClick({
+        editable,
         editor,
-        event: e,
-        target,
+        event,
+        suppressNextContainerClickRef,
+        vaultPath,
       })
-      return
-    }
-    const blocks = editor.document
-    if (blocks.length > 0) {
-      const targetBlock = findNearestTextCursorBlock(blocks, blocks.length - 1)
-      if (targetBlock) {
-        try {
-          editor.setTextCursorPosition(targetBlock.id, 'end')
-        } catch {
-          // Ignore transient BlockNote selection errors and at least restore focus.
-        }
-      }
-    }
-    editor.focus()
     },
     [editor, editable, suppressNextContainerClickRef, vaultPath],
   )
@@ -989,6 +1005,17 @@ function unresolvedWikilinkCreationItem(
   }
 }
 
+function candidateWikilinkSuggestions(
+  baseItems: ReturnType<typeof buildBaseSuggestionItems>,
+  normalizedQuery: string,
+  triggerCharacter: WikilinkAutocompleteTrigger,
+) {
+  if (normalizedQuery.length >= MIN_QUERY_LENGTH) {
+    return preFilterWikilinks(baseItems, normalizedQuery)
+  }
+  return triggerCharacter === '[[' ? baseItems : null
+}
+
 function useSuggestionMenuItems(options: {
   baseItems: ReturnType<typeof buildBaseSuggestionItems>
   editor: ReturnType<typeof useCreateBlockNote>
@@ -1006,32 +1033,32 @@ function useSuggestionMenuItems(options: {
 
   const buildItems = useCallback(
     (query: string, triggerCharacter: WikilinkAutocompleteTrigger) => {
-    const normalizedQuery = normalizeSuggestionQuery(query, triggerCharacter)
-    if (normalizedQuery.length < MIN_QUERY_LENGTH) return null
+      const normalizedQuery = normalizeSuggestionQuery(query, triggerCharacter)
+      const candidates = candidateWikilinkSuggestions(baseItems, normalizedQuery, triggerCharacter)
+      if (!candidates) return null
+      const items = attachClickHandlers(
+        candidates,
+        (target) => insertWikilink(target, triggerCharacter),
+        vaultPath ?? '',
+        sourceEntry,
+      )
+      const matchedItems = guardSuggestionMenuItems(
+        enrichSuggestionItems(items, normalizedQuery, typeEntryMap, {
+          showWorkspace: hasMultipleSuggestionWorkspaces(baseItems),
+        }),
+        runEditorAction,
+      )
+      if (!normalizedQuery || !sourceEntry || triggerCharacter !== '[['
+        || resolveEntry(entries, normalizedQuery, sourceEntry)) return matchedItems
 
-    const candidates = preFilterWikilinks(baseItems, normalizedQuery)
-    const items = attachClickHandlers(
-      candidates,
-      (target) => insertWikilink(target, triggerCharacter),
-      vaultPath ?? '',
-      sourceEntry,
-    )
-    const matchedItems = guardSuggestionMenuItems(
-      enrichSuggestionItems(items, normalizedQuery, typeEntryMap, {
-        showWorkspace: hasMultipleSuggestionWorkspaces(baseItems),
-      }),
-      runEditorAction,
-    )
-    if (!sourceEntry || triggerCharacter !== '[[' || resolveEntry(entries, normalizedQuery, sourceEntry)) return matchedItems
-
-    return [...matchedItems.slice(0, WIKILINK_AUTOCOMPLETE_RESULT_LIMIT - 1), unresolvedWikilinkCreationItem(
-      normalizedQuery,
-      t('editor.wikilink.createNote', { title: normalizedQuery }),
-      () => {
-        insertWikilink(normalizedQuery, triggerCharacter)
-        onNavigateWikilink(normalizedQuery)
-      },
-    )]
+      return [...matchedItems.slice(0, WIKILINK_AUTOCOMPLETE_RESULT_LIMIT - 1), unresolvedWikilinkCreationItem(
+        normalizedQuery,
+        t('editor.wikilink.createNote', { title: normalizedQuery }),
+        () => {
+          insertWikilink(normalizedQuery, triggerCharacter)
+          onNavigateWikilink(normalizedQuery)
+        },
+      )]
     },
     [baseItems, entries, insertWikilink, onNavigateWikilink, runEditorAction, sourceEntry, t, typeEntryMap, vaultPath],
   )
@@ -1281,7 +1308,13 @@ export function SingleEditorView(options: {
     handleMouseMove: handleCodeBlockCopyMouseMove,
   } = useCodeBlockCopyTarget(containerRef)
   useBlockNoteSideMenuHoverGuard(containerRef)
-  useEditorLinkActivation(containerRef, onNavigateWikilink, vaultPath, sourceEntry?.path)
+  useEditorLinkActivation(
+    containerRef,
+    onNavigateWikilink,
+    vaultPath,
+    sourceEntry?.path,
+    (sourceEntry ? workspacePathForEntry(sourceEntry) : null) ?? vaultPath,
+  )
 
   useEffect(() => {
     _wikilinkEntriesRef.current = entries
