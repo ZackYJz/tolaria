@@ -45,6 +45,47 @@ async function probeSlashMenuScroll(menu: Locator) {
   })
 }
 
+async function openConstrainedSlashMenu(page: Page) {
+  await page.setViewportSize({ width: 900, height: 600 })
+  await openAlphaProject(page)
+
+  const firstBlock = page.locator('.bn-block-content').first()
+  await firstBlock.click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('/')
+
+  const menu = page.locator('.bn-suggestion-menu')
+  await expect(menu).toBeVisible({ timeout: 5_000 })
+  await page.waitForTimeout(200)
+  return menu
+}
+
+async function readConstrainedMenuState(menu: Locator) {
+  return menu.evaluate((node) => {
+    const menuElement = node as HTMLElement
+    const menuRect = menuElement.getBoundingClientRect()
+    const decoration = document.querySelector<HTMLElement>('[data-decoration-id]')
+    const editorScrollArea = decoration?.closest<HTMLElement>('.editor-scroll-area')
+    if (!decoration || !editorScrollArea) {
+      throw new Error('Missing slash menu anchor or editor scroll area')
+    }
+
+    return {
+      anchorTop: decoration.getBoundingClientRect().top,
+      editorClientHeight: editorScrollArea.clientHeight,
+      editorScrollHeight: editorScrollArea.scrollHeight,
+      editorScrollTop: editorScrollArea.scrollTop,
+      menuClientHeight: menuElement.clientHeight,
+      menuHeight: menuRect.height,
+      menuMaxScrollTop: menuElement.scrollHeight - menuElement.clientHeight,
+      menuScrollTop: menuElement.scrollTop,
+      menuTop: menuRect.top,
+      overscrollBehaviorY: getComputedStyle(menuElement).overscrollBehaviorY,
+    }
+  })
+}
+
 async function readMenuStyles(menu: Locator) {
   return menu.evaluate((node) => {
     const style = getComputedStyle(node)
@@ -174,5 +215,33 @@ test.describe('BlockNote slash menu styling', () => {
     expect(probe.maxScrollTop).toBeGreaterThan(0)
     expect(probe.scrollTop).toBeGreaterThan(0)
     expect(probe.decorationRectReads).toBe(0)
+  })
+
+  test('contains wheel scrolling when the viewport constrains the slash menu', async ({ page }) => {
+    const menu = await openConstrainedSlashMenu(page)
+    const menuBox = await menu.boundingBox()
+    if (!menuBox) throw new Error('Slash menu has no bounding box')
+
+    const before = await readConstrainedMenuState(menu)
+    expect(before.editorScrollHeight).toBeGreaterThan(before.editorClientHeight)
+    expect(before.menuMaxScrollTop).toBeGreaterThan(500)
+
+    await page.mouse.move(
+      menuBox.x + menuBox.width / 2,
+      menuBox.y + menuBox.height / 2,
+    )
+    for (let index = 0; index < 10; index += 1) {
+      await page.mouse.wheel(0, 160)
+      await page.waitForTimeout(40)
+    }
+
+    const after = await readConstrainedMenuState(menu)
+    expect(after.menuScrollTop).toBe(after.menuMaxScrollTop)
+    expect(after.menuScrollTop).toBeGreaterThan(0)
+    expect(after.overscrollBehaviorY).toBe('contain')
+    expect(after.editorScrollTop).toBe(before.editorScrollTop)
+    expect(after.anchorTop).toBe(before.anchorTop)
+    expect(after.menuTop).toBe(before.menuTop)
+    expect(after.menuHeight).toBe(before.menuHeight)
   })
 })

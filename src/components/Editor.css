@@ -150,6 +150,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   border: 1px solid var(--border-dialog) !important;
   background: var(--surface-popover) !important;
   box-shadow: 0 8px 32px var(--shadow-dialog) !important;
+  overscroll-behavior-y: contain;
 }
 
 .editor__blocknote-container .bn-suggestion-menu-label {
@@ -244,6 +245,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   flex-direction: column;
   gap: 0.125rem;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 0.25rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
