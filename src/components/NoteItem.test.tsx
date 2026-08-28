@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import { ListBullets } from '@phosphor-icons/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NoteItem } from './NoteItem'
 import { makeEntry } from '../test-utils/noteListTestUtils'
@@ -172,6 +173,16 @@ describe('NoteItem', () => {
     )
 
     expect(screen.getByTestId('type-icon')).toHaveStyle({ color: 'rgb(0, 255, 255)' })
+  })
+
+  it('uses an outline list icon for outline notes', () => {
+    const outlineEntry = makeEntry({ display: 'outline' })
+
+    render(<NoteItem entry={outlineEntry} isSelected={false} typeEntryMap={{}} onClickNote={vi.fn()} />)
+
+    const outlineIcon = screen.getByTestId('type-icon')
+    const expectedIcon = render(<ListBullets />).container.querySelector('svg')
+    expect(outlineIcon.innerHTML).toBe(expectedIcon?.innerHTML)
   })
 
   it('shows the title with filename metadata when a change status is present', () => {

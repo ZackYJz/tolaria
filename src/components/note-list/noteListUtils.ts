@@ -16,6 +16,7 @@ const FILTER_TITLE_KEYS = {
   archived: 'noteList.title.archive',
   changes: 'noteList.title.changes',
   inbox: 'noteList.title.inbox',
+  journals: 'noteList.title.journals',
   pulse: 'noteList.title.history',
 } as const
 

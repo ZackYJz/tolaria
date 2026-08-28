@@ -12,6 +12,7 @@ test('clicking + in type section creates note with that type', async ({ page }) 
 
   // Click the "+" button to create a new note
   await page.click('[title="Create new note"]')
+  await page.getByRole('menuitem', { name: 'Document' }).click()
   await expect(page.locator('.bn-editor')).toBeVisible({ timeout: 5000 })
 
   // The new note should use a type-specific untitled filename.
@@ -37,6 +38,7 @@ test('clicking + in All Notes creates generic note', async ({ page }) => {
 
   // Click the "+" button
   await page.click('[title="Create new note"]')
+  await page.getByRole('menuitem', { name: 'Document' }).click()
   await expect(page.locator('.bn-editor')).toBeVisible({ timeout: 5000 })
 
   // The new note should be a generic untitled note, not a typed one.

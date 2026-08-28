@@ -982,6 +982,22 @@ describe('Sidebar', () => {
     expect(items[1].textContent).toContain('All Notes')
   })
 
+  it('opens today from the Journals navigation item', () => {
+    const onOpenJournals = vi.fn()
+    render(
+      <Sidebar
+        entries={[]}
+        selection={defaultSelection}
+        onSelect={() => {}}
+        onOpenJournals={onOpenJournals}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Journals'))
+
+    expect(onOpenJournals).toHaveBeenCalledOnce()
+  })
+
   it('displays inbox count badge', () => {
     render(<Sidebar entries={[]} selection={defaultSelection} onSelect={() => {}} inboxCount={12} />)
     expect(screen.getByText('12')).toBeInTheDocument()
@@ -1079,8 +1095,8 @@ describe('Sidebar', () => {
     render(<Sidebar entries={entries} selection={defaultSelection} onSelect={() => {}} />)
 
     const topNav = screen.getByTestId('sidebar-top-nav')
-    expect(topNav.children[1].textContent).toContain('All Notes1')
-    expect(topNav.children[2].textContent).toContain('Archive1')
+    expect(topNav.textContent).toContain('All Notes1')
+    expect(topNav.textContent).toContain('Archive1')
   })
 
   it('does not show inline entries — no child items in type sections', () => {

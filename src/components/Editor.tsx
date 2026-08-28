@@ -46,10 +46,12 @@ import { createRichEditorCodeBlockShortcutExtension } from './richEditorCodeBloc
 import { createRichEditorCodeBlockArrowNavigationExtension } from './richEditorCodeBlockArrowNavigationExtension'
 import { createRichEditorEmptyListNavigationExtension } from './richEditorEmptyListNavigationExtension'
 import { createRichEditorListTabExtension } from './richEditorListTabExtension'
+import { createOutlineEditorModeExtension } from './outlineEditorMode'
 import { useFilenameAutolinkGuard } from './useFilenameAutolinkGuard'
 import { useEditorPdfExport } from './useEditorPdfExport'
 import type { NotePdfExportSource } from '../utils/notePdfExport'
 import type { RichEditorBlockTypeDefinition } from '../utils/richEditorBlockTypes'
+import type { JournalOpenSource } from '../utils/journals'
 import { useRichEditorContentReadiness, useRichEditorSheetSwapState } from './useRichEditorSheetTransition'
 import { installRichEditorMarkdownSerializer } from '../utils/richEditorMarkdown'
 import { installRichEditorDispatchPerformanceProbe } from './richEditorDispatchPerformance'
@@ -75,6 +77,7 @@ export interface EditorProps {
   isVaultLoading?: boolean
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
+  onOpenJournalDate?: (date: Date, source: JournalOpenSource) => void
   onUnsupportedAiPaste?: (message: string) => void
   onLoadDiff?: (path: string) => Promise<string>
   onLoadDiffAtCommit?: (path: string, commitHash: string) => Promise<string>
@@ -333,6 +336,7 @@ function useEditorSetup(options: EditorSetupParams) {
       createRichEditorTransformErrorRecoveryExtension(),
       createImeCompositionKeyGuardExtension(),
       createRichEditorCodeBlockArrowNavigationExtension(),
+      createOutlineEditorModeExtension(),
       createRichEditorEmptyListNavigationExtension(),
       createRichEditorCodeBlockTabExtension(),
       createRichEditorListTabExtension(),
@@ -523,6 +527,7 @@ function useEditorSetup(options: EditorSetupParams) {
       inspectorCollapsed: boolean
       onToggleInspector: () => void
       onNavigateWikilink: (target: string) => void
+      onOpenJournalDate?: (date: Date, source: JournalOpenSource) => void
       handleEditorChange: () => void
       onToggleFavorite?: (path: string) => void
       onToggleOrganized?: (path: string) => void
@@ -607,6 +612,7 @@ function useEditorSetup(options: EditorSetupParams) {
       inspectorCollapsed,
       onToggleInspector,
       onNavigateWikilink,
+      onOpenJournalDate,
       handleEditorChange,
       onToggleFavorite,
       onToggleOrganized,
@@ -703,6 +709,7 @@ function useEditorSetup(options: EditorSetupParams) {
               inspectorCollapsed={inspectorCollapsed}
               onToggleInspector={onToggleInspector}
               onNavigateWikilink={onNavigateWikilink}
+              onOpenJournalDate={onOpenJournalDate}
               onEditorChange={handleEditorChange}
               onToggleFavorite={onToggleFavorite}
               onToggleOrganized={onToggleOrganized}

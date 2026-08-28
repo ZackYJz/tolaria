@@ -34,6 +34,7 @@ import { useNoteListKeyboard } from '../../hooks/useNoteListKeyboard'
 import { prefetchNoteContent } from '../../hooks/useTabManagement'
 import type { NoteListPropertiesScope } from './noteListPropertiesEvents'
 import type { AllNotesFileVisibility } from '../../utils/allNotesFileVisibility'
+import { sortJournalsNewestFirst } from '../../utils/journals'
 import { viewMatchesSelection } from '../../utils/viewIdentity'
 import { collectionFromSelection } from '../../collections/collectionFromSelection'
 import { resolveCollectionEntries } from '../../collections/resolveCollectionEntries'
@@ -153,9 +154,11 @@ export function useNoteListData(options: NoteListDataParams) {
   })
 
   const searched = useMemo(() => {
-    const sorted = [...filteredEntries].sort(getSortComparator(listSort, listDirection))
+    const sorted = selection.kind === 'filter' && selection.filter === 'journals'
+      ? sortJournalsNewestFirst(filteredEntries)
+      : [...filteredEntries].sort(getSortComparator(listSort, listDirection))
     return filterByQuery(sorted, query)
-  }, [filteredEntries, listSort, listDirection, query])
+  }, [filteredEntries, listSort, listDirection, query, selection])
 
   const searchedGroups = useMemo(() => {
     if (!entityEntry) return []
@@ -1013,10 +1016,14 @@ function createNoteRequestForSelection(selection: SidebarSelection): {
 function createNoteForSelection(
   onCreateNote: (type?: string, options?: ImmediateCreateOptions) => void,
   selection: SidebarSelection,
+  options?: ImmediateCreateOptions,
 ): void {
   const request = createNoteRequestForSelection(selection)
-  if (request.options) {
-    onCreateNote(request.type, request.options)
+  const mergedOptions = request.options || options
+    ? { ...options, ...request.options }
+    : undefined
+  if (mergedOptions) {
+    onCreateNote(request.type, mergedOptions)
     return
   }
   onCreateNote(request.type)
@@ -1234,8 +1241,8 @@ export function useNoteListInteractions(options: UseNoteListInteractionsParams) 
     handleKeyDown: noteListKeyboard.handleKeyDown,
   })
 
-  const handleCreateNote = useCallback(() => {
-    createNoteForSelection(onCreateNote, selection)
+  const handleCreateNote = useCallback((options?: ImmediateCreateOptions) => {
+    createNoteForSelection(onCreateNote, selection, options)
   }, [onCreateNote, selection])
 
   const toggleGroup = useCallback((label: string) => {

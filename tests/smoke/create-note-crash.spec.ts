@@ -31,6 +31,7 @@ test('create note via sidebar + button does not crash', async ({ page }) => {
   await page.waitForTimeout(500)
 
   await page.locator('button[title="Create new note"]').first().click()
+  await page.getByRole('menuitem', { name: 'Document' }).click()
   await page.waitForTimeout(2000)
 
   expect(errors).toHaveLength(0)

@@ -26,6 +26,7 @@ const STATIC_LABEL_KEYS: Partial<Record<string, TranslationKey>> = {
   'filter-archived': 'command.navigation.showArchivedNotes',
   'create-note': 'command.note.newNote',
   'create-sheet': 'command.note.newSheet',
+  'create-outline': 'command.note.newOutline',
   'create-note-current-folder': 'command.note.newNoteInCurrentFolder',
   'create-type': 'command.note.newType',
   'save-note': 'command.note.saveNote',

@@ -7,6 +7,7 @@ import {
   generateUntitledName,
   planNewNoteCreation,
   resolveNewNote,
+  resolveNewJournal,
   resolveNewType,
   resolveTemplate,
   resolveTypeInstanceDefaults,
@@ -252,6 +253,26 @@ describe('resolveNewNote', () => {
     })
 
     expect(plan.status).toBe('blocked')
+  })
+})
+
+describe('resolveNewJournal', () => {
+  it('creates a dated outline note in the journals folder', () => {
+    const { entry, content } = resolveNewJournal({
+      date: new Date(2026, 7, 28),
+      vaultPath: '/vault',
+    })
+
+    expect(entry).toMatchObject({
+      path: '/vault/journals/2026-08-28.md',
+      filename: '2026-08-28.md',
+      title: '2026-08-28',
+      isA: 'Journal',
+      display: 'outline',
+      noteWidth: 'wide',
+      hasH1: true,
+    })
+    expect(content).toBe('---\ntitle: 2026-08-28\ntype: Journal\n_display: outline\n_width: wide\n---\n\n# 2026-08-28\n\n- \n')
   })
 })
 

@@ -66,6 +66,7 @@ test.describe('Type-derived instance properties', () => {
 
     await page.locator('aside').getByText('Books', { exact: true }).first().click()
     await page.locator('[title="Create new note"]').first().click()
+    await page.getByRole('menuitem', { name: 'Document' }).click()
     await expect(page.getByTestId('breadcrumb-filename-trigger')).toContainText(/untitled-book-\d+/i, { timeout: 5_000 })
 
     await openCommandPalette(page)

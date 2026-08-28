@@ -809,6 +809,24 @@ describe('useCommandRegistry', () => {
     })
   })
 
+  it('exposes an outline create command using note display metadata', () => {
+    const onCreateNote = vi.fn()
+    const { result } = renderHook(() => useCommandRegistry(makeConfig({ onCreateNote })))
+
+    const command = findCommand(result.current, 'create-outline')
+    expect(command).toMatchObject({
+      label: 'New Outline',
+      group: 'Note',
+      enabled: true,
+    })
+
+    command!.execute()
+    expect(onCreateNote).toHaveBeenCalledWith(undefined, {
+      creationPath: 'cmd_outline',
+      format: 'outline',
+    })
+  })
+
   it('disables the current-folder create command outside folder selections', () => {
     const { result } = renderHook(() => useCommandRegistry(makeConfig({
       selection: { kind: 'filter', filter: 'all' },

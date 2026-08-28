@@ -227,6 +227,14 @@ Standalone `.html` and `.htm` vault entries load as ordinary text tabs, but defa
 
 Rendered note PDF export is not a stored file-kind transformation. `src/utils/notePdfExport.ts` temporarily marks the current webview for print-only rendering, asks for a `.pdf` filesystem destination only when the native capability reports direct save support, and invokes Tauri's native `WKWebView` PDF export command on macOS. Windows/Linux Tauri builds and browser mode keep print-dialog fallback behavior. `src/components/useEditorPdfExport.ts` ensures the rendered Markdown or standalone HTML view is active before export. Markdown frontmatter is ignored, standalone HTML exports the sanitized preview root, and neither source file is modified.
 
+### Outline Notes and Journals
+
+A Markdown note with `_display: outline` uses the ordinary BlockNote document model with an outline-specific presentation. `src/utils/noteFormat.ts` is the renderer source of truth for display-mode normalization, while Rust frontmatter parsing exposes the same `outline` value on `VaultEntry.display`. Outline mode deliberately reuses the rich-editor Markdown boundary, nested-list keyboard commands, collapsed-list behavior, and code-block schema. A fenced code block nested beneath a list item is therefore a child block in the editor and nested fenced Markdown on disk; it does not pass through a separate outline serializer.
+
+`src/utils/journals.ts` owns the date-to-note identity contract. A journal is a Markdown note with `type: Journal`, `_display: outline`, and the deterministic local-date path `journals/YYYY-MM-DD.md`. Journal lookup, sorting, previous/next-day arithmetic, and active-journal classification stay in that module so sidebar, creation, and editor navigation do not reimplement date rules. `useNoteCreation` owns create-if-missing behavior, while `App.tsx` coordinates selection of the Journals collection and opening the resolved entry. `JournalDateNavigator` is presentation-only and receives a date-opening callback.
+
+Journal telemetry contains only `source` and `created` metadata. It must not include the journal date, path, title, or body content. See [ADR-0180](adr/0180-outline-display-and-date-addressed-journals.md).
+
 ### Sheet Nodes
 
 A Markdown note with `_display: sheet` displays in the dedicated sheet editor instead of BlockNote. `type` remains semantic metadata, so a sheet can still be a `Project`, `Responsibility`, or any other Tolaria type. The note remains a plain-text file: frontmatter stores ordinary Tolaria properties plus `_sheet` presentation metadata, while the body stores CSV-like rows containing cell inputs and formulas.

@@ -7,6 +7,7 @@ import { useEditorTheme } from '../../hooks/useTheme'
 import { deriveEditorContentState } from './editorContentState'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
 import type { ImageImportError } from '../../hooks/useImageDrop'
+import type { JournalOpenSource } from '../../utils/journals'
 
 export interface Tab {
   entry: VaultEntry
@@ -38,6 +39,7 @@ export interface EditorContentProps {
   inspectorCollapsed: boolean
   onToggleInspector: () => void
   onNavigateWikilink: (target: string) => void
+  onOpenJournalDate?: (date: Date, source: JournalOpenSource) => void
   onEditorChange?: () => void
   onToggleFavorite?: (path: string) => void
   onToggleOrganized?: (path: string) => void
@@ -80,6 +82,7 @@ export function useEditorContentModel(props: EditorContentProps) {
     isDeletedPreview,
     isHtmlPreview,
     isSheet,
+    isOutline,
     isNonMarkdownText,
     effectiveRawMode,
     showEditor: showContentEditor,
@@ -106,6 +109,7 @@ export function useEditorContentModel(props: EditorContentProps) {
     isDeletedPreview,
     isHtmlPreview,
     isSheet,
+    isOutline,
     effectiveRawMode,
     forceRawMode: isNonMarkdownText || isDeletedPreview,
     showEditor,

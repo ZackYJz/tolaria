@@ -161,6 +161,16 @@ describe('EditorContentLayout', () => {
     expect(screen.getByTestId('breadcrumb-bar')).toHaveAttribute('data-note-width', 'wide')
   })
 
+  it('lets outline notes use the selected normal note width', () => {
+    const { container } = render(
+      <EditorContentLayout {...createModel({ isOutline: true, noteWidth: 'normal' })} />,
+    )
+
+    expect(container.firstElementChild).toHaveClass('editor-content-width--normal')
+    expect(container.firstElementChild).not.toHaveClass('editor-content-width--wide')
+    expect(screen.getByTestId('breadcrumb-bar')).toHaveAttribute('data-note-width', 'normal')
+  })
+
   it('passes the active note content into the breadcrumb', () => {
     render(<EditorContentLayout {...createModel({
       activeTab: {

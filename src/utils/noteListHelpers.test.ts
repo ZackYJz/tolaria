@@ -30,6 +30,17 @@ const workWorkspace: WorkspaceIdentity = {
 }
 
 describe('filterEntries', () => {
+  it('filters the Journals collection to active Journal notes', () => {
+    const entries = [
+      makeEntry({ path: '/journals/2026-08-28.md', title: '2026-08-28', isA: 'Journal' }),
+      makeEntry({ path: '/journals/2026-08-27.md', title: '2026-08-27', isA: 'Journal', archived: true }),
+      makeEntry({ path: '/note.md', title: 'Regular', isA: 'Note' }),
+    ]
+
+    expect(filterEntries(entries, { kind: 'filter', filter: 'journals' }).map((entry) => entry.title))
+      .toEqual(['2026-08-28'])
+  })
+
   it('returns empty for entity selections because entity view uses grouped relationships', () => {
     const result = filterEntries(mockEntries, { kind: 'entity', entry: mockEntries[4] })
     expect(result).toHaveLength(0)

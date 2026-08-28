@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CircleNotch as Loader2, MagnifyingGlass, Plus, SidebarSimple, X } from '@phosphor-icons/react'
+import { CircleNotch as Loader2, FileText, ListBullets, MagnifyingGlass, Plus, SidebarSimple, Table, X } from '@phosphor-icons/react'
 import type { VaultEntry } from '../../types'
 import type { SortOption, SortDirection } from '../../utils/noteListHelpers'
 import { translate, type AppLocale, type TranslationKey } from '../../lib/i18n'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { APP_COMMAND_EVENT_NAME, APP_COMMAND_IDS } from '../../hooks/appCommandDispatcher'
 import { trackEvent } from '../../lib/telemetry'
@@ -13,6 +19,7 @@ import { ListPropertiesPopover, type ListPropertiesPopoverProps } from './ListPr
 import { GitRepositorySelect } from '../GitRepositorySelect'
 import type { GitRepositoryOption } from '../../utils/gitRepositories'
 import { isMac, MACOS_TRAFFIC_LIGHT_SAFE_PADDING } from '../../utils/platform'
+import type { ImmediateCreateOptions } from '../../hooks/useNoteCreation'
 
 const NOTE_LIST_ACTION_BUTTON_CLASSNAME = '!h-auto !w-auto !min-w-0 !rounded-none !p-0 !text-muted-foreground hover:!bg-transparent hover:!text-foreground focus-visible:!bg-transparent data-[state=open]:!bg-transparent data-[state=open]:!text-foreground [&_svg]:!size-4'
 const NOTE_LIST_EXPAND_BUTTON_CLASSNAME = '!h-6 !w-6 !min-w-0 !rounded !p-0 !text-muted-foreground hover:!bg-accent hover:!text-foreground focus-visible:!bg-accent [&_svg]:!size-4'
@@ -53,7 +60,7 @@ interface NoteListHeaderProps {
   selectedGitRepositoryPath?: string
   locale?: AppLocale
   onSortChange: (groupLabel: string, option: SortOption, direction: SortDirection) => void
-  onCreateNote: () => void
+  onCreateNote: (options?: ImmediateCreateOptions) => void
   onOpenType: (entry: VaultEntry) => void
   onToggleSearch: () => void
   onSearchChange: (value: string) => void
@@ -201,9 +208,27 @@ function HeaderActions(options: Pick<
           locale={locale}
         />
       )}
-      <Button type="button" variant="ghost" size="icon-xs" className={NOTE_LIST_ACTION_BUTTON_CLASSNAME} onClick={onCreateNote} title={translate(locale, 'noteList.createNote')} aria-label={translate(locale, 'noteList.createNote')}>
-        <Plus size={16} />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-xs" className={NOTE_LIST_ACTION_BUTTON_CLASSNAME} title={translate(locale, 'noteList.createNote')} aria-label={translate(locale, 'noteList.createNote')}>
+            <Plus size={16} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => onCreateNote({ creationPath: 'note_list_plus' })}>
+            <FileText aria-hidden="true" />
+            {translate(locale, 'noteList.createDocument')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onCreateNote({ creationPath: 'note_list_plus', format: 'outline' })}>
+            <ListBullets aria-hidden="true" />
+            {translate(locale, 'noteList.createOutline')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onCreateNote({ creationPath: 'note_list_plus', format: 'sheet' })}>
+            <Table aria-hidden="true" />
+            {translate(locale, 'noteList.createSheet')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

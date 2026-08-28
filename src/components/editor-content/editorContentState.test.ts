@@ -129,6 +129,17 @@ describe('deriveEditorContentState', () => {
     if (expectedIsSheet) expect(state.effectiveRawMode).toBe(false)
   })
 
+  it('marks outline-display notes for the rich editor outline presentation', () => {
+    const state = deriveStateForContent(
+      { display: 'text', fileKind: 'markdown' },
+      '---\ntype: Note\n_display: outline\n---\n- Parent\n  - Child',
+    )
+
+    expect(state.isOutline).toBe(true)
+    expect(state.isSheet).toBe(false)
+    expect(state.showEditor).toBe(true)
+  })
+
   it('does not use fresh entry type metadata as sheet editor content', () => {
     const activeEntry = {
       ...baseEntry,

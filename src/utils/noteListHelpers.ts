@@ -18,6 +18,7 @@ import { evaluateView } from './viewFilters'
 import { viewMatchesSelection } from './viewIdentity'
 import { wikilinkTarget, resolveEntry } from './wikilink'
 import { buildTypeVisibilityLookup, isSectionEntryVisibleForType } from './typeVisibility'
+import { JOURNAL_TYPE } from './journals'
 
 export type NoteListFilter = 'open' | 'archived'
 
@@ -550,6 +551,7 @@ function filterByFilterType(entries: VaultEntry[], filter: string): VaultEntry[]
   if (filter === 'all') return entries.filter(isActive)
   if (filter === 'archived') return entries.filter((e) => e.archived)
   if (filter === 'favorites') return entries.filter((e) => e.favorite && !e.archived)
+  if (filter === 'journals') return entries.filter((e) => e.isA === 'Journal' && !e.archived)
   if (filter === 'pulse') return []
   return []
 }
@@ -604,7 +606,7 @@ export function countAllNotesByFilter(
 export function isInboxEntry(entry: VaultEntry): boolean {
   if (!isMarkdown(entry)) return false
   if (entry.archived) return false
-  if (entry.isA === 'Type') return false
+  if (entry.isA === 'Type' || entry.isA === JOURNAL_TYPE) return false
   return !entry.organized
 }
 

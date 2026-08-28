@@ -19,6 +19,8 @@ import type {
 import { MOCK_CONTENT } from './mock-content'
 import { MOCK_ENTRIES } from './mock-entries'
 
+declare const __DEMO_VAULT_PATH__: string | undefined
+
 function syncWindowContent(): void {
   if (typeof window !== 'undefined') {
     window.__mockContent = MOCK_CONTENT
@@ -154,7 +156,9 @@ let mockSettings: Settings = {
   multi_workspace_enabled: null,
 }
 
-const DEFAULT_MOCK_VAULT_PATH = '/Users/mock/demo-vault-v2'
+const DEFAULT_MOCK_VAULT_PATH = typeof __DEMO_VAULT_PATH__ === 'undefined'
+  ? '/Users/mock/demo-vault-v2'
+  : __DEMO_VAULT_PATH__
 const DEFAULT_MOCK_VAULT = {
   label: 'demo-vault-v2',
   path: DEFAULT_MOCK_VAULT_PATH,

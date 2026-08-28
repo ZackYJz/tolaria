@@ -30,6 +30,7 @@ async function selectSection(page: Page, label: string): Promise<void> {
 
 async function createNoteFromListHeader(page: Page): Promise<void> {
   await page.locator('button[title="Create new note"]').click()
+  await page.getByRole('menuitem', { name: 'Document' }).click()
 }
 
 function untitledRow(page: Page, typeLabel: string) {

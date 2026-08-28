@@ -17,18 +17,26 @@ import { canonicalizeTypeName } from '../utils/vaultTypes'
 import { labelFromWorkspacePath, workspaceIdentityFromVault } from '../utils/workspaces'
 import {
   NOTE_FORMAT_FRONTMATTER_KEY,
+  NOTE_FORMAT_OUTLINE,
   NOTE_FORMAT_SHEET,
   NOTE_FORMAT_TEXT,
   normalizeNoteFormat,
   type NoteFormat,
 } from '../utils/noteFormat'
 import type { VaultOption } from '../components/status-bar/types'
+import { JOURNAL_TYPE, journalDateKey, journalRelativePath } from '../utils/journals'
 import { useCreateNoteInFolderRequests } from './noteCreationRequests'
 import { requestEditorFocus } from './useEditorFocus'
 import {
   resolveWikilinkCreationRequest,
   type WikilinkCreationDestination,
 } from '../utils/wikilinkCreation'
+
+const OUTLINE_DEFAULT_NOTE_WIDTH = 'wide' as const
+
+function defaultNoteWidthForFormat(format: NoteFormat) {
+  return format === NOTE_FORMAT_OUTLINE ? OUTLINE_DEFAULT_NOTE_WIDTH : null
+}
 
 export interface NewEntryParams {
   path: string
@@ -183,6 +191,9 @@ function buildNoteBody({
   const templateBody = template ? `\n${template}` : ''
   if (format === NOTE_FORMAT_SHEET) return templateBody
   if (!initialEmptyHeading) return templateBody
+  if (format === NOTE_FORMAT_OUTLINE) {
+    return template ? `\n# \n\n- \n${template}` : '\n# \n\n- \n'
+  }
   if (template?.trimStart().startsWith('# ')) return templateBody
   if (!template) return '\n# \n\n'
   return `\n# \n\n${template}`
@@ -306,7 +317,9 @@ export function buildNoteContent({
   const lines = ['---']
   if (title) lines.push(`title: ${title}`)
   lines.push(`type: ${type}`)
-  if (format === NOTE_FORMAT_SHEET) lines.push(`${NOTE_FORMAT_FRONTMATTER_KEY}: sheet`)
+  if (format !== NOTE_FORMAT_TEXT) lines.push(`${NOTE_FORMAT_FRONTMATTER_KEY}: ${format}`)
+  const defaultNoteWidth = defaultNoteWidthForFormat(format)
+  if (defaultNoteWidth) lines.push(`_width: ${defaultNoteWidth}`)
   if (status) lines.push(`status: ${status}`)
   appendDefaultFrontmatterLines(lines, defaults)
   lines.push('---')
@@ -333,6 +346,7 @@ export function resolveNewNote(options: NewNoteParams): {
   const { destination, title, type, format, vaultPath, defaultWorkspacePath, vaults = [], template, defaults = [] } = options
   const creationVaultPath = destination?.vaultPath
     ?? resolveCreationVaultPath(vaultPath, defaultWorkspacePath, vaults)
+  const noteFormat = normalizeNoteFormat(format)
   const slug = slugify(title)
   const relativePath = destination?.relativePath ?? `${slug}.md`
   const status = null
@@ -344,6 +358,8 @@ export function resolveNewNote(options: NewNoteParams): {
       type,
       status,
     }),
+    display: noteFormat === NOTE_FORMAT_TEXT ? null : noteFormat,
+    noteWidth: defaultNoteWidthForFormat(noteFormat),
     workspace: workspaceForVaultPath(creationVaultPath, vaults, defaultWorkspacePath),
   }
   return applyTypeDefaults({
@@ -352,12 +368,46 @@ export function resolveNewNote(options: NewNoteParams): {
       title,
       type,
       status,
-      format,
+      format: noteFormat,
       template,
       defaults,
     }),
     defaults,
   })
+}
+
+export interface NewJournalParams {
+  date: Date
+  vaultPath: string
+  defaultWorkspacePath?: string | null
+  vaults?: readonly VaultOption[]
+}
+
+export function resolveNewJournal({
+  date,
+  vaultPath,
+  defaultWorkspacePath,
+  vaults = [],
+}: NewJournalParams): ResolvedEntry {
+  const creationVaultPath = resolveCreationVaultPath(vaultPath, defaultWorkspacePath, vaults)
+  const title = journalDateKey(date)
+  const resolved = resolveNewNote({
+    destination: {
+      relativePath: journalRelativePath(date),
+      vaultPath: creationVaultPath,
+    },
+    title,
+    type: JOURNAL_TYPE,
+    format: NOTE_FORMAT_OUTLINE,
+    vaultPath,
+    defaultWorkspacePath,
+    vaults,
+    template: `# ${title}\n\n- \n`,
+  })
+  return {
+    ...resolved,
+    entry: { ...resolved.entry, hasH1: true },
+  }
 }
 
 export interface NewTypeParams {
@@ -474,16 +524,17 @@ function findEquivalentTypeEntry(entries: VaultEntry[], typeName: string): Vault
 }
 
 export function planNewNoteCreation(options: NewNoteParams & { entries: VaultEntry[] }): NoteCreationPlan {
-  const { defaultWorkspacePath, destination, entries, title, type, vaultPath, vaults, template, defaults } = options
+  const { defaultWorkspacePath, destination, entries, title, type, format, vaultPath, vaults, template, defaults } = options
   const resolved = resolveNewNote({
-  destination,
-  title,
-  type,
-  vaultPath,
+    destination,
+    title,
+    type,
+    format,
+    vaultPath,
     defaultWorkspacePath,
-  vaults,
-  template,
-  defaults,
+    vaults,
+    template,
+    defaults,
   })
   const collision = findPathCollision(entries, resolved.entry.path)
   if (collision) {
@@ -790,10 +841,12 @@ interface ImmediateCreateDeps {
 
 type ImmediateCreationPath =
   | 'cmd_n'
+  | 'cmd_outline'
   | 'cmd_sheet'
   | 'folder_command_palette'
   | 'folder_context_menu'
   | 'folder_header'
+  | 'note_list_plus'
   | 'type_section'
 
 export interface ImmediateCreateOptions {
@@ -892,6 +945,8 @@ async function createNoteImmediate(deps: ImmediateCreateDeps, request: Immediate
       type: noteType,
       status,
     }),
+    display: noteFormat === NOTE_FORMAT_TEXT ? null : noteFormat,
+    noteWidth: defaultNoteWidthForFormat(noteFormat),
     workspace: workspaceForVaultPath(creationVaultPath, deps.vaults, deps.defaultWorkspacePath),
   }
   const resolved = applyTypeDefaults({
@@ -1194,6 +1249,36 @@ function useNamedCreationActions(options: NamedCreationOptions) {
     [entries, vaultPath, defaultWorkspacePath, vaults, setToastMessage, persistResolvedEntry],
   )
 
+  const handleCreateJournal = useCallback(
+    async (date: Date): Promise<boolean> => {
+      const resolved = resolveNewJournal({ date, vaultPath, defaultWorkspacePath, vaults })
+      const collision = findPathCollision(entries, resolved.entry.path)
+      if (collision) {
+        setToastMessage(buildCreationCollisionMessage({
+          noun: 'note',
+          title: resolved.entry.title,
+          path: resolved.entry.path,
+        }))
+        return false
+      }
+
+      try {
+        await persistResolvedEntry(resolved)
+        signalFocusEditor({ path: resolved.entry.path })
+        trackEvent('note_created', {
+          has_type: 1,
+          creation_path: 'journal',
+          format: NOTE_FORMAT_OUTLINE,
+        })
+        return true
+      } catch (error) {
+        setToastMessage(createPersistFailureMessage(resolved.entry, error))
+        return false
+      }
+    },
+    [entries, vaultPath, defaultWorkspacePath, vaults, setToastMessage, persistResolvedEntry],
+  )
+
   const handleCreateNoteForRelationship = useCallback(
     (title: string): Promise<boolean> =>
       createNamedNote({
@@ -1210,6 +1295,7 @@ function useNamedCreationActions(options: NamedCreationOptions) {
   )
   return {
     handleCreateNote,
+    handleCreateJournal,
     handleCreateNoteFromWikilink,
     handleCreateType,
     createTypeEntrySilent,
@@ -1223,6 +1309,7 @@ export function useNoteCreation(config: NoteCreationConfig, tabDeps: CreationTab
   const persistResolvedEntry = usePersistResolvedEntry(config, openTabWithContent)
   const {
     handleCreateNote,
+    handleCreateJournal,
     handleCreateNoteFromWikilink,
     handleCreateType,
     createTypeEntrySilent,
@@ -1246,6 +1333,7 @@ export function useNoteCreation(config: NoteCreationConfig, tabDeps: CreationTab
 
   return {
     handleCreateNote,
+    handleCreateJournal,
     handleCreateNoteFromWikilink,
     handleCreateNoteImmediate,
     handleCreateNoteForRelationship,

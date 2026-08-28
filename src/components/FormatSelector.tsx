@@ -1,4 +1,4 @@
-import { Browsers, CaretUpDown, Check, FileText, Table } from '@phosphor-icons/react'
+import { Browsers, CaretUpDown, Check, FileText, ListBullets, Table } from '@phosphor-icons/react'
 import { useId, useState, type KeyboardEvent } from 'react'
 import type { FrontmatterValue } from './Inspector'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { translate, type AppLocale } from '../lib/i18n'
 import {
   LEGACY_NOTE_FORMAT_FRONTMATTER_KEY,
   NOTE_FORMAT_FRONTMATTER_KEY,
+  NOTE_FORMAT_OUTLINE,
   NOTE_FORMAT_SHEET,
   NOTE_FORMAT_TEXT,
   type NoteFormat,
@@ -19,14 +20,14 @@ import {
   PROPERTY_PANEL_ROW_STYLE,
 } from './propertyPanelLayout'
 
-const FORMAT_OPTIONS = [NOTE_FORMAT_TEXT, NOTE_FORMAT_SHEET] as const
+const FORMAT_OPTIONS = [NOTE_FORMAT_TEXT, NOTE_FORMAT_OUTLINE, NOTE_FORMAT_SHEET] as const
 const OPEN_COMBOBOX_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', ' '])
 
 interface FormatSelectorProps {
   format: NoteFormat
   locale?: AppLocale
-  onDeleteProperty?(key: string): void
-  onUpdateProperty?(key: string, value: FrontmatterValue): void
+  onDeleteProperty?(key: string): void | Promise<void>
+  onUpdateProperty?(key: string, value: FrontmatterValue): void | Promise<void>
 }
 
 interface OpenTriggerKeyDownInput {
@@ -67,13 +68,12 @@ function shouldOpenCombobox(event: KeyboardEvent<HTMLButtonElement>): boolean {
 }
 
 function formatLabel(format: NoteFormat, locale: AppLocale): string {
-  return translate(locale, format === NOTE_FORMAT_SHEET
-    ? 'inspector.properties.formatSheet'
-    : 'inspector.properties.formatText')
+  if (format === NOTE_FORMAT_OUTLINE) return translate(locale, 'inspector.properties.formatOutline')
+  return translate(locale, format === NOTE_FORMAT_SHEET ? 'inspector.properties.formatSheet' : 'inspector.properties.formatText')
 }
 
 function FormatIcon({ format }: { format: NoteFormat }) {
-  const Icon = format === NOTE_FORMAT_SHEET ? Table : FileText
+  const Icon = format === NOTE_FORMAT_SHEET ? Table : format === NOTE_FORMAT_OUTLINE ? ListBullets : FileText
   return <Icon size={14} className="shrink-0" aria-hidden="true" />
 }
 
@@ -228,15 +228,15 @@ function EditableFormatSelector({
   const [highlightedIndex, setHighlightedIndex] = useState(() => initialHighlightedIndex(format))
   const listboxId = useId()
 
-  const updateFormat = (nextFormat: NoteFormat) => {
+  const updateFormat = async (nextFormat: NoteFormat) => {
     if (nextFormat === format) return
     if (nextFormat === NOTE_FORMAT_TEXT) {
-      onDeleteProperty(NOTE_FORMAT_FRONTMATTER_KEY)
-      onDeleteProperty(LEGACY_NOTE_FORMAT_FRONTMATTER_KEY)
+      await onDeleteProperty(NOTE_FORMAT_FRONTMATTER_KEY)
+      await onDeleteProperty(LEGACY_NOTE_FORMAT_FRONTMATTER_KEY)
       return
     }
-    onUpdateProperty(NOTE_FORMAT_FRONTMATTER_KEY, NOTE_FORMAT_SHEET)
-    onDeleteProperty(LEGACY_NOTE_FORMAT_FRONTMATTER_KEY)
+    await onUpdateProperty(NOTE_FORMAT_FRONTMATTER_KEY, nextFormat)
+    await onDeleteProperty(LEGACY_NOTE_FORMAT_FRONTMATTER_KEY)
   }
 
   const openCombobox = () => {
@@ -249,7 +249,7 @@ function EditableFormatSelector({
   }
 
   const selectFormat = (nextFormat: NoteFormat) => {
-    updateFormat(nextFormat)
+    void updateFormat(nextFormat)
     closeCombobox()
   }
 

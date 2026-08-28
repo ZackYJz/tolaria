@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  NOTE_FORMAT_OUTLINE,
   NOTE_FORMAT_SHEET,
   NOTE_FORMAT_TEXT,
   contentHasDisplayMetadata,
@@ -18,6 +19,10 @@ describe('noteFormat', () => {
     expect(noteFormatFromContent('---\ntype: Project\n_display: sheet\n---\nMetric,January')).toBe(NOTE_FORMAT_SHEET)
     expect(contentHasSheetFormat('---\n_display: sheet\n---\nMetric,January')).toBe(true)
     expect(contentHasDisplayMetadata('---\n_display: sheet\n---\nMetric,January')).toBe(true)
+  })
+
+  it('detects outline display from _display frontmatter', () => {
+    expect(noteFormatFromContent('---\ntype: Note\n_display: outline\n---\n- First block')).toBe(NOTE_FORMAT_OUTLINE)
   })
 
   it('keeps reading the legacy _format field for internal prototype notes', () => {

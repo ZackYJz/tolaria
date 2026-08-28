@@ -12,6 +12,7 @@ import { ArchivedNoteBanner } from '../ArchivedNoteBanner'
 import { ConflictNoteBanner } from '../ConflictNoteBanner'
 import { RawEditorView } from '../RawEditorView'
 import { SingleEditorView } from '../SingleEditorView'
+import { JournalDateNavigator } from './JournalDateNavigator'
 import type { useEditorContentModel } from './useEditorContentModel'
 
 type EditorContentModel = ReturnType<typeof useEditorContentModel>
@@ -392,6 +393,7 @@ type EditorCanvasProps = Pick<
   | 'showEditor'
   | 'isHtmlPreview'
   | 'isSheet'
+  | 'isOutline'
   | 'richEditorContentReady'
   | 'cssVars'
   | 'editor'
@@ -425,6 +427,7 @@ function EditorCanvas(props: EditorCanvasProps) {
 function StandardEditorCanvas(options: EditorCanvasProps) {
   const {
     isSheet,
+    isOutline,
     richEditorContentReady,
     cssVars,
     editor,
@@ -476,6 +479,7 @@ function StandardEditorCanvas(options: EditorCanvasProps) {
           vaultPath={vaultPath}
           editable={!isDeletedPreview}
           locale={locale}
+          outline={isOutline}
         />
       </div>
     </EditorFindScope>
@@ -547,6 +551,7 @@ export function EditorContentLayout(model: EditorContentModel) {
     noteWidth,
     isHtmlPreview,
     isSheet,
+    isOutline,
     richEditorContentReady,
     findRequest,
     locale,
@@ -555,7 +560,9 @@ export function EditorContentLayout(model: EditorContentModel) {
   } = model
   const rootClassName = cn(
     'flex flex-1 flex-col min-w-0 min-h-0',
-    isHtmlPreview || isSheet || noteWidth === 'wide' ? 'editor-content-width--wide' : 'editor-content-width--normal',
+    isHtmlPreview || isSheet || noteWidth === 'wide'
+      ? 'editor-content-width--wide'
+      : 'editor-content-width--normal',
   )
   const chromeTab = activeTab ?? loadingTab
   const chromePath = chromeTab?.entry.path ?? path
@@ -574,6 +581,13 @@ export function EditorContentLayout(model: EditorContentModel) {
         isVaultLoading={isVaultLoading}
         locale={locale}
       />
+      {activeTab && model.onOpenJournalDate ? (
+        <JournalDateNavigator
+          entry={activeTab.entry}
+          locale={locale}
+          onOpenDate={model.onOpenJournalDate}
+        />
+      ) : null}
       {showActiveContent && (
         <>
           <EditorChrome
@@ -617,6 +631,7 @@ export function EditorContentLayout(model: EditorContentModel) {
             sheetFlushRef={sheetFlushRef}
             isDeletedPreview={isDeletedPreview}
             isSheet={isSheet}
+            isOutline={isOutline}
             locale={locale}
           />
         </>

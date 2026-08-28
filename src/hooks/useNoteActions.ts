@@ -809,6 +809,7 @@ function buildNoteActionsResult({
     handleSelectNote,
     handleNavigateWikilink,
     handleCreateNote: creation.handleCreateNote,
+    handleCreateJournal: creation.handleCreateJournal,
     handleCreateNoteImmediate: creation.handleCreateNoteImmediate,
     handleCreateNoteForRelationship: creation.handleCreateNoteForRelationship,
     handleCreateType: creation.handleCreateType,

@@ -60,6 +60,25 @@ describe('useNoteCreation hook', () => {
     expect(openTabWithContent.mock.calls[0][1]).toBe('---\ntitle: Test Note\ntype: Note\n---\n')
   })
 
+  it('handleCreateJournal creates and opens a dated outline journal', async () => {
+    const { result } = renderHook(() => useNoteCreation(makeConfig(), tabDeps))
+
+    await act(async () => {
+      await result.current.handleCreateJournal(new Date(2026, 7, 28))
+    })
+
+    expect(addEntry).toHaveBeenCalledWith(expect.objectContaining({
+      path: '/test/vault/journals/2026-08-28.md',
+      display: 'outline',
+      isA: 'Journal',
+      noteWidth: 'wide',
+    }))
+    expect(openTabWithContent).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '2026-08-28' }),
+      '---\ntitle: 2026-08-28\ntype: Journal\n_display: outline\n_width: wide\n---\n\n# 2026-08-28\n\n- \n',
+    )
+  })
+
   it('handleCreateNoteImmediate generates timestamp-based title', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1700000000000)
     const { result } = renderHook(() => useNoteCreation(makeConfig(), tabDeps))
@@ -278,6 +297,24 @@ describe('useNoteCreation hook', () => {
       isA: 'Note',
     })
     expect(openTabWithContent.mock.calls[0][1]).toBe('---\ntype: Note\n_display: sheet\n---\n')
+    vi.restoreAllMocks()
+  })
+
+  it('handleCreateNoteImmediate creates outline notes with a first editable block', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1700000000000)
+    const { result } = renderHook(() => useNoteCreation(makeConfig(), tabDeps))
+
+    await act(async () => {
+      result.current.handleCreateNoteImmediate(undefined, { creationPath: 'cmd_outline', format: 'outline' })
+      await flushImmediateCreate()
+    })
+
+    expect(addEntry.mock.calls[0][0]).toMatchObject({
+      filename: 'untitled-note-1700000000.md',
+      display: 'outline',
+      noteWidth: 'wide',
+    })
+    expect(openTabWithContent.mock.calls[0][1]).toBe('---\ntype: Note\n_display: outline\n_width: wide\n---\n\n# \n\n- \n')
     vi.restoreAllMocks()
   })
 

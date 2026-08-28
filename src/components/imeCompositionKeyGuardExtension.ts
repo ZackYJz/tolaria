@@ -121,7 +121,7 @@ export function shouldStopComposingEditorShortcutKey(
     && (
       compositionActive
       || isComposingKeyboardEvent(event, view)
-      || isRecentCompositionEnd(event, compositionEndedAt)
+      || (isSpaceKey(event) && isRecentCompositionEnd(event, compositionEndedAt))
     )
 }
 
@@ -185,8 +185,11 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
 
   const handleCompositionEnd = (event: CompositionEvent) => {
     const shouldGuardConfirmation = compositionActive || readView()?.composing === true
+    const composingEnterWasAlreadyHandled = composingEnterAt !== null
     compositionActive = false
-    compositionEndedAt = shouldGuardConfirmation ? event.timeStamp : null
+    compositionEndedAt = shouldGuardConfirmation && !composingEnterWasAlreadyHandled
+      ? event.timeStamp
+      : null
     if (composingEnterAt !== null) composingEnterAt = event.timeStamp
     if (event.data) setTimeout(() => reopenComposedSlashCommand(event.data), 0)
   }

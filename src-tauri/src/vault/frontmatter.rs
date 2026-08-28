@@ -356,7 +356,7 @@ pub(crate) fn resolve_note_display(display: Option<StringOrList>) -> Option<Stri
         .and_then(StringOrList::into_scalar)
         .map(|value| value.trim().to_ascii_lowercase())
     {
-        Some(mode) if mode == "text" || mode == "sheet" => Some(mode),
+        Some(mode) if mode == "text" || mode == "sheet" || mode == "outline" => Some(mode),
         _ => None,
     }
 }

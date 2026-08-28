@@ -25,6 +25,7 @@ import {
   ImageSquare,
   SpeakerHigh,
   Video,
+  ListBullets,
 } from '@phosphor-icons/react'
 import { getTypeColor, getTypeLightColor } from '../utils/typeColors'
 import { resolveIcon } from '../utils/iconRegistry'
@@ -299,6 +300,7 @@ function resolveNoteTypeIcon(
   if (previewKind === 'audio') return SpeakerHigh
   if (previewKind === 'video') return Video
   if (entry.fileKind && entry.fileKind !== 'markdown') return getFileKindIcon(entry.fileKind)
+  if (entry.display === 'outline') return ListBullets
   return getTypeIcon(entry.isA, customIcon)
 }
 

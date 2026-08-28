@@ -94,6 +94,7 @@ test('create note saves file to disk with correct slug', async ({ page }) => {
 
   // "Create new note" instantly creates "Untitled note" and opens in editor
   await page.locator('button[title="Create new note"]').click()
+  await page.getByRole('menuitem', { name: 'Document' }).click()
   await expect(noteList(page).getByText(/Untitled Note \d+/).first()).toBeVisible({ timeout: 5_000 })
 
   // Save to disk via Cmd+S

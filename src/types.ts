@@ -248,7 +248,7 @@ export interface AllNotesConfig {
 export type NoteLayout = 'centered' | 'left'
 
 export type NoteWidthMode = 'normal' | 'wide'
-export type NoteDisplayMode = 'text' | 'sheet'
+export type NoteDisplayMode = 'text' | 'sheet' | 'outline'
 export type GitSetupPreference = 'prompt' | 'never'
 
 /** Vault-scoped UI configuration stored locally per vault path. */
@@ -284,7 +284,7 @@ export interface PulseCommit {
   deleted: number
 }
 
-export type SidebarFilter = 'all' | 'archived' | 'changes' | 'pulse' | 'inbox' | 'favorites'
+export type SidebarFilter = 'all' | 'archived' | 'changes' | 'pulse' | 'inbox' | 'favorites' | 'journals'
 
 export type InboxPeriod = 'week' | 'month' | 'quarter' | 'all'
 

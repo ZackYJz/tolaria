@@ -34,6 +34,14 @@ fn test_parse_display_text_from_note_entry() {
 }
 
 #[test]
+fn test_parse_display_outline_from_note_entry() {
+    let dir = TempDir::new().unwrap();
+    let content = "---\ntype: Note\n_display: outline\n---\n- First block\n";
+    let entry = parse_test_entry(&dir, "outline.md", content);
+    assert_eq!(entry.display, Some("outline".to_string()));
+}
+
+#[test]
 fn test_display_metadata_not_in_properties_or_relationships() {
     let dir = TempDir::new().unwrap();
     let content = "---\ntype: Project\n_display: sheet\n---\nMetric,January\n";

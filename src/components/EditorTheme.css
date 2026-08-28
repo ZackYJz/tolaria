@@ -287,6 +287,111 @@
   border-inline-start: none !important;
 }
 
+/* Outline notes keep their hierarchy visible and compact, while reusing the
+   same BlockNote document model, keyboard nesting, and collapse behavior. */
+.editor__blocknote-container--outline {
+  --outline-block-content-offset: 8px;
+  --outline-bullet-color: color-mix(in srgb, var(--colors-text) 30%, transparent);
+  --outline-child-content-offset: calc(
+    var(--outline-block-content-offset)
+    + var(--lists-padding-left)
+    + var(--lists-indent-size)
+    + var(--lists-bullet-gap)
+  );
+  --outline-hierarchy-line-offset: calc(
+    var(--outline-block-content-offset)
+    + var(--lists-padding-left)
+    - var(--lists-indent-size) * 0.5
+  );
+  --outline-marker-fade-radius: calc(var(--editor-font-size) * 0.233333);
+  --outline-marker-radius: calc(var(--editor-font-size) * 0.2);
+  --outline-collapsed-marker-radius: calc(var(--editor-font-size) * 0.56);
+}
+
+.editor__blocknote-container--outline [data-content-type="bulletListItem"],
+.editor__blocknote-container--outline [data-content-type="numberedListItem"],
+.editor__blocknote-container--outline [data-content-type="checkListItem"] {
+  margin-bottom: 0.08em;
+}
+
+.editor__blocknote-container--outline [data-content-type="bulletListItem"]::before {
+  background: radial-gradient(
+    circle,
+    var(--outline-bullet-color) 0 var(--outline-marker-radius),
+    transparent var(--outline-marker-fade-radius)
+  ) !important;
+}
+
+.editor__blocknote-container--outline [data-content-type="numberedListItem"]::before {
+  color: var(--outline-bullet-color) !important;
+}
+
+.editor__blocknote-container--outline .bn-block-group .bn-block-group {
+  position: relative;
+}
+
+.editor__blocknote-container--outline .bn-block-group .bn-block-group::before {
+  background: color-mix(in srgb, var(--colors-text) 14%, transparent);
+  bottom: calc(var(--editor-font-size) * var(--editor-line-height) * 0.5);
+  content: "";
+  inset-inline-start: var(--outline-hierarchy-line-offset);
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 1px;
+}
+
+.editor__blocknote-container--outline .bn-block-group .bn-block-group > .bn-block-outer::before {
+  border-inline-start: none !important;
+}
+
+.editor__blocknote-container--outline
+  .bn-block-group .bn-block-group
+  > .bn-block-outer
+  > .bn-block
+  > .bn-block-content:not(
+    [data-content-type="bulletListItem"],
+    [data-content-type="numberedListItem"],
+    [data-content-type="checkListItem"]
+  ) {
+  margin-inline-start: var(--outline-child-content-offset);
+  max-width: calc(100% - var(--outline-child-content-offset));
+  min-width: 0;
+  position: relative;
+  width: calc(100% - var(--outline-child-content-offset));
+}
+
+.editor__blocknote-container--outline
+  .bn-block-group .bn-block-group
+  > .bn-block-outer
+  > .bn-block
+  > .bn-block-content:not(
+    [data-content-type="bulletListItem"],
+    [data-content-type="numberedListItem"],
+    [data-content-type="checkListItem"]
+  )::before {
+  background: radial-gradient(
+    circle,
+    var(--outline-bullet-color) 0 var(--outline-marker-radius),
+    transparent var(--outline-marker-fade-radius)
+  );
+  content: "";
+  height: calc(var(--editor-font-size) * var(--editor-line-height));
+  inset-inline-start: calc((var(--lists-indent-size) + var(--lists-bullet-gap)) * -1);
+  position: absolute;
+  width: var(--lists-indent-size);
+}
+
+.editor__blocknote-container--outline .bn-block-group .bn-block-group [data-content-type="codeBlock"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editor__blocknote-container--outline .bn-block-group .bn-block-group [data-content-type="codeBlock"] > pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* --- Numbered lists --- */
 .editor__blocknote-container [data-content-type="numberedListItem"] {
   padding-inline-start: var(--lists-padding-left);

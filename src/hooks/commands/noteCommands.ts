@@ -112,6 +112,13 @@ function buildCoreNoteCommands(config: NoteCommandsConfig): CommandAction[] {
       enabled: true,
       execute: () => config.onCreateNote(undefined, { creationPath: 'cmd_sheet', format: 'sheet' }),
     }),
+    createNoteCommand({
+      id: 'create-outline',
+      label: 'New Outline',
+      keywords: ['new', 'create', 'add', 'outline', 'blocks', 'list'],
+      enabled: true,
+      execute: () => config.onCreateNote(undefined, { creationPath: 'cmd_outline', format: 'outline' }),
+    }),
     buildCurrentFolderNoteCommand(config),
     createNoteCommand({
       id: 'create-type',

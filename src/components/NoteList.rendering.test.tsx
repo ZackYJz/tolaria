@@ -221,19 +221,21 @@ describe('NoteList rendering', () => {
     expect(screen.queryByText('Matteo Cellini')).not.toBeInTheDocument()
   })
 
-  it('passes the selected type when creating a note from a type section', () => {
+  it('passes the selected type when creating a note from a type section', async () => {
     const { onCreateNote } = renderNoteList({ selection: { kind: 'sectionGroup', type: 'Project' } })
-    fireEvent.click(screen.getByTitle('Create new note'))
-    expect(onCreateNote).toHaveBeenCalledWith('Project')
+    fireEvent.pointerDown(screen.getByTitle('Create new note'), { button: 0, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Document' }))
+    expect(onCreateNote).toHaveBeenCalledWith('Project', { creationPath: 'note_list_plus' })
   })
 
-  it('creates an untyped note from all notes', () => {
+  it('creates an untyped note from all notes', async () => {
     const { onCreateNote } = renderNoteList()
-    fireEvent.click(screen.getByTitle('Create new note'))
-    expect(onCreateNote).toHaveBeenCalledWith(undefined)
+    fireEvent.pointerDown(screen.getByTitle('Create new note'), { button: 0, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Document' }))
+    expect(onCreateNote).toHaveBeenCalledWith(undefined, { creationPath: 'note_list_plus' })
   })
 
-  it('shows the active folder name and creates notes inside that folder', () => {
+  it('shows the active folder name and creates notes inside that folder', async () => {
     const { onCreateNote } = renderNoteList({
       selection: {
         kind: 'folder',
@@ -244,7 +246,8 @@ describe('NoteList rendering', () => {
 
     expect(screen.getByRole('heading', { name: '2026 Planning' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByTitle('Create new note'))
+    fireEvent.pointerDown(screen.getByTitle('Create new note'), { button: 0, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Document' }))
 
     expect(onCreateNote).toHaveBeenCalledWith(undefined, {
       creationPath: 'folder_header',

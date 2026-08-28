@@ -261,6 +261,13 @@ describe('noteListHelpers extra coverage', () => {
         isA: 'Type',
         createdAt: nowSeconds - 2 * 86400,
       }),
+      makeEntry({
+        title: 'Journal entry',
+        organized: false,
+        archived: false,
+        isA: 'Journal',
+        createdAt: nowSeconds - 2 * 86400,
+      }),
     ]
 
     expect(filterInboxEntries(entries, 'week').map((entry) => entry.title)).toEqual(['This Week'])

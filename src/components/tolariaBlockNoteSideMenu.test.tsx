@@ -328,6 +328,13 @@ function placeEditorInScrollArea(scrollTop: number) {
   return scrollArea
 }
 
+function markEditorAsOutline() {
+  const container = document.createElement('div')
+  container.className = 'editor__blocknote-container editor__blocknote-container--outline'
+  mockEditor.domElement.replaceWith(container)
+  container.appendChild(mockEditor.domElement)
+}
+
 function collapsedSectionStyleText() {
   return Array.from(document.head.querySelectorAll('style[data-tolaria-collapsed-sections]'))
     .map((styleElement) => styleElement.textContent ?? '')
@@ -865,5 +872,24 @@ describe('TolariaSideMenu', () => {
     expectCollapsedSectionStyleToTarget('grandchild-list-item')
     expectCollapsedSectionStyleNotToTarget('sibling-list-item')
     expect(screen.getByRole('button', { name: 'Expand item' })).toBeInTheDocument()
+  })
+
+  it('shows a collapsed outline item on its bullet instead of an ellipsis pill', () => {
+    const child = listItemBlock('child-list-item')
+    const parent = listItemBlock('parent-list-item', [child])
+    mockEditor.document = [parent]
+    appendBlockOuters([parent])
+    markEditorAsOutline()
+    mockEditor.getBlock.mockImplementation((id: string) => (
+      [parent, child].find((block) => block.id === id)
+    ))
+
+    renderSideMenuAndCollapseControllerWithBlock(parent)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse item' }))
+
+    const styleText = collapsedSectionStyleText()
+    expect(styleText).toContain('[data-content-type="bulletListItem"]::before')
+    expect(styleText).toContain('radial-gradient')
+    expect(styleText).toContain('content: none;')
   })
 })

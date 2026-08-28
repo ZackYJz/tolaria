@@ -28,9 +28,9 @@ type CollapsedSectionRenderState = {
   collapsedHeadingIds: Set<string>
   hiddenBlockIds: Set<string>
 }
-type CollapsedHeadingDotsHit = {
+type CollapsedSectionToggleHit = {
   blockId: string
-  inlineContent: HTMLElement
+  hitElement: HTMLElement
 }
 type CollapsedHeadingRenderingController = {
   attachedEditorElement: HTMLElement | null
@@ -228,6 +228,38 @@ function headingDotsSelectorsForStyle(
     ))
 }
 
+function outlineCollapsedBulletSelectorsForStyle(
+  editorElement: HTMLElement,
+  blockId: string,
+  scope = collapsedSectionStyleScope(editorElement),
+) {
+  if (!scope) return []
+
+  return blockOuterSelectorsForStyle(
+    editorElement,
+    blockId,
+    `${scope}.editor__blocknote-container--outline`,
+  ).map((selector) => (
+    `${selector} > .bn-block > .bn-block-content[data-content-type="bulletListItem"]::before`
+  ))
+}
+
+function outlineCollapsedDotsSelectorsForStyle(
+  editorElement: HTMLElement,
+  blockId: string,
+  scope = collapsedSectionStyleScope(editorElement),
+) {
+  if (!scope) return []
+
+  return blockOuterSelectorsForStyle(
+    editorElement,
+    blockId,
+    `${scope}.editor__blocknote-container--outline`,
+  ).map((selector) => (
+    `${selector} > .bn-block > .bn-block-content[data-content-type="bulletListItem"] .bn-inline-content::after`
+  ))
+}
+
 function headingDotsCssDeclarations() {
   return [
     'content: "...";',
@@ -258,6 +290,19 @@ function headingDotsHoverCssDeclarations() {
   ].join('\n')
 }
 
+function outlineCollapsedBulletCssDeclarations() {
+  return [
+    'background: radial-gradient(',
+    '  circle,',
+    '  var(--outline-bullet-color) 0 var(--outline-marker-radius),',
+    '  color-mix(in srgb, var(--colors-text) 12%, transparent) calc(var(--outline-marker-radius) + 1px) var(--outline-collapsed-marker-radius),',
+    '  transparent calc(var(--outline-collapsed-marker-radius) + 1px)',
+    ') !important;',
+    'cursor: pointer;',
+    'pointer-events: auto;',
+  ].join('\n')
+}
+
 function collapsedSectionStyleText(
   editorElement: HTMLElement,
   renderState: CollapsedSectionRenderState,
@@ -266,6 +311,10 @@ function collapsedSectionStyleText(
     .flatMap((blockId) => blockOuterSelectorsForStyle(editorElement, blockId))
   const collapsedHeadingSelectors = Array.from(renderState.collapsedHeadingIds)
     .flatMap((blockId) => headingDotsSelectorsForStyle(editorElement, blockId))
+  const outlineCollapsedBulletSelectors = Array.from(renderState.collapsedHeadingIds)
+    .flatMap((blockId) => outlineCollapsedBulletSelectorsForStyle(editorElement, blockId))
+  const outlineCollapsedDotsSelectors = Array.from(renderState.collapsedHeadingIds)
+    .flatMap((blockId) => outlineCollapsedDotsSelectorsForStyle(editorElement, blockId))
   const collapsedHeadingHoverSelectors = collapsedHeadingHoverRuleSelectors(editorElement, renderState)
 
   const rules: string[] = []
@@ -274,6 +323,12 @@ function collapsedSectionStyleText(
   }
   if (collapsedHeadingSelectors.length > 0) {
     rules.push(`${collapsedHeadingSelectors.join(',\n')} {\n${headingDotsCssDeclarations()}\n}`)
+  }
+  if (outlineCollapsedBulletSelectors.length > 0) {
+    rules.push(`${outlineCollapsedBulletSelectors.join(',\n')} {\n${outlineCollapsedBulletCssDeclarations()}\n}`)
+  }
+  if (outlineCollapsedDotsSelectors.length > 0) {
+    rules.push(`${outlineCollapsedDotsSelectors.join(',\n')} {\ncontent: none;\ndisplay: none;\n}`)
   }
   if (collapsedHeadingHoverSelectors.length > 0) {
     rules.push(`${collapsedHeadingHoverSelectors.join(',\n')} {\n${headingDotsHoverCssDeclarations()}\n}`)
@@ -543,7 +598,39 @@ function isCollapsedHeadingDotsHit(inlineContent: HTMLElement, clientX: number, 
     && clientY <= Math.max(textRect.bottom, contentRect.bottom) + verticalSlop
 }
 
-function collapsedHeadingDotsHitAtPoint(
+function isCollapsedOutlineBulletHit(
+  editorElement: HTMLElement,
+  blockElement: HTMLElement,
+  clientX: number,
+  clientY: number,
+) {
+  const container = collapsedSectionContainer(editorElement)
+  if (!container?.classList.contains('editor__blocknote-container--outline')) return undefined
+
+  const blockContent = blockElement.querySelector(
+    ':scope > .bn-block > .bn-block-content[data-content-type="bulletListItem"]',
+  )
+  if (!(blockContent instanceof HTMLElement)) return undefined
+
+  const contentRect = blockContent.getBoundingClientRect()
+  const ownerWindow = blockContent.ownerDocument.defaultView
+  if (!ownerWindow) return undefined
+
+  const markerStyle = ownerWindow.getComputedStyle(blockContent, '::before')
+  const markerWidth = parseCssPixelLength(markerStyle.width) || 24
+  const isRtl = ownerWindow.getComputedStyle(blockContent).direction === 'rtl'
+  const markerStart = isRtl ? contentRect.right - markerWidth : contentRect.left
+  const markerEnd = markerStart + markerWidth
+
+  return clientX >= markerStart
+    && clientX <= markerEnd
+    && clientY >= contentRect.top
+    && clientY <= contentRect.bottom
+    ? blockContent
+    : undefined
+}
+
+function collapsedSectionToggleHitAtPoint(
   editorElement: HTMLElement,
   store: CollapsedHeadingStore,
   clientX: number,
@@ -553,24 +640,34 @@ function collapsedHeadingDotsHitAtPoint(
     const blockId = blockElement.dataset.id
     if (!blockId || !store.collapsedHeadingIds.has(blockId)) continue
 
+    const outlineBullet = isCollapsedOutlineBulletHit(
+      editorElement,
+      blockElement,
+      clientX,
+      clientY,
+    )
+    if (outlineBullet) return { blockId, hitElement: outlineBullet }
+
     const inlineContent = blockElement.querySelector('.bn-block-content .bn-inline-content')
     if (!(inlineContent instanceof HTMLElement)) continue
-    if (isCollapsedHeadingDotsHit(inlineContent, clientX, clientY)) return { blockId, inlineContent }
+    if (isCollapsedHeadingDotsHit(inlineContent, clientX, clientY)) {
+      return { blockId, hitElement: inlineContent }
+    }
   }
 
   return undefined
 }
 
-function collapsedHeadingDotsHitFromEvent(
+function collapsedSectionToggleHitFromEvent(
   editorElement: HTMLElement,
   store: CollapsedHeadingStore,
   event: MouseEvent,
 ) {
-  return collapsedHeadingDotsHitAtPoint(editorElement, store, event.clientX, event.clientY)
-    ?? collapsedHeadingDotsHitFromTarget(editorElement, store, event)
+  return collapsedSectionToggleHitAtPoint(editorElement, store, event.clientX, event.clientY)
+    ?? collapsedSectionToggleHitFromTarget(editorElement, store, event)
 }
 
-function collapsedHeadingDotsHitFromTarget(
+function collapsedSectionToggleHitFromTarget(
   editorElement: HTMLElement,
   store: CollapsedHeadingStore,
   event: MouseEvent,
@@ -585,7 +682,7 @@ function collapsedHeadingDotsHitFromTarget(
   if (!blockId || !store.collapsedHeadingIds.has(blockId)) return undefined
   if (!isCollapsedHeadingDotsHit(inlineContent, event.clientX, event.clientY)) return undefined
 
-  return { blockId, inlineContent }
+  return { blockId, hitElement: inlineContent }
 }
 
 function inlineContentFromEventTarget(editorElement: HTMLElement, target: EventTarget | null) {
@@ -607,12 +704,12 @@ function collapsedBlockElementForInlineContent(
     : undefined
 }
 
-function collapsedHeadingIdFromDotsEvent(
+function collapsedSectionIdFromToggleEvent(
   editorElement: HTMLElement,
   store: CollapsedHeadingStore,
   event: MouseEvent,
 ) {
-  return collapsedHeadingDotsHitFromEvent(editorElement, store, event)?.blockId
+  return collapsedSectionToggleHitFromEvent(editorElement, store, event)?.blockId
 }
 
 function expandCollapsedHeading(
@@ -657,10 +754,10 @@ function ensureCollapsedHeadingRenderer(
     childList: true,
     subtree: true,
   })
-  let hoveredDotsElement: HTMLElement | null = null
-  const setHoveredDotsHit = (hit?: CollapsedHeadingDotsHit) => {
-    if (hoveredDotsElement && hoveredDotsElement !== hit?.inlineContent) {
-      hoveredDotsElement.style.removeProperty('cursor')
+  let hoveredToggleElement: HTMLElement | null = null
+  const setHoveredToggleHit = (hit?: CollapsedSectionToggleHit) => {
+    if (hoveredToggleElement && hoveredToggleElement !== hit?.hitElement) {
+      hoveredToggleElement.style.removeProperty('cursor')
     }
 
     const container = collapsedSectionContainer(editorElement)
@@ -669,31 +766,31 @@ function ensureCollapsedHeadingRenderer(
       else delete container.dataset.tolariaCollapseHoverId
     }
 
-    hoveredDotsElement = hit?.inlineContent ?? null
-    if (hoveredDotsElement) {
+    hoveredToggleElement = hit?.hitElement ?? null
+    if (hoveredToggleElement) {
       editorElement.style.setProperty('cursor', 'pointer')
-      hoveredDotsElement.style.setProperty('cursor', 'pointer')
+      hoveredToggleElement.style.setProperty('cursor', 'pointer')
     } else {
       editorElement.style.removeProperty('cursor')
     }
   }
   const handleCollapsedHeadingMouseMove = (event: MouseEvent) => {
-    setHoveredDotsHit(collapsedHeadingDotsHitFromEvent(editorElement, store, event))
+    setHoveredToggleHit(collapsedSectionToggleHitFromEvent(editorElement, store, event))
   }
-  const handleCollapsedHeadingMouseLeave = () => { setHoveredDotsHit(); }
+  const handleCollapsedHeadingMouseLeave = () => { setHoveredToggleHit(); }
   const handleCollapsedHeadingMouseDown = (event: MouseEvent) => {
-    if (!collapsedHeadingIdFromDotsEvent(editorElement, store, event)) return
+    if (!collapsedSectionIdFromToggleEvent(editorElement, store, event)) return
 
     event.preventDefault()
     event.stopPropagation()
   }
   const handleCollapsedHeadingClick = (event: MouseEvent) => {
-    const headingId = collapsedHeadingIdFromDotsEvent(editorElement, store, event)
+    const headingId = collapsedSectionIdFromToggleEvent(editorElement, store, event)
     if (!headingId) return
 
     event.preventDefault()
     event.stopPropagation()
-    setHoveredDotsHit()
+    setHoveredToggleHit()
     expandCollapsedHeading(
       editorElement,
       store,
@@ -710,7 +807,7 @@ function ensureCollapsedHeadingRenderer(
   const cleanup = () => {
     if (frame !== null) ownerWindow.cancelAnimationFrame(frame)
     mutationObserver.disconnect()
-    setHoveredDotsHit()
+    setHoveredToggleHit()
     editorElement.removeEventListener('mousemove', handleCollapsedHeadingMouseMove, true)
     editorElement.removeEventListener('mouseleave', handleCollapsedHeadingMouseLeave, true)
     editorElement.removeEventListener('mousedown', handleCollapsedHeadingMouseDown, true)

@@ -22,6 +22,7 @@ import { MantineContext, MantineProvider } from '@mantine/core'
 import { trackEvent } from '../lib/telemetry'
 import { useDocumentThemeMode } from '../hooks/useDocumentThemeMode'
 import { useEditorTheme } from '../hooks/useTheme'
+import { useEditorContentPathSignal } from '../hooks/useEditorContentPathSignal'
 import { useImageDrop, type ImageImportError } from '../hooks/useImageDrop'
 import { useImageLightbox } from '../hooks/useImageLightbox'
 import { createTranslator, type AppLocale } from '../lib/i18n'
@@ -47,6 +48,7 @@ import { getTolariaSlashMenuItems } from './tolariaEditorFormattingConfig'
 import { TolariaSlashMenu } from './TolariaSlashMenu'
 import { TolariaFormattingToolbar, TolariaFormattingToolbarController } from './tolariaEditorFormatting'
 import { TolariaCollapsedHeadingsController, TolariaSideMenu } from './tolariaBlockNoteSideMenu'
+import { normalizeOutlineEditorDocument, setOutlineEditorMode } from './outlineEditorMode'
 import { useEditorLinkActivation } from './useEditorLinkActivation'
 import { findNearestTextCursorBlock } from './blockNoteCursorTarget'
 import { ImageLightbox } from './ImageLightbox'
@@ -1295,12 +1297,17 @@ export function SingleEditorView(options: {
   vaultPath?: string
   editable?: boolean
   locale?: AppLocale
+  outline?: boolean
 }) {
-  const { currentContent = '', editor, entries, onNavigateWikilink, onChange, onImageImportError, sourceEntry, vaultPath, editable = true, locale = 'en' } = options
+  const { currentContent = '', editor, entries, onNavigateWikilink, onChange, onImageImportError, sourceEntry, vaultPath, editable = true, locale = 'en', outline = false } = options
   const { cssVars } = useEditorTheme()
   const themeMode = useDocumentThemeMode()
+  const editorContentSignal = useEditorContentPathSignal()
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
+  const normalizingOutlineRef = useRef(false)
+  const outlineNormalizationQueuedRef = useRef(false)
+  const saveAfterOutlineNormalizationRef = useRef(false)
   const suppressNextContainerClickRef = useRef(false)
   const handleContainerClick = useEditorContainerClickHandler({
     editable,
@@ -1318,6 +1325,38 @@ export function SingleEditorView(options: {
     containerRef,
     onChange,
   })
+  const enforceOutlineLists = useCallback(() => {
+    if (!outline || normalizingOutlineRef.current) return false
+
+    normalizingOutlineRef.current = true
+    try {
+      return normalizeOutlineEditorDocument(editor)
+    } finally {
+      normalizingOutlineRef.current = false
+    }
+  }, [editor, outline])
+  const scheduleOutlineNormalization = useCallback((saveEvenIfUnchanged = false) => {
+    if (!outline) return
+    saveAfterOutlineNormalizationRef.current ||= saveEvenIfUnchanged
+    if (outlineNormalizationQueuedRef.current) return
+
+    outlineNormalizationQueuedRef.current = true
+    queueMicrotask(() => {
+      outlineNormalizationQueuedRef.current = false
+      if (!containerRef.current?.isConnected) return
+      const saveEvenWithoutChanges = saveAfterOutlineNormalizationRef.current
+      saveAfterOutlineNormalizationRef.current = false
+      if (enforceOutlineLists() || saveEvenWithoutChanges) handleEditorChange()
+    })
+  }, [enforceOutlineLists, handleEditorChange, outline])
+  const handleBlockNoteChange = useCallback(() => {
+    if (normalizingOutlineRef.current) return
+    if (outline) {
+      scheduleOutlineNormalization(true)
+      return
+    }
+    handleEditorChange()
+  }, [handleEditorChange, outline, scheduleOutlineNormalization])
   const onImageUrl = useInsertImageCallback(editor)
   const { isDragOver } = useImageDrop({
     containerRef,
@@ -1340,6 +1379,11 @@ export function SingleEditorView(options: {
   }, [entries])
 
   useEffect(() => {
+    setOutlineEditorMode(editor, outline)
+    return () => setOutlineEditorMode(editor, false)
+  }, [editor, outline])
+
+  useEffect(() => {
     if (previousThemeModeRef.current === themeMode) return
 
     previousThemeModeRef.current = themeMode
@@ -1349,6 +1393,10 @@ export function SingleEditorView(options: {
   useEffect(() => {
     return subscribeRichEditorExternalChange(editor, handleEditorChange)
   }, [editor, handleEditorChange])
+
+  useEffect(() => {
+    if (outline) scheduleOutlineNormalization()
+  }, [currentContent, editorContentSignal.version, outline, scheduleOutlineNormalization])
 
   useEffect(() => {
     const container = containerRef.current
@@ -1431,7 +1479,8 @@ export function SingleEditorView(options: {
       ref={containerRef}
       role="application"
       aria-label="Rich text editor"
-      className={`editor__blocknote-container${isDragOver ? ' editor__blocknote-container--drag-over' : ''}`}
+      className={`editor__blocknote-container${outline ? ' editor__blocknote-container--outline' : ''}${isDragOver ? ' editor__blocknote-container--drag-over' : ''}`}
+      data-note-display={outline ? 'outline' : 'text'}
       style={cssVars as React.CSSProperties}
       onCopyCapture={handleCopyCapture}
       onFocusCapture={handleFocusCapture}
@@ -1458,7 +1507,7 @@ export function SingleEditorView(options: {
               key={recoveryKey}
               editor={editor}
               theme={themeMode}
-              onChange={handleEditorChange}
+              onChange={handleBlockNoteChange}
               editable={editable}
               emojiPicker={false}
               formattingToolbar={false}

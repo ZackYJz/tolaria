@@ -5,17 +5,21 @@ export const NOTE_DISPLAY_FRONTMATTER_KEY = '_display'
 export const LEGACY_NOTE_FORMAT_FRONTMATTER_KEY = '_format'
 export const NOTE_DISPLAY_TEXT = 'text'
 export const NOTE_DISPLAY_SHEET = 'sheet'
+export const NOTE_DISPLAY_OUTLINE = 'outline'
 
 export const NOTE_FORMAT_FRONTMATTER_KEY = NOTE_DISPLAY_FRONTMATTER_KEY
 export const NOTE_FORMAT_TEXT = NOTE_DISPLAY_TEXT
 export const NOTE_FORMAT_SHEET = NOTE_DISPLAY_SHEET
+export const NOTE_FORMAT_OUTLINE = NOTE_DISPLAY_OUTLINE
 
-export type NoteFormat = typeof NOTE_DISPLAY_TEXT | typeof NOTE_DISPLAY_SHEET
+export type NoteFormat = typeof NOTE_DISPLAY_TEXT | typeof NOTE_DISPLAY_SHEET | typeof NOTE_DISPLAY_OUTLINE
 
 export function normalizeNoteFormat(value: unknown): NoteFormat {
-  return typeof value === 'string' && value.trim().toLowerCase() === NOTE_DISPLAY_SHEET
-    ? NOTE_DISPLAY_SHEET
-    : NOTE_DISPLAY_TEXT
+  if (typeof value !== 'string') return NOTE_DISPLAY_TEXT
+  const normalized = value.trim().toLowerCase()
+  if (normalized === NOTE_DISPLAY_SHEET) return NOTE_DISPLAY_SHEET
+  if (normalized === NOTE_DISPLAY_OUTLINE) return NOTE_DISPLAY_OUTLINE
+  return NOTE_DISPLAY_TEXT
 }
 
 export function noteFormatFromFrontmatter(frontmatter: Record<string, unknown>): NoteFormat {
@@ -51,9 +55,23 @@ export function noteDisplaysAsSheet(input: {
   display?: unknown
   fileKind?: string | null
 }): boolean {
-  if (input.fileKind === 'binary') return false
-  if (contentHasDisplayMetadata(input.content)) {
-    return contentHasSheetFormat(input.content)
-  }
-  return normalizeNoteFormat(input.display) === NOTE_DISPLAY_SHEET
+  return noteDisplayMode(input) === NOTE_DISPLAY_SHEET
+}
+
+export function noteDisplaysAsOutline(input: {
+  content?: string | null
+  display?: unknown
+  fileKind?: string | null
+}): boolean {
+  return noteDisplayMode(input) === NOTE_DISPLAY_OUTLINE
+}
+
+function noteDisplayMode(input: {
+  content?: string | null
+  display?: unknown
+  fileKind?: string | null
+}): NoteFormat | null {
+  if (input.fileKind === 'binary') return null
+  if (contentHasDisplayMetadata(input.content)) return noteFormatFromContent(input.content)
+  return normalizeNoteFormat(input.display)
 }

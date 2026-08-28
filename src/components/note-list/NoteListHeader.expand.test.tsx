@@ -58,4 +58,18 @@ describe('NoteListHeader expand sidebar button', () => {
       window.removeEventListener(APP_COMMAND_EVENT_NAME, commandListener)
     }
   })
+
+  it('offers document, outline, and sheet creation from the new-note menu', async () => {
+    const onCreateNote = vi.fn()
+    renderHeader({ onCreateNote })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Create new note' }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Outline' }))
+
+    expect(onCreateNote).toHaveBeenCalledWith({ creationPath: 'note_list_plus', format: 'outline' })
+  })
 })

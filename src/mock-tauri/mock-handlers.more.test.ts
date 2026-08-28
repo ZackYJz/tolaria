@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+declare const __DEMO_VAULT_PATH__: string | undefined
+
 async function loadHandlers() {
   vi.resetModules()
   return import('./mock-handlers')
@@ -160,10 +162,30 @@ describe('mockHandlers additional coverage', () => {
     })
   })
 
+  it('starts browser development on the Vite demo vault path', async () => {
+    const { mockHandlers } = await loadHandlers()
+    const expectedPath = typeof __DEMO_VAULT_PATH__ === 'undefined'
+      ? '/Users/mock/demo-vault-v2'
+      : __DEMO_VAULT_PATH__
+
+    expect(mockHandlers.get_last_vault_path()).toBe(expectedPath)
+    expect(mockHandlers.load_vault_list()).toEqual(expect.objectContaining({
+      active_vault: expectedPath,
+      vaults: [expect.objectContaining({ path: expectedPath })],
+    }))
+  })
+
+  it('keeps the default browser mock vault lightweight', async () => {
+    const { mockHandlers } = await loadHandlers()
+    const entries = mockHandlers.list_vault()
+
+    expect(entries.length).toBeGreaterThan(0)
+    expect(entries.length).toBeLessThan(100)
+  })
+
   it('persists last-vault state, reports vault existence, and restores AI guidance state', async () => {
     const { mockHandlers } = await loadHandlers()
 
-    expect(mockHandlers.get_last_vault_path()).toBe('/Users/mock/demo-vault-v2')
     expect(mockHandlers.set_last_vault_path({ path: '/Users/mock/Documents/Work' })).toBeNull()
     expect(mockHandlers.get_last_vault_path()).toBe('/Users/mock/Documents/Work')
 

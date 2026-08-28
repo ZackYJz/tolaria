@@ -24,11 +24,13 @@ import type { AppLocale } from '../lib/i18n'
 import type { FolderFileActions } from '../hooks/useFileActions'
 import type { AllNotesFileVisibility } from '../utils/allNotesFileVisibility'
 import { isTypeSectionVisible } from '../utils/typeVisibility'
+import { isJournalEntry } from '../utils/journals'
 
 interface SidebarProps {
   entries: VaultEntry[]
   selection: SidebarSelection
   onSelect: (selection: SidebarSelection) => void
+  onOpenJournals?: () => void
   onSelectNote?: (entry: VaultEntry) => void
   onCreateType?: (type: string) => void
   onCreateNewType?: () => void
@@ -77,6 +79,7 @@ interface SidebarNavigationProps
   | 'entries'
   | 'selection'
   | 'onSelect'
+  | 'onOpenJournals'
   | 'onSelectFavorite'
   | 'onReorderFavorites'
   | 'views'
@@ -387,9 +390,11 @@ function SidebarTopNavigation(props: SidebarNavigationProps) {
       <SidebarTopNav
         selection={props.selection}
         onSelect={props.onSelect}
+        onOpenJournals={props.onOpenJournals}
         showInbox={props.showInbox ?? true}
         inboxCount={props.inboxCount ?? 0}
         activeCount={props.activeCount}
+        journalCount={props.entries.filter(isJournalEntry).length}
         archivedCount={props.archivedCount}
         locale={props.locale ?? 'en'}
         loading={props.loading ?? false}
@@ -614,6 +619,7 @@ function SidebarRuntimeNavigation({
       entries={props.entries}
       selection={props.selection}
       onSelect={props.onSelect}
+      onOpenJournals={props.onOpenJournals}
       onSelectFavorite={props.onSelectFavorite}
       onReorderFavorites={props.onReorderFavorites}
       views={props.views}
