@@ -2,7 +2,7 @@ import type { VaultEntry } from '../types'
 
 export const JOURNAL_TYPE = 'Journal'
 export const JOURNALS_FOLDER = 'journals'
-export type JournalOpenSource = 'sidebar' | 'previous' | 'next' | 'today'
+export type JournalOpenSource = 'sidebar' | 'previous' | 'next' | 'today' | 'task_query'
 
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 

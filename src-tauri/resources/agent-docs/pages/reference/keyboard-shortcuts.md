@@ -44,7 +44,7 @@ These shortcuts apply while the rich editor owns focus.
 | `Enter` | Return from block selection to text editing. |
 | `Shift+Up` / `Shift+Down` | Extend a block selection. |
 | `Cmd+Shift+Up` / `Cmd+Shift+Down` | Move selected blocks on macOS. Use `Ctrl` on Windows and Linux. |
-| `Cmd+Enter` / `Ctrl+Enter` | Collapse or expand a selected heading or list section. |
+| `Cmd+Enter` / `Ctrl+Enter` | Collapse or expand a selected heading/list section; with a text cursor in a Journal list item, add or cycle `TODO → DOING → DONE`. |
 | `Cmd+T` / `Ctrl+T` | Toggle the current block between paragraph and todo. |
 | `Cmd+Shift+M` / `Ctrl+Shift+M` | Toggle Markdown highlight on selected text. |
 | `Cmd+Shift+Backtick` / `Ctrl+Shift+Backtick` | Turn the current block into a code block. |

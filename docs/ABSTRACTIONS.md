@@ -233,6 +233,8 @@ A Markdown note with `_display: outline` uses the ordinary BlockNote document mo
 
 `src/utils/journals.ts` owns the date-to-note identity contract. A journal is a Markdown note with `type: Journal`, `_display: outline`, and the deterministic local-date path `journals/YYYY-MM-DD.md`. Journal lookup, sorting, previous/next-day arithmetic, and active-journal classification stay in that module so sidebar, creation, and editor navigation do not reimplement date rules. `useNoteCreation` owns create-if-missing behavior, while `App.tsx` coordinates selection of the Journals collection and opening the resolved entry. `JournalDateNavigator` is presentation-only and receives a date-opening callback.
 
+`src/utils/journalTasks.ts` is the task-projection module. Its interface parses list-block workflow markers, collects `DOING` tasks, computes status transitions, and replaces a status only when the source line still matches the projection snapshot. `JournalDoingTasks` loads Journal content only for the active workspace and renders only beneath that workspace's newest Journal. The projection never copies or moves Markdown; completion is persisted against the source note, including closed tabs. `journalTaskShortcutExtension` owns the Journal-only text-cursor shortcut for `TODO → DOING → DONE`, while explicit whole-block selection keeps the existing collapse shortcut.
+
 Journal telemetry contains only `source` and `created` metadata. It must not include the journal date, path, title, or body content. See [ADR-0180](adr/0180-outline-display-and-date-addressed-journals.md).
 
 ### Sheet Nodes

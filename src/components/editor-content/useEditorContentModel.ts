@@ -8,6 +8,7 @@ import { deriveEditorContentState } from './editorContentState'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
 import type { ImageImportError } from '../../hooks/useImageDrop'
 import type { JournalOpenSource } from '../../utils/journals'
+import type { JournalTask, JournalTaskStatus } from '../../utils/journalTasks'
 
 export interface Tab {
   entry: VaultEntry
@@ -17,6 +18,7 @@ export interface Tab {
 export interface EditorContentProps {
   activeTab: Tab | null
   activeTabPath: string | null
+  openTabs: readonly Tab[]
   isLoadingNewTab: boolean
   isVaultLoading?: boolean
   entries: VaultEntry[]
@@ -40,6 +42,7 @@ export interface EditorContentProps {
   onToggleInspector: () => void
   onNavigateWikilink: (target: string) => void
   onOpenJournalDate?: (date: Date, source: JournalOpenSource) => void
+  onUpdateJournalTaskStatus?: (task: JournalTask, status: JournalTaskStatus) => Promise<void>
   onEditorChange?: () => void
   onToggleFavorite?: (path: string) => void
   onToggleOrganized?: (path: string) => void

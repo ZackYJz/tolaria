@@ -41,6 +41,10 @@ import { createRichEditorTextDirectionExtension } from './richEditorTextDirectio
 import { createRichEditorTransformErrorRecoveryExtension } from './richEditorTransformErrorRecoveryExtension'
 import { createRichEditorBlockSelectionExtension } from './richEditorBlockSelectionExtension'
 import { createTodoBlockShortcutExtension } from './todoBlockShortcutExtension'
+import {
+  createJournalTaskShortcutExtension,
+  setJournalTaskEditorMode,
+} from './journalTaskShortcutExtension'
 import { createRichEditorCodeBlockTabExtension } from './richEditorCodeBlockTabExtension'
 import { createRichEditorCodeBlockShortcutExtension } from './richEditorCodeBlockShortcutExtension'
 import { createRichEditorCodeBlockArrowNavigationExtension } from './richEditorCodeBlockArrowNavigationExtension'
@@ -52,6 +56,7 @@ import { useEditorPdfExport } from './useEditorPdfExport'
 import type { NotePdfExportSource } from '../utils/notePdfExport'
 import type { RichEditorBlockTypeDefinition } from '../utils/richEditorBlockTypes'
 import type { JournalOpenSource } from '../utils/journals'
+import type { JournalTask, JournalTaskStatus } from '../utils/journalTasks'
 import { useRichEditorContentReadiness, useRichEditorSheetSwapState } from './useRichEditorSheetTransition'
 import { installRichEditorMarkdownSerializer } from '../utils/richEditorMarkdown'
 import { installRichEditorDispatchPerformanceProbe } from './richEditorDispatchPerformance'
@@ -78,6 +83,7 @@ export interface EditorProps {
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
   onOpenJournalDate?: (date: Date, source: JournalOpenSource) => void
+  onUpdateJournalTaskStatus?: (task: JournalTask, status: JournalTaskStatus) => Promise<void>
   onUnsupportedAiPaste?: (message: string) => void
   onLoadDiff?: (path: string) => Promise<string>
   onLoadDiffAtCommit?: (path: string, commitHash: string) => Promise<string>
@@ -343,6 +349,7 @@ function useEditorSetup(options: EditorSetupParams) {
       createRichEditorCodeBlockShortcutExtension(),
       createMarkdownHighlightShortcutExtension(),
       createTodoBlockShortcutExtension(),
+      createJournalTaskShortcutExtension(),
       createRichEditorMarkdownInputTransformExtension(),
       createRichEditorTextDirectionExtension(),
       createRichEditorBlockSelectionExtension(),
@@ -354,6 +361,10 @@ function useEditorSetup(options: EditorSetupParams) {
   }, [editor])
   useFilenameAutolinkGuard(editor)
   const activeTab = tabs.find((t) => t.entry.path === activeTabPath) ?? null
+  useEffect(() => {
+    setJournalTaskEditorMode(editor, activeTab?.entry.isA === 'Journal')
+    return () => setJournalTaskEditorMode(editor, false)
+  }, [activeTab?.entry.isA, activeTab?.entry.path, editor])
   const {
         rawMode,
         handleToggleRaw,
@@ -528,6 +539,7 @@ function useEditorSetup(options: EditorSetupParams) {
       onToggleInspector: () => void
       onNavigateWikilink: (target: string) => void
       onOpenJournalDate?: (date: Date, source: JournalOpenSource) => void
+      onUpdateJournalTaskStatus?: (task: JournalTask, status: JournalTaskStatus) => Promise<void>
       handleEditorChange: () => void
       onToggleFavorite?: (path: string) => void
       onToggleOrganized?: (path: string) => void
@@ -710,6 +722,8 @@ function useEditorSetup(options: EditorSetupParams) {
               onToggleInspector={onToggleInspector}
               onNavigateWikilink={onNavigateWikilink}
               onOpenJournalDate={onOpenJournalDate}
+              onUpdateJournalTaskStatus={options.onUpdateJournalTaskStatus}
+              openTabs={tabs}
               onEditorChange={handleEditorChange}
               onToggleFavorite={onToggleFavorite}
               onToggleOrganized={onToggleOrganized}

@@ -33,4 +33,10 @@ Use `[[wikilinks]]` to connect notes from the body. Tolaria shows autocomplete s
 
 Use frontmatter for structured fields such as type, status, date, URL, and relationships. Keep free-form thinking in the body.
 
-Some notes can be displayed with specialized editors while keeping the same file-first model. A note with `_display: sheet` opens as a spreadsheet and stores its cells in a CSV-like body, while `type` remains available for organization. See [Spreadsheets](/concepts/spreadsheets).
+Some notes can change presentation while keeping the same file-first model. A note with `_display: outline` uses a compact, hierarchy-focused rich-editor view while retaining ordinary nested-list and fenced-code Markdown. A note with `_display: sheet` opens as a spreadsheet and stores its cells in a CSV-like body. In both cases, `type` remains available for organization. See [Spreadsheets](/concepts/spreadsheets).
+
+## Journals and Tasks
+
+Journals are outline notes with `type: Journal` stored at `journals/YYYY-MM-DD.md`. Open Journals from the sidebar to jump to today's entry, then use the previous, today, and next controls above the editor to move between local calendar dates. Missing dates are created when opened.
+
+Journal list blocks support the portable task markers `TODO`, `DOING`, and `DONE`. Place the text cursor in a Journal list item and press `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux to add or cycle the marker. Every unfinished `DOING` task remains at its original Journal location and is also projected at the bottom of the newest Journal in that workspace. Marking a projected task done updates its original block.

@@ -14,6 +14,7 @@ import { RawEditorView } from '../RawEditorView'
 import { SingleEditorView } from '../SingleEditorView'
 import { PageReferences } from '../PageReferences'
 import { JournalDateNavigator } from './JournalDateNavigator'
+import { JournalDoingTasks } from './JournalDoingTasks'
 import type { useEditorContentModel } from './useEditorContentModel'
 
 type EditorContentModel = ReturnType<typeof useEditorContentModel>
@@ -399,10 +400,13 @@ type EditorCanvasProps = Pick<
   | 'cssVars'
   | 'editor'
   | 'activeTab'
+  | 'openTabs'
   | 'entries'
   | 'onNavigateWikilink'
   | 'onEditorChange'
   | 'onRawContentChange'
+  | 'onOpenJournalDate'
+  | 'onUpdateJournalTaskStatus'
   | 'sheetFlushRef'
   | 'isDeletedPreview'
   | 'vaultPath'
@@ -433,8 +437,11 @@ function StandardEditorCanvas(options: EditorCanvasProps) {
     cssVars,
     editor,
     activeTab,
+    openTabs,
     entries,
     onNavigateWikilink,
+    onOpenJournalDate,
+    onUpdateJournalTaskStatus,
     onEditorChange,
     onRawContentChange,
     sheetFlushRef,
@@ -482,6 +489,20 @@ function StandardEditorCanvas(options: EditorCanvasProps) {
           locale={locale}
           outline={isOutline}
         />
+        {!isDeletedPreview
+          && activeTab
+          && onOpenJournalDate
+          && onUpdateJournalTaskStatus ? (
+            <JournalDoingTasks
+              activeEntry={activeTab.entry}
+              entries={entries}
+              locale={locale}
+              openTabs={openTabs}
+              vaultPath={vaultPath ?? ''}
+              onOpenDate={(date) => onOpenJournalDate(date, 'task_query')}
+              onUpdateStatus={onUpdateJournalTaskStatus}
+            />
+          ) : null}
         {!isDeletedPreview && activeTab ? (
           <PageReferences
             key={activeTab.entry.path}
@@ -533,6 +554,7 @@ function EditorFindScope({
 export function EditorContentLayout(model: EditorContentModel) {
   const {
     activeTab,
+    openTabs,
     loadingTab,
     entries,
     editor,
@@ -554,6 +576,8 @@ export function EditorContentLayout(model: EditorContentModel) {
     vaultPath,
     cssVars,
     onNavigateWikilink,
+    onOpenJournalDate,
+    onUpdateJournalTaskStatus,
     onEditorChange,
     isDeletedPreview,
     rawLatestContentRef,
@@ -632,10 +656,13 @@ export function EditorContentLayout(model: EditorContentModel) {
             richEditorContentReady={richEditorContentReady}
             cssVars={cssVars}
             activeTab={activeTab}
+            openTabs={openTabs}
             vaultPath={vaultPath}
             editor={editor}
             entries={entries}
             onNavigateWikilink={onNavigateWikilink}
+            onOpenJournalDate={onOpenJournalDate}
+            onUpdateJournalTaskStatus={onUpdateJournalTaskStatus}
             onEditorChange={onEditorChange}
             onRawContentChange={onRawContentChange}
             onImageImportError={onImageImportError}

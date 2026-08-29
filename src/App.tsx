@@ -119,6 +119,12 @@ import {
   vaultPathForEntry,
 } from './utils/workspaces'
 import { notePathsMatch } from './utils/notePathIdentity'
+import {
+  updateJournalTaskStatus,
+  type JournalTask,
+  type JournalTaskStatus,
+} from './utils/journalTasks'
+import { cacheNoteContent } from './hooks/noteContentCache'
 import { activeGitRepositories } from './utils/gitRepositories'
 import { entrySupportsPreviewSourceToggle } from './utils/filePreview'
 import { isMarkdownEntry } from './utils/typeDefinitions'
@@ -1110,6 +1116,52 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     handleAppContentChange(path, content)
   }, [handleAppContentChange, recordAutoGitActivity])
 
+  const handleJournalTaskStatusChange = useCallback(async (
+    task: JournalTask,
+    status: JournalTaskStatus,
+  ) => {
+    const sourceEntry = visibleEntries.find((entry) => notePathsMatch(entry.path, task.sourcePath))
+    if (!sourceEntry) throw new Error('Journal task source is no longer available')
+
+    const openTab = notes.tabs.find((tab) => notePathsMatch(tab.entry.path, sourceEntry.path))
+    const sourceVaultPath = vaultPathForEntry(sourceEntry, resolvedPath)
+    const args = { path: sourceEntry.path, vaultPath: sourceVaultPath }
+    try {
+      const content = openTab?.content ?? (isTauri()
+        ? await invoke<string>('get_note_content', args)
+        : await mockInvoke<string>('get_note_content', args))
+      const updatedContent = updateJournalTaskStatus(content, task, status)
+
+      if (openTab) {
+        handleTrackedContentChange(sourceEntry.path, updatedContent)
+        await appSave.savePendingForPath(sourceEntry.path)
+      } else {
+        const saveArgs = { ...args, content: updatedContent }
+        if (isTauri()) await invoke('save_note_content', saveArgs)
+        else await mockInvoke('save_note_content', saveArgs)
+        cacheNoteContent(sourceEntry.path, updatedContent, sourceEntry)
+        markRecentVaultWrite(sourceEntry.path)
+        await vault.reloadVault()
+        await refreshGitModifiedFiles()
+      }
+      recordAutoGitActivity()
+    } catch (error) {
+      setToastMessage(translate(appLocale, 'save.error.failed', { error: String(error) }))
+      throw error
+    }
+  }, [
+    appLocale,
+    appSave,
+    handleTrackedContentChange,
+    markRecentVaultWrite,
+    notes.tabs,
+    recordAutoGitActivity,
+    refreshGitModifiedFiles,
+    resolvedPath,
+    vault,
+    visibleEntries,
+  ])
+
   const handleTrackedSave = useCallback(async (...args: Parameters<typeof handleAppSave>) => {
     if (notes.activeTabPath) {
       flushPendingEditorContentRef.current?.(notes.activeTabPath)
@@ -1771,6 +1823,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
               entries={visibleEntries}
               onNavigateWikilink={notes.handleNavigateWikilink}
               onOpenJournalDate={handleOpenJournalDate}
+              onUpdateJournalTaskStatus={handleJournalTaskStatusChange}
               onLoadDiff={loadDiffForPath}
               onLoadDiffAtCommit={loadDiffAtCommitForPath}
               pendingCommitDiffRequest={pendingDiffRequest}

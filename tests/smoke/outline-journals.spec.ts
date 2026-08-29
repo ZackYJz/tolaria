@@ -3,6 +3,30 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createFixtureVaultCopy, openFixtureVault, removeFixtureVaultCopy } from '../helpers/fixtureVault'
 
+function localDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function writeJournal(vaultPath: string, date: string, tasks: string[]): string {
+  const journalPath = path.join(vaultPath, 'journals', `${date}.md`)
+  fs.mkdirSync(path.dirname(journalPath), { recursive: true })
+  fs.writeFileSync(journalPath, `---
+title: ${date}
+type: Journal
+_display: outline
+_width: wide
+---
+
+# ${date}
+
+${tasks.map((task) => `- ${task}`).join('\n')}
+`)
+  return journalPath
+}
+
 test('@smoke creates an outline note from the new-note menu', async ({ page }) => {
   const tempVaultDir = createFixtureVaultCopy()
 
@@ -154,6 +178,46 @@ test('@smoke opens today and navigates between outline Journals', async ({ page 
 
     await expect(page.getByTestId('breadcrumb-filename-trigger')).not.toHaveText(todayFilename ?? '')
     await expect(page.getByRole('navigation', { name: 'Journal date navigation' })).toBeVisible()
+  } finally {
+    removeFixtureVaultCopy(tempVaultDir)
+  }
+})
+
+test('shows DOING tasks from older journals at the bottom of the latest journal', async ({ page }) => {
+  const tempVaultDir = createFixtureVaultCopy()
+  const today = new Date()
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+  const todayKey = localDateKey(today)
+  const yesterdayKey = localDateKey(yesterday)
+  const olderJournalPath = writeJournal(tempVaultDir, yesterdayKey, [
+    'DOING Long-running work',
+    'TODO Later work',
+  ])
+  const latestJournalPath = writeJournal(tempVaultDir, todayKey, ['DOING Today work'])
+
+  try {
+    await openFixtureVault(page, tempVaultDir)
+    await page.getByText('Journals', { exact: true }).click()
+
+    const doingTasks = page.getByRole('region', { name: 'DOING' })
+    await expect(doingTasks).toBeVisible()
+    await expect(doingTasks.getByText('Long-running work')).toBeVisible()
+    await expect(doingTasks.getByText('Today work')).toBeVisible()
+    await expect(doingTasks.getByText('Later work')).toHaveCount(0)
+
+    await doingTasks.getByRole('button', { name: 'Long-running work: Done' }).click()
+
+    await expect(doingTasks.getByText('Long-running work')).toHaveCount(0)
+    await expect.poll(() => fs.readFileSync(olderJournalPath, 'utf8')).toContain('- DONE Long-running work')
+    expect(fs.readFileSync(olderJournalPath, 'utf8')).toContain('- TODO Later work')
+
+    const todayTask = page.locator('[data-content-type="bulletListItem"]', { hasText: 'Today work' })
+    await todayTask.click()
+    await page.keyboard.press('Meta+Enter')
+
+    await expect(todayTask).toHaveText('DONE Today work')
+    await expect(doingTasks.getByText('Today work')).toHaveCount(0)
+    await expect.poll(() => fs.readFileSync(latestJournalPath, 'utf8')).toContain('- DONE Today work')
   } finally {
     removeFixtureVaultCopy(tempVaultDir)
   }
