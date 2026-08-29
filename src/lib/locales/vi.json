@@ -927,6 +927,8 @@
   "inspector.info.created": "Đã tạo",
   "inspector.info.words": "Số từ",
   "inspector.info.size": "Dung lượng",
+  "editor.references.linked": "Tham chiếu được liên kết",
+  "editor.references.unlinkedMentions": "Lượt đề cập chưa liên kết",
   "update.available": "đã có sẵn",
   "update.checking": "Checking for updates...",
   "update.releaseNotes": "Ghi chú phát hành",

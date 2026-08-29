@@ -927,6 +927,8 @@
   "inspector.info.created": "Created",
   "inspector.info.words": "Words",
   "inspector.info.size": "Size",
+  "editor.references.linked": "Linked references",
+  "editor.references.unlinkedMentions": "Unlinked mentions",
   "update.available": "is available",
   "update.checking": "Checking for updates...",
   "update.releaseNotes": "Release Notes",

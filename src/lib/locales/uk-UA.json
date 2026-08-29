@@ -927,6 +927,8 @@
   "inspector.info.created": "Створено",
   "inspector.info.words": "Слів",
   "inspector.info.size": "Розмір",
+  "editor.references.linked": "Пов’язані посилання",
+  "editor.references.unlinkedMentions": "Непов’язані згадки",
   "update.available": "доступна",
   "update.checking": "Перевірка оновлень...",
   "update.releaseNotes": "Примітки до випуску",

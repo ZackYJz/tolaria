@@ -927,6 +927,8 @@
   "inspector.info.created": "创建时间",
   "inspector.info.words": "字数",
   "inspector.info.size": "大小",
+  "editor.references.linked": "反向链接",
+  "editor.references.unlinkedMentions": "未链接提及",
   "update.available": "可用",
   "update.checking": "正在检查更新……",
   "update.releaseNotes": "发行说明",

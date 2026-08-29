@@ -50,6 +50,12 @@ vi.mock('../SingleEditorView', () => ({
   SingleEditorView: () => <div data-testid="single-editor-view" />,
 }))
 
+vi.mock('../PageReferences', () => ({
+  PageReferences: ({ sourceEntry }: { sourceEntry: { path: string } }) => (
+    <div data-testid="page-references" data-source-path={sourceEntry.path} />
+  ),
+}))
+
 vi.mock('../DiffView', () => ({
   DiffView: () => <div data-testid="diff-view" />,
 }))
@@ -115,6 +121,7 @@ describe('EditorContentLayout', () => {
     expect(container.querySelector('.title-section')).toBeNull()
     expect(screen.queryByTestId('title-field-input')).not.toBeInTheDocument()
     expect(screen.getByTestId('single-editor-view')).toBeInTheDocument()
+    expect(screen.getByTestId('page-references')).toHaveAttribute('data-source-path', '/vault/project/demo.md')
   })
 
   it('does not show stale editor chrome while switching tabs', () => {

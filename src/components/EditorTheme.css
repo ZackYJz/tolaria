@@ -15,7 +15,8 @@
   max-width: var(--editor-max-width);
   margin: 0 auto;  /* Center the editor body */
   padding: var(--editor-padding-vertical) var(--editor-padding-horizontal);
-  padding-bottom: max(var(--editor-padding-vertical), 50vh);
+  /* The page footer owns the scroll tail so references follow the final block. */
+  padding-bottom: var(--editor-padding-vertical);
   color: var(--colors-text);
   caret-color: var(--colors-cursor);
 }

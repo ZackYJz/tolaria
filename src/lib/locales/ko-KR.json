@@ -927,6 +927,8 @@
   "inspector.info.created": "생성됨",
   "inspector.info.words": "단어 수",
   "inspector.info.size": "크기",
+  "editor.references.linked": "연결된 참조",
+  "editor.references.unlinkedMentions": "연결되지 않은 언급",
   "update.available": "사용 가능",
   "update.checking": "업데이트 확인 중...",
   "update.releaseNotes": "릴리스 노트",

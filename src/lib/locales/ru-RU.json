@@ -927,6 +927,8 @@
   "inspector.info.created": "Создано",
   "inspector.info.words": "Слов",
   "inspector.info.size": "Размер",
+  "editor.references.linked": "Связанные ссылки",
+  "editor.references.unlinkedMentions": "Несвязанные упоминания",
   "update.available": "доступно",
   "update.checking": "Проверка наличия обновлений...",
   "update.releaseNotes": "Примечания к выпуску",

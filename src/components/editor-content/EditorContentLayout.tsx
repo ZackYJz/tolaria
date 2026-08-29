@@ -12,6 +12,7 @@ import { ArchivedNoteBanner } from '../ArchivedNoteBanner'
 import { ConflictNoteBanner } from '../ConflictNoteBanner'
 import { RawEditorView } from '../RawEditorView'
 import { SingleEditorView } from '../SingleEditorView'
+import { PageReferences } from '../PageReferences'
 import { JournalDateNavigator } from './JournalDateNavigator'
 import type { useEditorContentModel } from './useEditorContentModel'
 
@@ -481,6 +482,16 @@ function StandardEditorCanvas(options: EditorCanvasProps) {
           locale={locale}
           outline={isOutline}
         />
+        {!isDeletedPreview && activeTab ? (
+          <PageReferences
+            key={activeTab.entry.path}
+            entries={entries}
+            locale={locale}
+            onNavigate={onNavigateWikilink}
+            sourceEntry={activeTab.entry}
+            vaultPath={vaultPath ?? ''}
+          />
+        ) : null}
       </div>
     </EditorFindScope>
   )

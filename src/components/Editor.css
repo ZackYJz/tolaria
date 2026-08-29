@@ -83,7 +83,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 
 /* BlockNote container */
 .editor__blocknote-container {
-  flex: 1;
+  flex: none;
   min-height: 0;
   display: flex;
   position: relative;
@@ -120,7 +120,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 
 .editor__blocknote-container .bn-container {
   width: 100%;
-  height: 100%;
+  height: auto;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 15px;
@@ -338,6 +338,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 
 /* --- Editor content wrapper: single source of truth for horizontal padding --- */
 .editor-content-wrapper {
+  --editor-scroll-tail-height: 50vh;
   max-width: var(--editor-max-width, 760px);
   margin: 0 auto;
   padding: 0 var(--editor-padding-horizontal, 40px);
@@ -441,6 +442,10 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   }
 
   body.tolaria-note-pdf-exporting :is(.editor__code-block-copy, .mermaid-diagram__expand-button, .tldraw-whiteboard__resize-handle, .tlui-layout, .tlui-popover, [data-radix-popper-content-wrapper]) {
+    display: none !important;
+  }
+
+  body.tolaria-note-pdf-exporting [data-note-pdf-export-exclude="true"] {
     display: none !important;
   }
 }

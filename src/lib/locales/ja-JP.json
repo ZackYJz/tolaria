@@ -927,6 +927,8 @@
   "inspector.info.created": "作成日時",
   "inspector.info.words": "単語数",
   "inspector.info.size": "サイズ",
+  "editor.references.linked": "リンクされた参照",
+  "editor.references.unlinkedMentions": "未リンクの言及",
   "update.available": "利用可能",
   "update.checking": "更新を確認しています...",
   "update.releaseNotes": "リリースノート",

@@ -927,6 +927,8 @@
   "inspector.info.created": "Vytvorené",
   "inspector.info.words": "Slová",
   "inspector.info.size": "Veľkosť",
+  "editor.references.linked": "Prepojené odkazy",
+  "editor.references.unlinkedMentions": "Neprepojené zmienky",
   "update.available": "je k dispozícii",
   "update.checking": "Kontrolujú sa aktualizácie...",
   "update.releaseNotes": "Poznámky k vydaniu",

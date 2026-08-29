@@ -456,6 +456,12 @@ The renderer uses `viewOrdering` helpers to convert drag or command-palette move
 - Plain click / `Enter` open the focused note without replacing the current Neighborhood.
 - Cmd/Ctrl-click and Cmd/Ctrl-`Enter` open the note and pivot the note list into that note's Neighborhood.
 
+### Page References
+
+Rich Markdown notes expose the same incoming-link graph at the bottom of the editor. `PageReferences` resolves explicit backlinks through `buildRelationshipGroups`, so the editor and Neighborhood share one backlink definition instead of maintaining parallel matching rules. Plain-text mentions use the existing `search_vault` command with frontmatter excluded and are filtered against the explicit backlink paths, producing a Logseq-style split between linked references and unlinked mentions. Candidate note bodies are then read through the scoped `get_note_content` boundary in bounded batches: text notes show each exact matching source line, while outline notes show the matching list item and its descendant subtree without including the next sibling.
+
+Mention search is delayed until the page footer is within 600px of the editor viewport. Results are scoped to the active note path so an older async search cannot appear after a tab swap. Reference rows navigate through the normal wikilink handler, and the computed footer is not part of Markdown serialization or PDF export.
+
 ## Command Surface
 
 `src/shared/appCommandManifest.json` is the cross-runtime source for stable app command IDs, menu structure, display labels, accelerators, deterministic shortcut QA metadata, and native menu enablement groups. The renderer imports it through `src/hooks/appCommandCatalog.ts`, which derives `APP_COMMAND_IDS`, shortcut lookup maps, exact macOS layout-event aliases, custom titlebar menu sections, native-menu command membership, and test helpers. Layout aliases affect renderer event matching only, so the canonical native accelerator and its visible label remain stable. Tauri includes the same JSON in `src-tauri/src/menu.rs` and uses it to build custom menu items, emit overridden menu item IDs such as the quick-open alias as their primary command IDs, and toggle state-dependent menu items from manifest groups.

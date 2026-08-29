@@ -927,6 +927,8 @@
   "inspector.info.created": "Créée",
   "inspector.info.words": "Mots",
   "inspector.info.size": "Taille",
+  "editor.references.linked": "Références liées",
+  "editor.references.unlinkedMentions": "Mentions non liées",
   "update.available": "est disponible",
   "update.checking": "Recherche de mises à jour en cours…",
   "update.releaseNotes": "Notes de version",

@@ -927,6 +927,8 @@
   "inspector.info.created": "Skapad",
   "inspector.info.words": "Ord",
   "inspector.info.size": "Storlek",
+  "editor.references.linked": "Länkade referenser",
+  "editor.references.unlinkedMentions": "Olänkade omnämnanden",
   "update.available": "är tillgänglig",
   "update.checking": "Söker efter uppdateringar...",
   "update.releaseNotes": "Versionsinformation",

@@ -5,9 +5,12 @@ const editorThemeCss = readFileSync('src/components/EditorTheme.css', 'utf8')
 const editorCss = readFileSync('src/components/Editor.css', 'utf8')
 
 describe('rich editor scroll-beyond-last-line space', () => {
-  it('reserves half of the viewport after the BlockNote document', () => {
+  it('lets the page footer reserve half of the viewport after the document', () => {
     expect(editorThemeCss).toMatch(
-      /\.editor__blocknote-container \.bn-editor\s*\{[^}]*padding-bottom:\s*max\(var\(--editor-padding-vertical\),\s*50vh\)/s,
+      /\.editor__blocknote-container \.bn-editor\s*\{[^}]*padding-bottom:\s*var\(--editor-padding-vertical\)/s,
+    )
+    expect(editorCss).toMatch(
+      /\.editor-content-wrapper\s*\{[^}]*--editor-scroll-tail-height:\s*50vh/s,
     )
   })
 

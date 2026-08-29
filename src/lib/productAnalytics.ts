@@ -24,6 +24,7 @@ type AiAgentToolCount = number
 type AiAgentResponseTextFlag = 'had_text' | 'had_partial_response'
 type SheetFormulaFunctionName = string
 type StartupSource = 'scan' | 'snapshot'
+type PageReferenceKind = 'linked' | 'mention'
 
 const ALL_NOTES_VISIBILITY_CATEGORIES: ReadonlyArray<keyof AllNotesFileVisibility> = [
   'pdfs',
@@ -197,6 +198,10 @@ export function trackThemeModeChanged(mode: ThemeMode): void {
 
 export function trackInlineImageLightboxOpened(): void {
   trackEvent('inline_image_lightbox_opened')
+}
+
+export function trackPageReferenceOpened(kind: PageReferenceKind): void {
+  trackEvent('page_reference_opened', { kind })
 }
 
 export function trackDatePropertyDirectEntrySaved(): void {

@@ -47,6 +47,7 @@ interface VaultEntry {
   sort: string | null
   view: string | null
   visible: boolean | null
+  display: 'text' | 'sheet' | 'outline' | null
   outgoingLinks: string[]
   properties: Record<string, string | number | boolean | null>
 }
@@ -55,6 +56,13 @@ interface VaultEntry {
 function extractWikiLinks(value: string): string[] {
   const matches = value.match(/\[\[[^\]]+\]\]/g)
   return matches ?? []
+}
+
+function extractOutgoingLinkTargets(content: string): string[] {
+  const targets = extractWikiLinks(content)
+    .map((link) => link.slice(2, -2).split('|')[0].trim())
+    .filter(Boolean)
+  return [...new Set(targets)].sort((left, right) => left.localeCompare(right))
 }
 
 /** Extract wiki-links from a frontmatter value (string or array of strings). */
@@ -82,6 +90,7 @@ const DEDICATED_KEYS = new Set([
   'archived', '_icon', 'icon', 'color', '_order', 'order',
   '_sidebar_label', 'sidebar_label', 'sidebar label', 'template',
   '_sort', 'sort', 'view', '_width', 'width', 'visible',
+  '_display', 'display',
   '_organized', '_favorite', '_favorite_index', '_list_properties_display',
 ].map((key) => key.toLowerCase()))
 
@@ -421,12 +430,17 @@ function parseMarkdownFile(filePath: string): VaultEntry | null {
       sort: frontmatterString(fm, 'sort'),
       view: frontmatterString(fm, 'view'),
       visible: frontmatterBool(fm, 'visible'),
-      outgoingLinks: [],
+      display: noteDisplayMode(frontmatterString(fm, '_display', 'display')),
+      outgoingLinks: extractOutgoingLinkTargets(content),
       properties: frontmatterProperties(fm),
     }
   } catch {
     return null
   }
+}
+
+function noteDisplayMode(value: string | null): VaultEntry['display'] {
+  return value === 'text' || value === 'sheet' || value === 'outline' ? value : null
 }
 
 /** Recursively find all .md files under a directory. */

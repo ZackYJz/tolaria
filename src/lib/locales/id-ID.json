@@ -927,6 +927,8 @@
   "inspector.info.created": "Dibuat",
   "inspector.info.words": "Kata",
   "inspector.info.size": "Ukuran",
+  "editor.references.linked": "Referensi tertaut",
+  "editor.references.unlinkedMentions": "Sebutan tak tertaut",
   "update.available": "tersedia",
   "update.checking": "Memeriksa pembaruan...",
   "update.releaseNotes": "Catatan Rilis",

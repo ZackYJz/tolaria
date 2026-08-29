@@ -878,6 +878,8 @@
   "inspector.info.created": "Stvorana",
   "inspector.info.words": "Sloŭ",
   "inspector.info.size": "Pamier",
+  "editor.references.linked": "Zviazanyja spasylki",
+  "editor.references.unlinkedMentions": "Niezviazanyja zhadki",
   "update.available": "dastupna",
   "update.checking": "Pravierka abnaŭlienniaŭ...",
   "update.releaseNotes": "Što novaha",
