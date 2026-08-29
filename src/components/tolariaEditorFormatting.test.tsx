@@ -11,6 +11,7 @@ import {
   createCalloutSlashMenuItem,
   createDateTimeSlashMenuItems,
   createHtmlBlockSlashMenuItem,
+  createJournalTaskSlashMenuItems,
   createMathSlashMenuItem,
   filterTolariaFormattingToolbarItems,
   filterTolariaSlashMenuItems,
@@ -30,9 +31,11 @@ import { calloutIconForType } from './calloutIcons'
 function createSlashCommandEditorFixture() {
   const block = { id: 'active-block' }
   const editor = {
+    getBlock: () => block,
     getTextCursorPosition: () => ({ block }),
     insertInlineContent: () => {},
     replaceBlocks: () => {},
+    setTextCursorPosition: () => {},
     updateBlock: () => {},
   }
 
@@ -41,6 +44,7 @@ function createSlashCommandEditorFixture() {
     editor: editor as never,
     insertInlineContent: vi.spyOn(editor, 'insertInlineContent'),
     replaceBlocks: vi.spyOn(editor, 'replaceBlocks'),
+    setTextCursorPosition: vi.spyOn(editor, 'setTextCursorPosition'),
     updateBlock: vi.spyOn(editor, 'updateBlock'),
   }
 }
@@ -311,6 +315,29 @@ describe('tolariaEditorFormatting', () => {
     }])
     expect(updateBlock).not.toHaveBeenCalled()
     expect(trackEvent).toHaveBeenCalledWith('editor_math_slash_command_used')
+  })
+
+  it('creates searchable TODO workflow commands that update the source block', () => {
+    const { block, editor, setTextCursorPosition, updateBlock } = createSlashCommandEditorFixture()
+    const items = createJournalTaskSlashMenuItems(editor)
+
+    expect(items).toEqual([
+      expect.objectContaining({ key: 'journal_task_todo', title: 'TODO' }),
+      expect.objectContaining({ key: 'journal_task_doing', title: 'DOING' }),
+      expect.objectContaining({ key: 'journal_task_done', title: 'DONE' }),
+    ])
+
+    items[1]?.onItemClick()
+
+    expect(updateBlock).toHaveBeenCalledWith(block.id, {
+      content: [{ type: 'text', text: 'DOING ', styles: {} }],
+      type: 'bulletListItem',
+    })
+    expect(setTextCursorPosition).toHaveBeenCalledWith(block.id, 'end')
+    expect(trackEvent).toHaveBeenCalledWith('journal_task_status_changed', {
+      source: 'slash_menu',
+      status: 'doing',
+    })
   })
 
   it('creates a callout parent command with every default style in its submenu', () => {

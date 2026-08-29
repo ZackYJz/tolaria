@@ -183,6 +183,46 @@ test('@smoke opens today and navigates between outline Journals', async ({ page 
   }
 })
 
+test('creates Journal tasks from the slash menu without wrapping list labels', async ({ page }) => {
+  const tempVaultDir = createFixtureVaultCopy()
+  const todayKey = localDateKey(new Date())
+  const journalPath = path.join(tempVaultDir, 'journals', `${todayKey}.md`)
+
+  try {
+    await openFixtureVault(page, tempVaultDir)
+    await page.getByText('Journals', { exact: true }).click()
+
+    const outlineEditor = page.locator('[data-note-display="outline"]')
+    const currentItem = outlineEditor.locator('[data-content-type="bulletListItem"]').last()
+    await currentItem.click()
+    await page.keyboard.press('End')
+    await page.keyboard.type('/')
+
+    const menu = page.locator('.tolaria-slash-menu')
+    await expect(menu).toBeVisible()
+    const numberedListItem = menu.locator('.tolaria-slash-menu__item').filter({ hasText: 'Numbered List' })
+    await expect(numberedListItem).toBeVisible()
+    const numberedListLayout = await numberedListItem.evaluate((element) => ({
+      height: element.getBoundingClientRect().height,
+      whiteSpace: getComputedStyle(element).whiteSpace,
+    }))
+    expect(numberedListLayout.whiteSpace).toBe('nowrap')
+    expect(numberedListLayout.height).toBeLessThanOrEqual(40)
+
+    await page.keyboard.type('todo')
+    await page.getByRole('option', { name: /^TODO$/ }).click()
+    await page.keyboard.type('Write release notes')
+    await page.keyboard.press('Meta+s')
+
+    await expect(outlineEditor.locator('[data-content-type="bulletListItem"]', {
+      hasText: 'TODO Write release notes',
+    })).toHaveCount(1)
+    await expect.poll(() => fs.readFileSync(journalPath, 'utf8')).toContain('- TODO Write release notes')
+  } finally {
+    removeFixtureVaultCopy(tempVaultDir)
+  }
+})
+
 test('shows DOING tasks from older journals at the bottom of the latest journal', async ({ page }) => {
   const tempVaultDir = createFixtureVaultCopy()
   const today = new Date()

@@ -54,6 +54,7 @@ describe('TolariaSlashMenu', () => {
     expect(mocks.suggestionMenuItemProps).toHaveBeenCalledWith(
       expect.not.objectContaining({ onMouseEnter: expect.anything() }),
     )
+    expect(screen.getByRole('menuitem')).toHaveClass('tolaria-slash-menu__item')
   })
 
   it('opens the callout type submenu on the right and selects a clicked style', () => {

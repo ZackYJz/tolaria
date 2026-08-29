@@ -24,7 +24,8 @@ type JournalTaskEditor = object & {
   getTextCursorPosition: () => { block: JournalTaskBlock }
   isEditable?: boolean
   prosemirrorView?: { composing?: boolean; state?: object }
-  updateBlock: (id: string, update: { content: InlineContent }) => unknown
+  setTextCursorPosition: (id: string, placement: 'end') => unknown
+  updateBlock: (id: string, update: { content: InlineContent; type?: string }) => unknown
 }
 
 const JOURNAL_TASK_BLOCK_TYPES = new Set(['bulletListItem', 'numberedListItem', 'checkListItem'])
@@ -34,6 +35,10 @@ const journalTaskEditors = new WeakSet<object>()
 export function setJournalTaskEditorMode(editor: object, enabled: boolean): void {
   if (enabled) journalTaskEditors.add(editor)
   else journalTaskEditors.delete(editor)
+}
+
+export function isJournalTaskEditorMode(editor: object): boolean {
+  return journalTaskEditors.has(editor)
 }
 
 function isInlineText(item: InlineContent[number]): item is InlineText {
@@ -60,6 +65,41 @@ function contentWithNextTaskStatus(content: JournalTaskBlock['content']): {
     : `${status} ${first.text}`
   items[0] = { ...first, text: nextText }
   return { content: items, status }
+}
+
+function contentWithTaskStatus(
+  content: JournalTaskBlock['content'],
+  status: JournalTaskStatus,
+): InlineContent {
+  const items: InlineContent = Array.isArray(content) ? [...content] : []
+  const first = items[0]
+  if (!first || !isInlineText(first)) {
+    return [{ type: 'text', text: `${status} `, styles: {} }, ...items]
+  }
+
+  const currentStatus = TASK_PREFIX_PATTERN.exec(first.text)?.[1]
+  if (currentStatus) {
+    items[0] = {
+      ...first,
+      text: `${status}${first.text.slice(currentStatus.length)}`,
+    }
+    return items
+  }
+
+  return [{ type: 'text', text: `${status} `, styles: {} }, ...items]
+}
+
+export function setCurrentJournalTaskStatus(
+  editor: Pick<JournalTaskEditor, 'getBlock' | 'getTextCursorPosition' | 'setTextCursorPosition' | 'updateBlock'>,
+  status: JournalTaskStatus,
+): void {
+  const cursorBlock = editor.getTextCursorPosition().block
+  const block = editor.getBlock(cursorBlock.id) ?? cursorBlock
+  editor.updateBlock(block.id, {
+    content: contentWithTaskStatus(block.content, status),
+    type: 'bulletListItem',
+  })
+  editor.setTextCursorPosition(block.id, 'end')
 }
 
 function isJournalTaskShortcut(event: KeyboardEvent): boolean {

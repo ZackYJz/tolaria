@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { trackEvent } from '../lib/telemetry'
 import {
   createJournalTaskShortcutExtension,
+  isJournalTaskEditorMode,
+  setCurrentJournalTaskStatus,
   setJournalTaskEditorMode,
 } from './journalTaskShortcutExtension'
 import { richEditorBlockSelectionPluginKey } from './richEditorBlockSelectionExtension'
@@ -64,6 +66,41 @@ function createFixture(text: string, journalMode = true, blockSelected = false) 
 }
 
 describe('createJournalTaskShortcutExtension', () => {
+  it('sets an explicit task status while converting the current block to a list item', () => {
+    const block = {
+      id: 'task-block',
+      type: 'paragraph',
+      content: [{ type: 'text' as const, text: 'Plan release', styles: { bold: true } }],
+    }
+    const editor = {
+      getBlock: vi.fn(() => block),
+      getTextCursorPosition: vi.fn(() => ({ block })),
+      setTextCursorPosition: vi.fn(),
+      updateBlock: vi.fn(),
+    }
+
+    setCurrentJournalTaskStatus(editor, 'DOING')
+
+    expect(editor.updateBlock).toHaveBeenCalledWith('task-block', {
+      content: [
+        { type: 'text', text: 'DOING ', styles: {} },
+        { type: 'text', text: 'Plan release', styles: { bold: true } },
+      ],
+      type: 'bulletListItem',
+    })
+    expect(editor.setTextCursorPosition).toHaveBeenCalledWith('task-block', 'end')
+  })
+
+  it('exposes whether task commands should be available for an editor', () => {
+    const editor = {}
+
+    expect(isJournalTaskEditorMode(editor)).toBe(false)
+    setJournalTaskEditorMode(editor, true)
+    expect(isJournalTaskEditorMode(editor)).toBe(true)
+    setJournalTaskEditorMode(editor, false)
+    expect(isJournalTaskEditorMode(editor)).toBe(false)
+  })
+
   it('adds TODO and cycles existing task statuses inside journals', () => {
     const plain = createFixture('Plan release')
     plain.fire()

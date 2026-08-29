@@ -202,6 +202,19 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   display: none !important;
 }
 
+.editor__blocknote-container .tolaria-slash-menu {
+  width: max-content;
+  min-width: 12rem;
+  max-width: calc(100vw - 1rem);
+}
+
+.editor__blocknote-container .tolaria-slash-menu__item,
+.editor__blocknote-container .tolaria-slash-menu__item .bn-suggestion-menu-item,
+.editor__blocknote-container .tolaria-slash-menu__item .bn-mt-suggestion-menu-item-body,
+.editor__blocknote-container .tolaria-slash-menu__item .bn-mt-suggestion-menu-item-title {
+  white-space: nowrap;
+}
+
 .editor__blocknote-container .tolaria-slash-menu-icon {
   position: relative;
   display: inline-flex;

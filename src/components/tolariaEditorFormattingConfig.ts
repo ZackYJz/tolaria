@@ -7,6 +7,9 @@ import { createElement, type ReactElement } from 'react'
 import {
   CalendarBlank,
   CalendarDots,
+  CheckCircle,
+  Circle,
+  CircleHalf,
   CodeBlock,
   Clock,
   File,
@@ -49,6 +52,11 @@ import { MATH_BLOCK_TYPE } from '../utils/mathMarkdown'
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE, TLDRAW_DEFAULT_HEIGHT } from '../utils/tldrawMarkdown'
 import { calloutIconForType } from './calloutIcons'
+import {
+  isJournalTaskEditorMode,
+  setCurrentJournalTaskStatus,
+} from './journalTaskShortcutExtension'
+import type { JournalTaskStatus } from '../utils/journalTasks'
 
 export type TolariaSlashMenuItem = DefaultReactSuggestionItem & {
   key: string
@@ -58,9 +66,12 @@ type TolariaBlockTypeSelectItem = RichEditorBlockTypeDefinition & {
   icon: PhosphorIcon
 }
 type SlashInsertEditor = {
+  getBlock: (id: string) => { content?: unknown; id: string; type: string } | undefined
   getTextCursorPosition: () => { block: unknown }
   insertInlineContent: (content: string, options: { updateSelection: true }) => void
   replaceBlocks: (blocksToReplace: unknown[], blocksToInsert: Array<Record<string, unknown>>) => void
+  setTextCursorPosition: (id: string, placement: 'end') => unknown
+  updateBlock: (id: string, update: Record<string, unknown>) => unknown
 }
 type BlockSlashMenuItemConfig = {
   aliases: string[]
@@ -142,6 +153,9 @@ const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
   heading_4: TextHFour,
   html: CodeBlock,
   image: ImageSquare,
+  journal_task_doing: CircleHalf,
+  journal_task_done: CheckCircle,
+  journal_task_todo: Circle,
   math: Pi,
   mermaid: FlowArrow,
   numbered_list: ListNumbers,
@@ -156,6 +170,16 @@ const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
   video: Video,
   whiteboard: ScribbleLoop,
 }
+
+const JOURNAL_TASK_SLASH_COMMANDS: ReadonlyArray<{
+  aliases: string[]
+  key: string
+  status: JournalTaskStatus
+}> = [
+  { aliases: ['task', 'todo', '待办'], key: 'journal_task_todo', status: 'TODO' },
+  { aliases: ['doing', 'in progress', '进行中'], key: 'journal_task_doing', status: 'DOING' },
+  { aliases: ['done', 'complete', 'completed', '完成'], key: 'journal_task_done', status: 'DONE' },
+]
 
 const DEFAULT_CALLOUT_TYPE_TITLES = Object.fromEntries(
   OBSIDIAN_CALLOUT_DEFINITIONS.map(({ type }) => [type, calloutHeading(type, '')]),
@@ -217,6 +241,34 @@ export function createDateTimeSlashMenuItems(
       trackEvent('editor_timestamp_slash_command_used', { kind: key })
     },
   } as TolariaSlashMenuItem))
+}
+
+export function createJournalTaskSlashMenuItems(
+  editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
+): TolariaSlashMenuItem[] {
+  const taskEditor = editor as unknown as Parameters<typeof setCurrentJournalTaskStatus>[0]
+
+  return JOURNAL_TASK_SLASH_COMMANDS.map(({ aliases, key, status }) => ({
+    aliases,
+    key,
+    onItemClick: () => {
+      setCurrentJournalTaskStatus(taskEditor, status)
+      trackEvent('journal_task_status_changed', {
+        source: 'slash_menu',
+        status: status.toLowerCase(),
+      })
+    },
+    title: status,
+  } as TolariaSlashMenuItem))
+}
+
+function addItemsAfterKey(
+  items: TolariaSlashMenuItem[],
+  key: string,
+  additions: TolariaSlashMenuItem[],
+): void {
+  const index = items.findIndex((item) => item.key === key)
+  items.splice(index === -1 ? items.length : index + 1, 0, ...additions)
 }
 
 function createBoardId(): string {
@@ -424,6 +476,14 @@ export function getTolariaSlashMenuItems(
   labels?: TolariaSlashMenuLabels,
 ) {
   const defaultItems = getDefaultReactSlashMenuItems(editor) as TolariaSlashMenuItem[]
+  if (isJournalTaskEditorMode(editor)) {
+    const taskGroup = defaultItems.find((item) => item.key === 'check_list')?.group
+    addItemsAfterKey(
+      defaultItems,
+      'check_list',
+      createJournalTaskSlashMenuItems(editor).map((item) => ({ ...item, group: taskGroup })),
+    )
+  }
   const otherGroup = defaultItems.find((item) => item.key === 'emoji')?.group
   const quoteIndex = defaultItems.findIndex(item => item.key === 'quote')
   const calloutItem = {

@@ -165,6 +165,7 @@ export function TolariaSlashMenu({
     }
     nodes.push(
       <div
+        className="tolaria-slash-menu__item"
         key={item.key}
         onMouseEnter={() => {
           openItemSubmenu(item)
