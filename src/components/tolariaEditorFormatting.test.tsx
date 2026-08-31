@@ -331,7 +331,8 @@ describe('tolariaEditorFormatting', () => {
 
     expect(updateBlock).toHaveBeenCalledWith(block.id, {
       content: [{ type: 'text', text: 'DOING ', styles: {} }],
-      type: 'bulletListItem',
+      props: { checked: false },
+      type: 'checkListItem',
     })
     expect(setTextCursorPosition).toHaveBeenCalledWith(block.id, 'end')
     expect(trackEvent).toHaveBeenCalledWith('journal_task_status_changed', {
