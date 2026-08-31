@@ -38,11 +38,16 @@ test('Journal task controls match Logseq checklist behavior', async ({ page }) =
 
     const editor = page.locator('[data-note-display="outline"]')
     await expect(page.locator('[data-journal-task-editor]')).toHaveCount(1)
-    const existingTask = editor.locator('[data-content-type="checkListItem"]', {
+    const existingTask = editor.locator('[data-content-type="bulletListItem"]', {
       hasText: 'Existing task',
     })
-    await expect(existingTask.getByRole('checkbox')).not.toBeChecked()
-    await expect(existingTask.locator('[data-journal-task-status]')).toHaveText('TODO')
+    await expect(existingTask.getByRole('checkbox')).toHaveCount(0)
+    await existingTask.locator('.bn-inline-content').click()
+    await page.keyboard.press('End')
+    await page.keyboard.type(' remains plain text')
+    await expect(existingTask.locator('.bn-inline-content')).toHaveText(
+      'TODO Existing task remains plain text',
+    )
     const heading = editor.locator('[data-content-type="heading"]').first()
     await heading.click()
     await page.keyboard.press('End')
@@ -57,12 +62,32 @@ test('Journal task controls match Logseq checklist behavior', async ({ page }) =
     const checkbox = task.getByRole('checkbox')
     const status = task.locator('[data-journal-task-status]')
     await expect(task).toHaveCount(1)
+    await expect(task.locator('.bn-inline-content')).toHaveText('TODO Write release notes')
+    await expect(task.locator('.bn-inline-content')).not.toContainText('/todo')
     await expect(checkbox).not.toBeChecked()
     await expect(status).toHaveText('TODO')
     await expect.poll(async () => {
+      const bulletBox = await task.evaluate((element) => {
+        const styles = getComputedStyle(element, '::before')
+        const rect = element.getBoundingClientRect()
+        return {
+          centerX: rect.x + Number.parseFloat(styles.width) / 2,
+          centerY: rect.y + Number.parseFloat(styles.height) / 2,
+          content: styles.content,
+        }
+      })
       const checkboxBox = await checkbox.boundingBox()
       const statusBox = await status.boundingBox()
-      return !!checkboxBox && !!statusBox && statusBox.x > checkboxBox.x
+      const textBox = await task.locator('.bn-inline-content').boundingBox()
+      if (!checkboxBox || !statusBox || !textBox) return false
+      const checkboxCenterY = checkboxBox.y + checkboxBox.height / 2
+      const statusCenterY = statusBox.y + statusBox.height / 2
+      return bulletBox.content !== 'none'
+        && bulletBox.centerX < checkboxBox.x
+        && checkboxBox.x < statusBox.x
+        && statusBox.x < textBox.x + textBox.width
+        && Math.abs(bulletBox.centerY - checkboxCenterY) < 4
+        && Math.abs(checkboxCenterY - statusCenterY) < 4
     }).toBe(true)
 
     await status.click()
@@ -87,9 +112,8 @@ test('Journal task controls match Logseq checklist behavior', async ({ page }) =
     await expect(status).toBeVisible()
 
     await page.keyboard.press('Meta+s')
-    await expect.poll(() => fs.readFileSync(journalPath, 'utf8')).toContain(
-      '- [ ] TODO Write release notes',
-    )
+    await expect.poll(() => fs.readFileSync(journalPath, 'utf8')).toContain('- TODO Existing task remains plain text')
+    await expect.poll(() => fs.readFileSync(journalPath, 'utf8')).toContain('- [ ] TODO Write release notes')
   } finally {
     removeFixtureVaultCopy(tempVaultDir)
   }

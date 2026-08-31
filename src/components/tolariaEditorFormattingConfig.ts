@@ -252,7 +252,7 @@ export function createJournalTaskSlashMenuItems(
     aliases,
     key,
     onItemClick: () => {
-      setCurrentJournalTaskStatus(taskEditor, status)
+      setCurrentJournalTaskStatus(taskEditor, status, { consumeSlashCommand: true })
       trackEvent('journal_task_status_changed', {
         source: 'slash_menu',
         status: status.toLowerCase(),

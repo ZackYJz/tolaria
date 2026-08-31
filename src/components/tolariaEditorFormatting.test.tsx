@@ -319,6 +319,10 @@ describe('tolariaEditorFormatting', () => {
 
   it('creates searchable TODO workflow commands that update the source block', () => {
     const { block, editor, setTextCursorPosition, updateBlock } = createSlashCommandEditorFixture()
+    Object.assign(block, {
+      content: [{ type: 'text', text: '/doing', styles: {} }],
+      type: 'paragraph',
+    })
     const items = createJournalTaskSlashMenuItems(editor)
 
     expect(items).toEqual([

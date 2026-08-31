@@ -442,8 +442,24 @@
 /* --- Checkbox / check list items --- */
 /* BlockNote renders checkbox as: div > input[type=checkbox] inside .bn-block-content */
 .editor__blocknote-container [data-content-type="checkListItem"] {
+  padding-inline-start: var(--lists-padding-left);
   margin-bottom: var(--lists-item-spacing);
-  gap: var(--checkboxes-gap) !important;
+  gap: var(--lists-bullet-gap) !important;
+}
+
+.editor__blocknote-container--outline [data-content-type="checkListItem"]::before {
+  background: radial-gradient(
+    circle,
+    var(--outline-bullet-color) 0 var(--outline-marker-radius),
+    transparent var(--outline-marker-fade-radius)
+  );
+  color: transparent;
+  content: "";
+  flex-shrink: 0;
+  font-size: 0;
+  height: calc(var(--editor-font-size) * var(--editor-line-height));
+  min-width: var(--lists-indent-size);
+  width: var(--lists-indent-size);
 }
 
 .editor__blocknote-container [data-content-type="checkListItem"] input[type="checkbox"] {

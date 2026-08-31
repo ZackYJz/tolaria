@@ -43,7 +43,6 @@ type JournalTaskEditorView = {
   state?: EditorState
 }
 
-const JOURNAL_TASK_BLOCK_TYPES = new Set(['bulletListItem', 'numberedListItem', 'checkListItem'])
 const TASK_PREFIX_PATTERN = /^(TODO|DOING|DONE)\b/u
 const journalTaskDecorationPluginKey = new PluginKey<DecorationSet>('tolariaJournalTaskDecoration')
 const journalTaskEditors = new WeakSet<object>()
@@ -55,10 +54,6 @@ export function setJournalTaskEditorMode(editor: object, enabled: boolean): void
   const taskEditor = editor as { domElement?: HTMLElement }
   const root = taskEditor.domElement ?? journalTaskEditorRoots.get(editor)
   root?.toggleAttribute('data-journal-task-editor', enabled)
-  const view = (editor as JournalTaskEditor).prosemirrorView
-  if (enabled && view?.state && view.dispatch) {
-    view.dispatch(view.state.tr.setMeta(journalTaskDecorationPluginKey, true))
-  }
 }
 
 export function isJournalTaskEditorMode(editor: object): boolean {
@@ -94,8 +89,17 @@ function contentWithNextTaskStatus(content: JournalTaskBlock['content']): {
 function contentWithTaskStatus(
   content: JournalTaskBlock['content'],
   status: JournalTaskStatus,
+  consumeSlashCommand = false,
 ): InlineContent {
   const items: InlineContent = Array.isArray(content) ? [...content] : []
+  if (
+    consumeSlashCommand
+    && items.length === 1
+    && isInlineText(items[0])
+    && /^\/(?:todo|doing|done)\s*$/iu.test(items[0].text)
+  ) {
+    items.length = 0
+  }
   const first = items[0]
   if (!first || !isInlineText(first)) {
     return [{ type: 'text', text: `${status} `, styles: {} }, ...items]
@@ -123,9 +127,10 @@ function taskStatusFromContent(content: JournalTaskBlock['content']): JournalTas
 function taskBlockUpdate(
   block: JournalTaskBlock,
   status: JournalTaskStatus,
+  consumeSlashCommand = false,
 ): { content: InlineContent; props: { checked: boolean }; type: 'checkListItem' } {
   return {
-    content: contentWithTaskStatus(block.content, status),
+    content: contentWithTaskStatus(block.content, status, consumeSlashCommand),
     props: { checked: status === 'DONE' },
     type: 'checkListItem',
   }
@@ -134,10 +139,11 @@ function taskBlockUpdate(
 export function setCurrentJournalTaskStatus(
   editor: Pick<JournalTaskEditor, 'getBlock' | 'getTextCursorPosition' | 'setTextCursorPosition' | 'updateBlock'>,
   status: JournalTaskStatus,
+  options: { consumeSlashCommand?: boolean } = {},
 ): void {
   const cursorBlock = editor.getTextCursorPosition().block
   const block = editor.getBlock(cursorBlock.id) ?? cursorBlock
-  editor.updateBlock(block.id, taskBlockUpdate(block, status))
+  editor.updateBlock(block.id, taskBlockUpdate(block, status, options.consumeSlashCommand))
   editor.setTextCursorPosition(block.id, 'end')
 }
 
@@ -164,7 +170,7 @@ function hasBlockSelection(editor: JournalTaskEditor): boolean {
 function cycleCurrentJournalTask(editor: JournalTaskEditor): JournalTaskStatus | null {
   const cursorBlock = editor.getTextCursorPosition().block
   const block = editor.getBlock(cursorBlock.id) ?? cursorBlock
-  if (!JOURNAL_TASK_BLOCK_TYPES.has(block.type)) return null
+  if (block.type !== 'checkListItem') return null
 
   const update = contentWithNextTaskStatus(block.content)
   editor.updateBlock(block.id, {
@@ -189,44 +195,18 @@ function journalTaskDecorations(doc: ProsemirrorNode): DecorationSet {
     const status = match[1]
     const statusStart = position + 2
     decorations.push(Decoration.inline(statusStart, statusStart + status.length, {
-      'aria-label': status,
       'class': 'journal-task-status',
-      'contenteditable': 'false',
       'data-journal-task-block-id': blockId,
       'data-journal-task-status': status,
-      'role': 'button',
-      'tabindex': '0',
     }))
     return false
   })
   return DecorationSet.create(doc, decorations)
 }
 
-function normalizeJournalTaskBlocks(state: EditorState): Transaction | null {
-  const transaction = state.tr
-  state.doc.descendants((node, position) => {
-    if (!JOURNAL_TASK_BLOCK_TYPES.has(node.type.name)) return true
-    const status = TASK_PREFIX_PATTERN.exec(node.textContent)?.[1] as JournalTaskStatus | undefined
-    if (!status) return false
-
-    const checked = status === 'DONE'
-    if (node.type.name !== 'checkListItem' || node.attrs.checked !== checked) {
-      transaction.setNodeMarkup(position, state.schema.nodes.checkListItem, {
-        ...node.attrs,
-        checked,
-      })
-    }
-    return false
-  })
-  return transaction.docChanged ? transaction : null
-}
-
-function createJournalTaskDecorationPlugin(editor: JournalTaskEditor): Plugin<DecorationSet> {
+function createJournalTaskDecorationPlugin(): Plugin<DecorationSet> {
   return new Plugin<DecorationSet>({
     key: journalTaskDecorationPluginKey,
-    appendTransaction: (_, __, state) => (
-      journalTaskEditors.has(editor) ? normalizeJournalTaskBlocks(state) : null
-    ),
     props: {
       decorations: (state) => journalTaskDecorationPluginKey.getState(state) ?? DecorationSet.empty,
     },
@@ -278,14 +258,6 @@ export const createJournalTaskShortcutExtension = createExtension(({ editor }) =
   const taskEditor = editor as JournalTaskEditor
   const handleKeyDown = (event: KeyboardEvent) => {
     if (!journalTaskEditors.has(taskEditor) || taskEditor.isEditable === false) return
-    const statusControl = taskControlFromTarget(event.target)
-    if (statusControl && (event.key === 'Enter' || event.key === ' ')) {
-      const blockId = statusControl.dataset.journalTaskBlockId
-      if (!blockId || !updateTaskFromControl(taskEditor, blockId, 'status_badge')) return
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
     if (!isJournalTaskShortcut(event) || isComposing(event, taskEditor)) return
     if (hasBlockSelection(taskEditor)) return
 
@@ -311,7 +283,7 @@ export const createJournalTaskShortcutExtension = createExtension(({ editor }) =
 
   return {
     key: 'journalTaskShortcut',
-    prosemirrorPlugins: [createJournalTaskDecorationPlugin(taskEditor)],
+    prosemirrorPlugins: [createJournalTaskDecorationPlugin()],
     mount: ({ dom, signal }) => {
       const root = taskEditor.domElement ?? dom
       journalTaskEditorRoots.set(taskEditor, root)

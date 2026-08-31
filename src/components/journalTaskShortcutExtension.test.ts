@@ -120,16 +120,12 @@ describe('createJournalTaskShortcutExtension', () => {
     expect(isJournalTaskEditorMode(editor)).toBe(false)
   })
 
-  it('adds TODO and cycles existing task statuses inside journals', () => {
+  it('only cycles task statuses for checklist blocks created explicitly', () => {
     const plain = createFixture('Plan release')
     plain.fire()
-    expect(plain.editor.updateBlock).toHaveBeenCalledWith('task-block', {
-      content: [{ type: 'text', text: 'TODO Plan release', styles: {} }],
-      props: { checked: false },
-      type: 'checkListItem',
-    })
+    expect(plain.editor.updateBlock).not.toHaveBeenCalled()
 
-    const todo = createFixture('TODO Plan release')
+    const todo = createFixture('TODO Plan release', true, false, 'checkListItem')
     todo.fire()
     expect(todo.editor.updateBlock).toHaveBeenCalledWith('task-block', {
       content: [{ type: 'text', text: 'DOING Plan release', styles: {} }],
@@ -137,7 +133,7 @@ describe('createJournalTaskShortcutExtension', () => {
       type: 'checkListItem',
     })
 
-    const doing = createFixture('DOING Plan release')
+    const doing = createFixture('DOING Plan release', true, false, 'checkListItem')
     doing.fire()
     expect(doing.editor.updateBlock).toHaveBeenCalledWith('task-block', {
       content: [{ type: 'text', text: 'DONE Plan release', styles: {} }],
