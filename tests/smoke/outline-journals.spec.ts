@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createFixtureVaultCopy, openFixtureVault, removeFixtureVaultCopy } from '../helpers/fixtureVault'
@@ -27,6 +28,21 @@ ${tasks.map((task) => `- ${task}`).join('\n')}
   return journalPath
 }
 
+async function createNextOutlineBullet(page: Page, outlineEditor: Locator): Promise<Locator> {
+  const items = outlineEditor.locator('[data-content-type="bulletListItem"]')
+  const visibleItems = outlineEditor.locator('[data-content-type="bulletListItem"]:visible')
+  const insertionPoint = await visibleItems.count() > 0
+    ? visibleItems.last()
+    : outlineEditor.locator('[data-content-type="heading"]').first()
+  await insertionPoint.click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+
+  const nextItem = items.last()
+  await expect(nextItem).toBeVisible()
+  return nextItem
+}
+
 test('@smoke creates an outline note from the new-note menu', async ({ page }) => {
   const tempVaultDir = createFixtureVaultCopy()
 
@@ -38,13 +54,21 @@ test('@smoke creates an outline note from the new-note menu', async ({ page }) =
     await expect(page.locator('[data-note-display="outline"]')).toBeVisible()
     await expect(page.locator('.editor-content-width--wide')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Switch to normal note width' })).toBeVisible()
-    await expect(page.locator('[data-content-type="bulletListItem"]').first()).toBeVisible()
     await expect(page.getByTestId('breadcrumb-filename-trigger')).toContainText(/untitled-note-\d+/i)
 
     const outlineEditor = page.locator('[data-note-display="outline"]')
+    await expect(outlineEditor.locator('[data-content-type="bulletListItem"]')).toHaveCount(0)
+    const title = outlineEditor.locator('[data-content-type="heading"]').first()
+    await title.click()
+    await page.keyboard.type('Outline title')
+    await expect(outlineEditor.locator('[data-content-type="bulletListItem"]').last()).not.toBeVisible()
+    await page.keyboard.press('Enter')
+
     const firstItem = outlineEditor.locator('[data-content-type="bulletListItem"]').first()
-    await firstItem.click()
-    await page.keyboard.press('End')
+    await expect(firstItem).toBeVisible()
+    await expect.poll(() => firstItem.locator('.bn-inline-content').evaluate((element) => (
+      getComputedStyle(element, '::before').content
+    ))).toBe('none')
     await page.keyboard.type('First item')
     await page.keyboard.press('Enter')
     await page.keyboard.type('Second item')
@@ -75,8 +99,7 @@ test('creates the next outline item with one Enter after an IME composition', as
     await page.getByRole('menuitem', { name: 'Outline' }).click()
 
     const outlineEditor = page.locator('[data-note-display="outline"]')
-    const firstItem = outlineEditor.locator('[data-content-type="bulletListItem"]').first()
-    await firstItem.click()
+    await createNextOutlineBullet(page, outlineEditor)
     await page.keyboard.insertText('中文输入')
 
     await outlineEditor.locator('.bn-editor').evaluate((editor) => {
@@ -113,8 +136,7 @@ test('creates the next outline item when compositionend precedes the deliberate 
     await page.getByRole('menuitem', { name: 'Outline' }).click()
 
     const outlineEditor = page.locator('[data-note-display="outline"]')
-    const firstItem = outlineEditor.locator('[data-content-type="bulletListItem"]').first()
-    await firstItem.click()
+    await createNextOutlineBullet(page, outlineEditor)
     await page.keyboard.insertText('中文输入')
 
     await outlineEditor.locator('.bn-editor').evaluate((editor) => {
@@ -145,7 +167,7 @@ test('deletes an empty outline bullet with Backspace', async ({ page }) => {
 
     const outlineEditor = page.locator('[data-note-display="outline"]')
     const bullets = outlineEditor.locator('[data-content-type="bulletListItem"]')
-    await bullets.first().click()
+    await createNextOutlineBullet(page, outlineEditor)
     await page.keyboard.insertText('保留的条目')
     await page.keyboard.press('Enter')
     await expect(bullets.last()).toHaveText('')
@@ -193,9 +215,7 @@ test('creates Journal tasks from the slash menu without wrapping list labels', a
     await page.getByText('Journals', { exact: true }).click()
 
     const outlineEditor = page.locator('[data-note-display="outline"]')
-    const currentItem = outlineEditor.locator('[data-content-type="bulletListItem"]').last()
-    await currentItem.click()
-    await page.keyboard.press('End')
+    await createNextOutlineBullet(page, outlineEditor)
     await page.keyboard.type('/')
 
     const menu = page.locator('.tolaria-slash-menu')

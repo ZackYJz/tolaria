@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { outlineBlocksWithListItems } from './outlineEditorMode'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  normalizeOutlineEditorDocument,
+  outlineBlocksWithListItems,
+  removeTrailingEmptyOutlineItem,
+  setOutlineEditorMode,
+} from './outlineEditorMode'
 
 describe('outlineBlocksWithListItems', () => {
   it('converts every paragraph into a bullet item without changing semantic blocks', () => {
@@ -42,5 +47,48 @@ describe('outlineBlocksWithListItems', () => {
     ]
 
     expect(outlineBlocksWithListItems(blocks)).toEqual({ blocks, changed: false })
+  })
+})
+
+describe('removeTrailingEmptyOutlineItem', () => {
+  it('removes the trailing empty bullet supplied by the initial outline scaffold', () => {
+    const heading = { id: 'title', type: 'heading', content: [{ type: 'text', text: 'Title' }], children: [] }
+    const emptyBullet = { id: 'empty', type: 'bulletListItem', content: [], children: [] }
+    const editor = {
+      document: [heading, emptyBullet],
+      removeBlocks: vi.fn(),
+    }
+
+    expect(removeTrailingEmptyOutlineItem(editor)).toBe(true)
+    expect(editor.removeBlocks).toHaveBeenCalledWith([emptyBullet])
+  })
+
+  it('waits for swapped content before consuming the one-time cleanup', () => {
+    const initialParagraph = { id: 'initial', type: 'paragraph', content: [], children: [] }
+    const heading = { id: 'title', type: 'heading', content: [{ type: 'text', text: 'Title' }], children: [] }
+    const emptyBullet = { id: 'empty', type: 'bulletListItem', content: [], children: [] }
+    const editor = {
+      document: [initialParagraph],
+      removeBlocks: vi.fn(),
+      updateBlock: vi.fn(),
+    }
+
+    setOutlineEditorMode(editor, true)
+    expect(normalizeOutlineEditorDocument(editor)).toBe(false)
+
+    editor.document = [heading, emptyBullet]
+    expect(normalizeOutlineEditorDocument(editor)).toBe(true)
+    expect(editor.removeBlocks).toHaveBeenCalledWith([emptyBullet])
+  })
+
+  it('preserves an empty bullet when it is the only editable block', () => {
+    const emptyBullet = { id: 'empty', type: 'bulletListItem', content: [], children: [] }
+    const editor = {
+      document: [emptyBullet],
+      removeBlocks: vi.fn(),
+    }
+
+    expect(removeTrailingEmptyOutlineItem(editor)).toBe(false)
+    expect(editor.removeBlocks).not.toHaveBeenCalled()
   })
 })

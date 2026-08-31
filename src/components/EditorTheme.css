@@ -327,6 +327,25 @@
   color: var(--outline-bullet-color) !important;
 }
 
+.editor__blocknote-container--outline [data-content-type="bulletListItem"] .bn-inline-content::before,
+.editor__blocknote-container--outline [data-content-type="numberedListItem"] .bn-inline-content::before,
+.editor__blocknote-container--outline [data-content-type="checkListItem"] .bn-inline-content::before,
+.editor__blocknote-container--outline [data-content-type="toggleListItem"] .bn-inline-content::before {
+  content: none !important;
+}
+
+.editor__blocknote-container--outline
+  .bn-editor[data-outline-title-editing]
+  > .bn-block-group
+  > .bn-block-outer:last-child:has(
+    > .bn-block
+    > .bn-block-content[data-content-type="bulletListItem"]
+    .bn-inline-content
+    > .ProseMirror-trailingBreak:only-child
+  ) {
+  display: none;
+}
+
 .editor__blocknote-container--outline .bn-block-group .bn-block-group {
   position: relative;
 }

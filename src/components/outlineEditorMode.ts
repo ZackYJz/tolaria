@@ -14,6 +14,7 @@ const OUTLINE_LIST_BLOCK_TYPES = new Set([
   'toggleListItem',
 ])
 const outlineEditors = new WeakSet<object>()
+const outlineEditorsAwaitingInitialCleanup = new WeakSet<object>()
 
 type OutlineBlock = {
   children?: OutlineBlock[]
@@ -24,7 +25,13 @@ type OutlineBlock = {
 
 type OutlineEditor = {
   document: OutlineBlock[]
+  removeBlocks: (blocks: OutlineBlock[]) => unknown
   updateBlock: (block: string, update: { type: 'bulletListItem' }) => unknown
+}
+
+type MutableOutlineEditor = {
+  document: OutlineBlock[]
+  removeBlocks: (blocks: OutlineBlock[]) => unknown
 }
 
 type RuntimeOutlineEditor = ReturnType<typeof useCreateBlockNote> & { isEditable?: boolean }
@@ -69,20 +76,55 @@ function paragraphIds(blocks: OutlineBlock[]): string[] {
   ])
 }
 
+function isUninitializedEditorDocument(blocks: OutlineBlock[]): boolean {
+  if (blocks.length !== 1) return false
+  const [block] = blocks
+  return block.type === 'paragraph'
+    && Array.isArray(block.content)
+    && block.content.length === 0
+    && (block.children?.length ?? 0) === 0
+}
+
 export function normalizeOutlineEditorDocument(editor: OutlineEditor): boolean {
+  if (outlineEditorsAwaitingInitialCleanup.has(editor) && isUninitializedEditorDocument(editor.document)) {
+    return false
+  }
+
+  const removedInitialItem = outlineEditorsAwaitingInitialCleanup.has(editor)
+    && removeTrailingEmptyOutlineItem(editor)
+  outlineEditorsAwaitingInitialCleanup.delete(editor)
   const ids = paragraphIds(editor.document)
   for (const id of ids) {
     editor.updateBlock(id, { type: 'bulletListItem' })
   }
-  return ids.length > 0
+  return removedInitialItem || ids.length > 0
+}
+
+function isEmptyLeafOutlineListItem(block: OutlineBlock): boolean {
+  return OUTLINE_LIST_BLOCK_TYPES.has(block.type)
+    && Array.isArray(block.content)
+    && block.content.length === 0
+    && (block.children?.length ?? 0) === 0
+}
+
+export function removeTrailingEmptyOutlineItem(editor: MutableOutlineEditor): boolean {
+  if (editor.document.length < 2) return false
+
+  const trailingBlock = editor.document.at(-1)
+  if (!trailingBlock || !isEmptyLeafOutlineListItem(trailingBlock)) return false
+
+  editor.removeBlocks([trailingBlock])
+  return true
 }
 
 export function setOutlineEditorMode(editor: object, enabled: boolean): void {
   if (enabled) {
     outlineEditors.add(editor)
+    outlineEditorsAwaitingInitialCleanup.add(editor)
     return
   }
   outlineEditors.delete(editor)
+  outlineEditorsAwaitingInitialCleanup.delete(editor)
 }
 
 function isProtectedListStart(view: RichEditorView): boolean {
@@ -125,9 +167,30 @@ function removeEmptyListItem(editor: RuntimeOutlineEditor): boolean {
   return true
 }
 
+function removeAutomaticTrailingItemBeforeEnter(editor: RuntimeOutlineEditor): void {
+  const trailingBlock = editor.document.at(-1)
+  if (!trailingBlock) return
+  if (editor.getTextCursorPosition().block.id === trailingBlock.id) return
+  removeTrailingEmptyOutlineItem(editor as unknown as MutableOutlineEditor)
+}
+
+function selectionIsInHeading(view: RichEditorView): boolean {
+  const selection = view.dom.ownerDocument.getSelection()
+  const anchorElement = selection?.anchorNode instanceof HTMLElement
+    ? selection.anchorNode
+    : selection?.anchorNode?.parentElement
+  return anchorElement?.closest<HTMLElement>('[data-content-type]')?.dataset.contentType === 'heading'
+}
+
 function handleOutlineKeyDown(event: KeyboardEvent, editor: RuntimeOutlineEditor, view?: RichEditorView): void {
   if (!outlineEditors.has(editor) || editor.isEditable === false || !view) return
-  if (event.key !== 'Backspace' || isComposingKeyboardEvent(event, view)) return
+  view.dom.toggleAttribute('data-outline-title-editing', event.key !== 'Enter' && selectionIsInHeading(view))
+  if (isComposingKeyboardEvent(event, view)) return
+  if (event.key === 'Enter') {
+    removeAutomaticTrailingItemBeforeEnter(editor)
+    return
+  }
+  if (event.key !== 'Backspace') return
   if (!isProtectedListStart(view)) return
 
   consumeKeyboardEvent(event)
