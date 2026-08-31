@@ -1,5 +1,6 @@
 import { createExtension } from '@blocknote/core'
 import type { useCreateBlockNote } from '@blocknote/react'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import {
   consumeKeyboardEvent,
   createCaptureKeydownMount,
@@ -15,6 +16,7 @@ const OUTLINE_LIST_BLOCK_TYPES = new Set([
 ])
 const outlineEditors = new WeakSet<object>()
 const outlineEditorsAwaitingInitialCleanup = new WeakSet<object>()
+const outlineAwareTrailingBlockPluginKey = new PluginKey<boolean>('tolariaOutlineAwareTrailingBlock')
 
 type OutlineBlock = {
   children?: OutlineBlock[]
@@ -174,17 +176,8 @@ function removeAutomaticTrailingItemBeforeEnter(editor: RuntimeOutlineEditor): v
   removeTrailingEmptyOutlineItem(editor as unknown as MutableOutlineEditor)
 }
 
-function selectionIsInHeading(view: RichEditorView): boolean {
-  const selection = view.dom.ownerDocument.getSelection()
-  const anchorElement = selection?.anchorNode instanceof HTMLElement
-    ? selection.anchorNode
-    : selection?.anchorNode?.parentElement
-  return anchorElement?.closest<HTMLElement>('[data-content-type]')?.dataset.contentType === 'heading'
-}
-
 function handleOutlineKeyDown(event: KeyboardEvent, editor: RuntimeOutlineEditor, view?: RichEditorView): void {
   if (!outlineEditors.has(editor) || editor.isEditable === false || !view) return
-  view.dom.toggleAttribute('data-outline-title-editing', event.key !== 'Enter' && selectionIsInHeading(view))
   if (isComposingKeyboardEvent(event, view)) return
   if (event.key === 'Enter') {
     removeAutomaticTrailingItemBeforeEnter(editor)
@@ -197,11 +190,42 @@ function handleOutlineKeyDown(event: KeyboardEvent, editor: RuntimeOutlineEditor
   removeEmptyListItem(editor)
 }
 
+function createOutlineAwareTrailingBlockPlugin(editor: RuntimeOutlineEditor): Plugin<boolean> {
+  return new Plugin({
+    key: outlineAwareTrailingBlockPluginKey,
+    appendTransaction: (_, __, state) => {
+      if (outlineEditors.has(editor) || !outlineAwareTrailingBlockPluginKey.getState(state)) return
+
+      const endPosition = state.doc.content.size - 2
+      const blockContainer = state.schema.nodes.blockContainer
+      const paragraph = state.schema.nodes.paragraph
+      if (!blockContainer || !paragraph) return
+
+      return state.tr.insert(endPosition, blockContainer.create(undefined, paragraph.create()))
+    },
+    state: {
+      init: () => false,
+      apply: (transaction, previousValue) => {
+        if (!transaction.docChanged) return previousValue
+
+        const blockGroup = transaction.doc.lastChild
+        const blockContainer = blockGroup?.type.name === 'blockGroup' ? blockGroup.lastChild : undefined
+        if (!blockContainer || blockContainer.type.name !== 'blockContainer') return true
+
+        const blockContent = blockContainer.firstChild
+        if (!blockContent) return true
+        return blockContainer.nodeSize > 4 || blockContent.type.spec.content !== 'inline*'
+      },
+    },
+  })
+}
+
 export const createOutlineEditorModeExtension = createExtension(({ editor }) => {
   const outlineEditor = editor as RuntimeOutlineEditor
 
   return {
     key: 'outlineEditorMode',
+    prosemirrorPlugins: [createOutlineAwareTrailingBlockPlugin(outlineEditor)],
     mount: createCaptureKeydownMount(outlineEditor, (event, view) => {
       handleOutlineKeyDown(event, outlineEditor, view)
     }),

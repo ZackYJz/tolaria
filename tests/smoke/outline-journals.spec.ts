@@ -168,15 +168,18 @@ test('deletes an empty outline bullet with Backspace', async ({ page }) => {
     const outlineEditor = page.locator('[data-note-display="outline"]')
     const bullets = outlineEditor.locator('[data-content-type="bulletListItem"]')
     await createNextOutlineBullet(page, outlineEditor)
+    await expect(bullets).toHaveCount(1)
     await page.keyboard.insertText('保留的条目')
+    await expect(bullets).toHaveCount(1)
     await page.keyboard.press('Enter')
+    await expect(bullets).toHaveCount(2)
     await expect(bullets.last()).toHaveText('')
-    const bulletCountBeforeDelete = await bullets.count()
 
     await bullets.last().click()
     await page.keyboard.press('Backspace')
 
-    await expect(bullets).toHaveCount(bulletCountBeforeDelete - 1)
+    await expect(bullets).toHaveCount(1)
+    await expect(bullets.filter({ hasText: /^$/ })).toHaveCount(0)
     await page.keyboard.insertText('继续输入')
     await expect(bullets.locator('text=保留的条目继续输入')).toHaveCount(1)
   } finally {

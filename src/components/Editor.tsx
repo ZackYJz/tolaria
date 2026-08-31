@@ -312,6 +312,7 @@ function useEditorSetup(options: EditorSetupParams) {
   const editor = useCreateBlockNote({
     ...RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS,
     schema,
+    trailingBlock: false,
     domAttributes: RICH_EDITOR_BIDI_DOM_ATTRIBUTES,
     uploadFile: async (file: File) => {
       try {
