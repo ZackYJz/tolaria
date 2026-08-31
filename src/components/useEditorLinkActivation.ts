@@ -261,7 +261,7 @@ function linkEventTarget(event: MouseEvent): HTMLElement | null {
 
 function handleWikilinkEvent({ context, event, phase, wikilinkTarget }: WikilinkEventRequest): null {
   consumeEditorLinkEvent(event)
-  if (phase === 'click' && hasFollowModifier(event)) {
+  if (phase === 'click') {
     blurActiveEditable(context.container)
     navigateNoteTarget({ context, target: wikilinkTarget })
   }

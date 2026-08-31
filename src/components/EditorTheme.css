@@ -616,7 +616,7 @@
   color: var(--inline-styles-wikilink-color);
   text-decoration: var(--inline-styles-wikilink-text-decoration);
   border-bottom: var(--inline-styles-wikilink-border-bottom);
-  cursor: text;
+  cursor: pointer;
 }
 
 .editor__blocknote-container .math {

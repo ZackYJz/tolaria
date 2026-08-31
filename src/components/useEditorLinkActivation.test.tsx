@@ -83,15 +83,12 @@ describe('useEditorLinkActivation', () => {
     mockOpenLocalFile.mockClear()
   })
 
-  it('navigates wikilinks only on Cmd+click after the native click stack settles', async () => {
+  it('navigates wikilinks on plain click after the native click stack settles', async () => {
     const { container, onNavigateWikilink } = renderHarness()
     const wikilink = appendWikilink(container, 'Alpha Project')
 
-    dispatchMouseEvent(wikilink, 'click')
-    expect(onNavigateWikilink).not.toHaveBeenCalled()
-
-    const modifiedClick = dispatchMouseEvent(wikilink, 'click', { metaKey: true })
-    expect(modifiedClick.defaultPrevented).toBe(true)
+    const click = dispatchMouseEvent(wikilink, 'click')
+    expect(click.defaultPrevented).toBe(true)
     expect(onNavigateWikilink).not.toHaveBeenCalled()
 
     await Promise.resolve()
@@ -109,7 +106,7 @@ describe('useEditorLinkActivation', () => {
     expect(onNavigateWikilink).toHaveBeenCalledWith('docs/adr/0031-foo')
   })
 
-  it('consumes plain wikilink mousedown and click events before editor internals see stale link nodes', () => {
+  it('consumes plain wikilink events before editor internals see stale link nodes', async () => {
     const { container, onNavigateWikilink } = renderHarness()
     const wikilink = appendWikilink(container, 'Alpha Project')
 
@@ -118,7 +115,8 @@ describe('useEditorLinkActivation', () => {
 
     expect(mouseDown.defaultPrevented).toBe(true)
     expect(click.defaultPrevented).toBe(true)
-    expect(onNavigateWikilink).not.toHaveBeenCalled()
+    await Promise.resolve()
+    expect(onNavigateWikilink).toHaveBeenCalledWith('Alpha Project')
   })
 
   it('blurs an active editor before navigating a Cmd-clicked wikilink', async () => {

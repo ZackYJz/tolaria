@@ -190,14 +190,14 @@ test.afterEach(() => {
   removeFixtureVaultCopy(tempVaultDir)
 })
 
-test('@smoke Cmd-clicking an existing wikilink preserves Back/Forward history', async ({ page }) => {
+test('@smoke clicking an existing wikilink preserves Back/Forward history', async ({ page }) => {
   await openNote(page, 'Alpha Project')
   await expectActiveHeading(page, 'Alpha Project')
 
   const wikilink = page.locator('.bn-editor .wikilink').filter({ hasText: 'Note B' }).first()
   await expect(wikilink).toBeVisible()
 
-  await wikilink.click({ modifiers: ['Meta'] })
+  await wikilink.click()
   await expectActiveHeading(page, 'Note B')
 
   await page.keyboard.press('Meta+ArrowLeft')
@@ -213,7 +213,7 @@ test('@smoke Cmd-clicking an existing wikilink preserves Back/Forward history', 
   await expectActiveHeading(page, 'Note B')
 })
 
-test('Cmd-clicking a wikilink after rich-edit autosave does not dispatch through stale link nodes', async ({ page }) => {
+test('clicking a wikilink after rich-edit autosave does not dispatch through stale link nodes', async ({ page }) => {
   const staleClickErrors = trackStaleLinkClickErrors(page)
   const marker = `autosaved wikilink click ${Date.now()}`
   const alphaPath = path.join(tempVaultDir, 'project', 'alpha-project.md')
@@ -228,10 +228,6 @@ test('Cmd-clicking a wikilink after rich-edit autosave does not dispatch through
   await expect(wikilink).toBeVisible()
 
   await wikilink.click()
-  await expectActiveHeading(page, 'Alpha Project')
-  expect(staleClickErrors).toEqual([])
-
-  await wikilink.click({ modifiers: ['Meta'] })
   await expectActiveHeading(page, 'Note B')
   expect(staleClickErrors).toEqual([])
 })

@@ -145,11 +145,11 @@ test.describe('Wikilink insertion and navigation', () => {
     await expect(wikilink).toHaveAttribute('data-target', INSERTED_WIKILINK_TARGET)
   })
 
-  test('@smoke Cmd+clicking an inserted wikilink navigates to the note', async ({ page }) => {
+  test('@smoke clicking an inserted wikilink navigates to the note', async ({ page }) => {
     const wikilink = await insertWikilink(page)
     await expect(wikilink).toBeVisible()
 
-    await wikilink.click({ modifiers: ['Meta'] })
+    await wikilink.click()
     await expect(page.locator('.bn-editor h1').first()).toHaveText(INSERTED_WIKILINK_TITLE, { timeout: 5000 })
   })
 })
