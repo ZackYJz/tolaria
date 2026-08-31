@@ -234,10 +234,13 @@ test('creates Journal tasks from the slash menu without wrapping list labels', a
     await page.keyboard.type('Write release notes')
     await page.keyboard.press('Meta+s')
 
-    await expect(outlineEditor.locator('[data-content-type="bulletListItem"]', {
+    const task = outlineEditor.locator('[data-content-type="checkListItem"]', {
       hasText: 'TODO Write release notes',
-    })).toHaveCount(1)
-    await expect.poll(() => fs.readFileSync(journalPath, 'utf8')).toContain('- TODO Write release notes')
+    })
+    await expect(task).toHaveCount(1)
+    await expect(task.getByRole('checkbox')).not.toBeChecked()
+    await expect(task.locator('[data-journal-task-status]')).toHaveText('TODO')
+    await expect.poll(() => fs.readFileSync(journalPath, 'utf8')).toContain('- [ ] TODO Write release notes')
   } finally {
     removeFixtureVaultCopy(tempVaultDir)
   }
@@ -271,13 +274,14 @@ test('shows DOING tasks from older journals at the bottom of the latest journal'
     await expect.poll(() => fs.readFileSync(olderJournalPath, 'utf8')).toContain('- DONE Long-running work')
     expect(fs.readFileSync(olderJournalPath, 'utf8')).toContain('- TODO Later work')
 
-    const todayTask = page.locator('[data-content-type="bulletListItem"]', { hasText: 'Today work' })
+    const todayTask = page.locator('[data-content-type="checkListItem"]', { hasText: 'Today work' })
     await todayTask.click()
     await page.keyboard.press('Meta+Enter')
 
     await expect(todayTask).toHaveText('DONE Today work')
     await expect(doingTasks.getByText('Today work')).toHaveCount(0)
-    await expect.poll(() => fs.readFileSync(latestJournalPath, 'utf8')).toContain('- DONE Today work')
+    await expect(todayTask.getByRole('checkbox')).toBeChecked()
+    await expect.poll(() => fs.readFileSync(latestJournalPath, 'utf8')).toContain('- [x] DONE Today work')
   } finally {
     removeFixtureVaultCopy(tempVaultDir)
   }

@@ -5,6 +5,7 @@ export const JOURNAL_TASK_STATUSES = ['TODO', 'DOING', 'DONE'] as const
 export type JournalTaskStatus = (typeof JOURNAL_TASK_STATUSES)[number]
 
 export interface JournalTask {
+  checkboxStart: number | null
   id: string
   lineNumber: number
   sourceDate: string
@@ -21,7 +22,7 @@ interface JournalContent {
   content: string
 }
 
-const TASK_LINE_PATTERN = /^(\s*(?:[-*+]|\d+[.)])\s+)(TODO|DOING|DONE)\b(?:[ \t]+(.*))?$/u
+const TASK_LINE_PATTERN = /^(\s*(?:[-*+]|\d+[.)])\s+)(?:\[([ xX])\]\s+)?(TODO|DOING|DONE)\b(?:[ \t]+(.*))?$/u
 const FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u
 
 function fenceDelimiter(line: string): string | null {
@@ -67,19 +68,22 @@ export function parseJournalTasks(entry: VaultEntry, content: string): JournalTa
 
     const match = TASK_LINE_PATTERN.exec(line)
     if (match) {
-      const prefix = match[1]
-      const status = match[2] as JournalTaskStatus
+      const listPrefix = match[1]
+      const checkbox = match[2]
+      const status = match[3] as JournalTaskStatus
+      const checkboxLength = checkbox === undefined ? 0 : 4
       const lineNumber = index + 1
       tasks.push({
         id: `${entry.path}:${lineNumber}:${line}`,
+        checkboxStart: checkbox === undefined ? null : lineStart + listPrefix.length + 1,
         lineNumber,
         sourceDate,
         sourceLine: line,
         sourcePath: entry.path,
         status,
-        statusStart: lineStart + prefix.length,
-        statusEnd: lineStart + prefix.length + status.length,
-        text: match[3]?.trimEnd() ?? '',
+        statusStart: lineStart + listPrefix.length + checkboxLength,
+        statusEnd: lineStart + listPrefix.length + checkboxLength + status.length,
+        text: match[4]?.trimEnd() ?? '',
       })
     }
     lineStart = nextLineStart
@@ -114,7 +118,10 @@ export function updateJournalTaskStatus(
     throw new Error('Journal task changed at its source')
   }
 
-  return `${content.slice(0, task.statusStart)}${status}${content.slice(task.statusEnd)}`
+  const checkboxSynchronized = task.checkboxStart === null
+    ? content
+    : `${content.slice(0, task.checkboxStart)}${status === 'DONE' ? 'x' : ' '}${content.slice(task.checkboxStart + 1)}`
+  return `${checkboxSynchronized.slice(0, task.statusStart)}${status}${checkboxSynchronized.slice(task.statusEnd)}`
 }
 
 export function nextJournalTaskStatus(status: JournalTaskStatus | null): JournalTaskStatus {

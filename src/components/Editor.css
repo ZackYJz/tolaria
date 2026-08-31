@@ -224,6 +224,55 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   justify-content: center;
 }
 
+/* Journal tasks keep Logseq-compatible status text in Markdown while presenting
+   it as a direct, persistent control beside the native checklist marker. */
+[data-journal-task-editor]
+  .bn-block-content[data-content-type='checkListItem'] > div > input {
+  width: 18px;
+  height: 18px;
+  margin-inline: 3px 9px;
+  accent-color: var(--accent-blue);
+}
+
+[data-journal-task-editor] .journal-task-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-inline-end: 8px;
+  padding-inline: 2px;
+  border-radius: 3px;
+  color: var(--accent-blue);
+  font-size: 0.9em;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+[data-journal-task-editor] .journal-task-status:hover,
+[data-journal-task-editor] .journal-task-status:focus-visible {
+  background: var(--accent-blue-light);
+  outline: none;
+}
+
+[data-journal-task-editor] .journal-task-status:focus-visible {
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+[data-journal-task-editor] .journal-task-status:active {
+  transform: translateY(1px);
+}
+
+[data-journal-task-editor]
+  .journal-task-status[data-journal-task-status='DONE'] {
+  display: none;
+}
+
+[data-journal-task-editor]
+  .bn-block-content[data-content-type='checkListItem'][data-checked='true'] .bn-inline-content {
+  text-decoration: none;
+}
+
 .editor__blocknote-container .tolaria-turn-into-menu-dropdown {
   min-width: 0 !important;
   width: auto !important;

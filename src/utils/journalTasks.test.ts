@@ -52,8 +52,8 @@ type: Journal
 # 2026-08-29
 
 - TODO Plan launch
-  - DOING Ship parser
-1. DONE Verify release
+  - [ ] DOING Ship parser
+1. [x] DONE Verify release
 
 \`\`\`md
 - DOING This is an example
@@ -94,6 +94,17 @@ Paragraph DOING is not a task.
     )
     expect(() => updateJournalTaskStatus(content.replace('First', 'Changed'), firstTask, 'DONE'))
       .toThrow('Journal task changed at its source')
+  })
+
+  it('synchronizes checklist completion when updating task markers', () => {
+    const entry = journalEntry('2026-08-28')
+    const content = '# 2026-08-28\n\n- [ ] DOING First task\n- [x] DONE Second task\n'
+    const [firstTask, secondTask] = parseJournalTasks(entry, content)
+
+    expect(updateJournalTaskStatus(content, firstTask, 'DONE')).toBe(
+      '# 2026-08-28\n\n- [x] DONE First task\n- [x] DONE Second task\n',
+    )
+    expect(secondTask).toEqual(expect.objectContaining({ status: 'DONE', text: 'Second task' }))
   })
 
   it('preserves CRLF line endings when updating a source task', () => {
