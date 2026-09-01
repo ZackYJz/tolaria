@@ -9,6 +9,8 @@ import {
 } from './richEditorKeyboard'
 
 const COMPOSITION_SETTLE_WINDOW_MS = 500
+const COMPOSITION_REPLAY_POLL_MS = 20
+const COMPOSITION_REPLAY_MAX_POLLS = 10
 const SAFARI_IME_DOM_PRESERVER_ATTRIBUTE = 'data-tolaria-ime-dom-preserver'
 
 function isEnterKey(event: KeyboardEvent): boolean {
@@ -140,6 +142,10 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
   let compositionActive = false
   let compositionEndedAt: number | null = null
   let compositionConfirmedByEnter = false
+  let pendingParagraphAfterComposition = false
+  let replayingParagraph = false
+  let mountedDom: HTMLElement | null = null
+  let mountedSignal: AbortSignal | null = null
 
   const reopenComposedSlashCommand = (data: string) => {
     const suggestionMenu = editor.getExtension(SuggestionMenu)
@@ -159,6 +165,8 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
   }
 
   const handleKeyDown = (event: KeyboardEvent) => {
+    if (replayingParagraph && isEnterKey(event)) return
+
     if (!shouldStopComposingEditorShortcutKey(
       event,
       readView(),
@@ -179,6 +187,28 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
     compositionActive = true
     compositionEndedAt = null
     compositionConfirmedByEnter = false
+    pendingParagraphAfterComposition = false
+  }
+
+  const replayPendingParagraph = (pollCount = 0) => {
+    if (!mountedDom || mountedSignal?.aborted) return
+    if (readView()?.composing === true && pollCount < COMPOSITION_REPLAY_MAX_POLLS) {
+      setTimeout(() => replayPendingParagraph(pollCount + 1), COMPOSITION_REPLAY_POLL_MS)
+      return
+    }
+
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      code: 'Enter',
+      key: 'Enter',
+    })
+    replayingParagraph = true
+    try {
+      mountedDom.dispatchEvent(event)
+    } finally {
+      replayingParagraph = false
+    }
   }
 
   const handleCompositionEnd = (event: CompositionEvent) => {
@@ -187,6 +217,11 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
     compositionEndedAt = shouldGuardConfirmation && !compositionConfirmedByEnter
       ? event.timeStamp
       : null
+    compositionConfirmedByEnter = false
+    if (pendingParagraphAfterComposition) {
+      pendingParagraphAfterComposition = false
+      setTimeout(() => replayPendingParagraph(), 0)
+    }
     if (event.data) setTimeout(() => reopenComposedSlashCommand(event.data), 0)
   }
 
@@ -197,7 +232,7 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
       return
     }
 
-    compositionConfirmedByEnter = false
+    pendingParagraphAfterComposition = compositionConfirmedByEnter
     event.preventDefault()
     event.stopImmediatePropagation()
   }
@@ -206,6 +241,8 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
     key: 'imeCompositionKeyGuard',
     prosemirrorPlugins: [createSafariImeDomPreserverPlugin()],
     mount: ({ dom, signal }) => {
+      mountedDom = dom
+      mountedSignal = signal
       dom.addEventListener('keydown', handleKeyDown, {
         capture: true,
         signal,

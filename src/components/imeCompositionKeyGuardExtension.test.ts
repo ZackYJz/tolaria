@@ -87,6 +87,7 @@ function createFixture() {
     addEventListener: vi.fn((type: string, listener: EventListener) => {
       listeners.set(type, listener)
     }),
+    dispatchEvent: vi.fn(() => true),
   }
   const editor = {
     _tiptapEditor: { view },
@@ -305,6 +306,28 @@ describe('createImeCompositionKeyGuardExtension', () => {
     expect(guardedEvent.stopImmediatePropagation).not.toHaveBeenCalled()
     expect(laterEvent.preventDefault).not.toHaveBeenCalled()
     expect(laterEvent.stopImmediatePropagation).not.toHaveBeenCalled()
+  })
+
+  it('replays an immediate composing Enter after composition settles', () => {
+    vi.useFakeTimers()
+    const fixture = createFixture()
+    fixture.mount()
+
+    fixture.fireCompositionStart()
+    fixture.fireKeydown({ isComposing: true, timeStamp: 100 })
+    fixture.view.composing = true
+    const earlyParagraph = fixture.fireBeforeInput({ isComposing: false, timeStamp: 105 })
+    fixture.view.composing = false
+    fixture.fireCompositionEnd({ timeStamp: 110 })
+    vi.runAllTimers()
+
+    expect(earlyParagraph.preventDefault).toHaveBeenCalledTimes(1)
+    expect(fixture.dom.dispatchEvent).toHaveBeenCalledTimes(1)
+    expect(fixture.dom.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'Enter',
+      key: 'Enter',
+    }))
+    vi.useRealTimers()
   })
 
   it('does not arm paragraph suppression for compositionend without a composing Enter', () => {
