@@ -177,19 +177,18 @@ describe('shouldStopComposingParagraphInput', () => {
     expect(shouldStopComposingParagraphInput(event, { composing: true })).toBe(true)
   })
 
-  it('matches paragraph insertion armed by a recent composing Enter', () => {
+  it('allows the paragraph insertion emitted after a composing Enter commits', () => {
     const event = createInputEvent({ timeStamp: 120 })
 
-    expect(shouldStopComposingParagraphInput(event, { composing: false }, 100)).toBe(true)
+    expect(shouldStopComposingParagraphInput(event, { composing: false })).toBe(false)
   })
 
-  it('leaves normal or stale paragraph insertion alone', () => {
+  it('leaves normal paragraph and unrelated input alone', () => {
     const normalEvent = createInputEvent({ timeStamp: 700 })
     const unrelatedInput = createInputEvent({ inputType: 'insertText', timeStamp: 120 })
 
-    expect(shouldStopComposingParagraphInput(normalEvent, { composing: false }, 100)).toBe(false)
-    expect(shouldStopComposingParagraphInput(unrelatedInput, { composing: false }, 100)).toBe(false)
     expect(shouldStopComposingParagraphInput(normalEvent, { composing: false })).toBe(false)
+    expect(shouldStopComposingParagraphInput(unrelatedInput, { composing: false })).toBe(false)
   })
 })
 
@@ -293,7 +292,7 @@ describe('createImeCompositionKeyGuardExtension', () => {
     vi.useRealTimers()
   })
 
-  it('blocks one paragraph insertion emitted after a composing Enter ends', () => {
+  it('allows one paragraph insertion emitted after a composing Enter ends', () => {
     const fixture = createFixture()
     fixture.mount()
 
@@ -302,8 +301,8 @@ describe('createImeCompositionKeyGuardExtension', () => {
     const guardedEvent = fixture.fireBeforeInput()
     const laterEvent = fixture.fireBeforeInput({ timeStamp: 130 })
 
-    expect(guardedEvent.preventDefault).toHaveBeenCalledTimes(1)
-    expect(guardedEvent.stopImmediatePropagation).toHaveBeenCalledTimes(1)
+    expect(guardedEvent.preventDefault).not.toHaveBeenCalled()
+    expect(guardedEvent.stopImmediatePropagation).not.toHaveBeenCalled()
     expect(laterEvent.preventDefault).not.toHaveBeenCalled()
     expect(laterEvent.stopImmediatePropagation).not.toHaveBeenCalled()
   })

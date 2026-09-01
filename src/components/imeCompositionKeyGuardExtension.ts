@@ -128,21 +128,18 @@ export function shouldStopComposingEditorShortcutKey(
 export function shouldStopComposingParagraphInput(
   event: InputEvent,
   view?: ComposingEditorView | null,
-  composingEnterAt: number | null = null,
 ): boolean {
   if (!isParagraphInput(event)) return false
-  if (event.isComposing || view?.composing === true) return true
-  if (composingEnterAt === null) return false
-
-  const elapsed = event.timeStamp - composingEnterAt
-  return elapsed >= 0 && elapsed < COMPOSITION_SETTLE_WINDOW_MS
+  // Once composition has ended, this input is the newline from the same Enter.
+  // Blocking it forces users to press Enter a second time in every editor mode.
+  return event.isComposing || view?.composing === true
 }
 
 export const createImeCompositionKeyGuardExtension = createExtension(({ editor }) => {
   const readView = () => activeRichEditorView(editor)
   let compositionActive = false
   let compositionEndedAt: number | null = null
-  let composingEnterAt: number | null = null
+  let compositionConfirmedByEnter = false
 
   const reopenComposedSlashCommand = (data: string) => {
     const suggestionMenu = editor.getExtension(SuggestionMenu)
@@ -169,39 +166,38 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
       compositionEndedAt,
     )) {
       compositionEndedAt = null
-      composingEnterAt = null
+      compositionConfirmedByEnter = false
       return
     }
 
     compositionEndedAt = null
-    if (isEnterKey(event)) composingEnterAt = event.timeStamp
+    if (isEnterKey(event)) compositionConfirmedByEnter = true
     event.stopImmediatePropagation()
   }
 
   const handleCompositionStart = () => {
     compositionActive = true
     compositionEndedAt = null
+    compositionConfirmedByEnter = false
   }
 
   const handleCompositionEnd = (event: CompositionEvent) => {
     const shouldGuardConfirmation = compositionActive || readView()?.composing === true
-    const composingEnterWasAlreadyHandled = composingEnterAt !== null
     compositionActive = false
-    compositionEndedAt = shouldGuardConfirmation && !composingEnterWasAlreadyHandled
+    compositionEndedAt = shouldGuardConfirmation && !compositionConfirmedByEnter
       ? event.timeStamp
       : null
-    if (composingEnterAt !== null) composingEnterAt = event.timeStamp
     if (event.data) setTimeout(() => reopenComposedSlashCommand(event.data), 0)
   }
 
   const handleBeforeInput = (event: InputEvent) => {
     if (!isParagraphInput(event)) return
-    if (!shouldStopComposingParagraphInput(event, readView(), composingEnterAt)) {
-      composingEnterAt = null
+    if (!shouldStopComposingParagraphInput(event, readView())) {
+      compositionConfirmedByEnter = false
       return
     }
 
-    composingEnterAt = null
+    compositionConfirmedByEnter = false
     event.preventDefault()
     event.stopImmediatePropagation()
   }

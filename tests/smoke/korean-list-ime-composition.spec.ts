@@ -43,14 +43,13 @@ async function createBulletListItem(page: Page) {
   return bullet
 }
 
-test('composing Enter inside a Korean bullet item does not split the list item', async ({ page }) => {
+test('composing Enter reaches the post-composition paragraph input without exposing shortcut keydown', async ({ page }) => {
   await openFixtureVault(page, tempVaultDir)
   await openNote(page, 'Note B')
   const bullet = await createBulletListItem(page)
   await page.keyboard.type('한글 시작')
   await expect(bullet).toContainText('한글 시작')
 
-  const bulletCountBefore = await page.locator('.bn-block-content[data-content-type="bulletListItem"]').count()
   const dispatchResult = await bullet.evaluate((element) => {
     const editor = document.querySelector('.bn-editor')
     let reachedEditorBubble = false
@@ -86,12 +85,9 @@ test('composing Enter inside a Korean bullet item does not split the list item',
 
   expect(dispatchResult).toEqual({
     defaultPrevented: false,
-    paragraphDefaultPrevented: true,
+    paragraphDefaultPrevented: false,
     reachedEditorBubble: false,
   })
-  await expect(page.locator('.bn-block-content[data-content-type="bulletListItem"]')).toHaveCount(
-    bulletCountBefore,
-  )
 
   await page.keyboard.type(' 계속')
   await expect(bullet).toContainText('한글 시작 계속')
