@@ -33,7 +33,7 @@ import type { RawEditorFindRequest } from './RawEditorFindBar'
 import { resolvePendingRawExitContent, resolveRawModeContent } from './editorRawModeSync'
 import { useRegisterEditorContentFlushes } from './editorContentFlushRegistration'
 import { useRawModeWithFlush } from './useRawModeWithFlush'
-import { createImeCompositionKeyGuardExtension } from './imeCompositionKeyGuardExtension'
+import { createImeCompositionCompatibilityExtension } from './imeCompositionKeyGuardExtension'
 import { createMarkdownHighlightShortcutExtension } from './markdownHighlightShortcutExtension'
 import { handleRemoteRichEditorPaste } from './richEditorPaste'
 import { createRichEditorMarkdownInputTransformExtension } from './richEditorInputTransformExtension'
@@ -341,7 +341,7 @@ function useEditorSetup(options: EditorSetupParams) {
     _tiptapOptions: { injectNonce: RUNTIME_STYLE_NONCE },
     extensions: [
       createRichEditorTransformErrorRecoveryExtension(),
-      createImeCompositionKeyGuardExtension(),
+      createImeCompositionCompatibilityExtension(),
       createRichEditorCodeBlockArrowNavigationExtension(),
       createOutlineEditorModeExtension(),
       createRichEditorEmptyListNavigationExtension(),

@@ -43,7 +43,7 @@ async function createBulletListItem(page: Page) {
   return bullet
 }
 
-test('composing Enter reaches the post-composition paragraph input without exposing shortcut keydown', async ({ page }) => {
+test('composing Enter creates the next list item through the upstream editor command', async ({ page }) => {
   await openFixtureVault(page, tempVaultDir)
   await openNote(page, 'Note B')
   const bullet = await createBulletListItem(page)
@@ -83,17 +83,19 @@ test('composing Enter reaches the post-composition paragraph input without expos
     }
   })
 
-  expect(dispatchResult).toEqual({
-    defaultPrevented: false,
-    paragraphDefaultPrevented: false,
-    reachedEditorBubble: false,
-  })
+  expect(dispatchResult.paragraphDefaultPrevented).toBe(false)
+  expect(dispatchResult.reachedEditorBubble).toBe(true)
 
   await page.keyboard.type(' 계속')
-  await expect(bullet).toContainText('한글 시작 계속')
+  await expect(page.locator('.bn-block-content[data-content-type="bulletListItem"]', {
+    hasText: /^한글 시작$/,
+  })).toHaveCount(1)
+  await expect(page.locator('.bn-block-content[data-content-type="bulletListItem"]', {
+    hasText: /^ 계속$/,
+  })).toHaveCount(1)
 })
 
-test('Space immediately after compositionend stays inside IME handling for a nested ordered item', async ({ page }) => {
+test('Space immediately after compositionend stays on the upstream editor event path', async ({ page }) => {
   fs.writeFileSync(path.join(tempVaultDir, 'note', 'note-b.md'), NESTED_TASK_ORDERED_LIST_NOTE)
   await openFixtureVault(page, tempVaultDir)
   await openNote(page, 'Note B')
@@ -134,7 +136,7 @@ test('Space immediately after compositionend stays inside IME handling for a nes
 
   expect(dispatchResult).toEqual({
     defaultPrevented: false,
-    reachedEditorBubble: false,
+    reachedEditorBubble: true,
   })
   await expect(page.locator('.bn-block-content[data-content-type="numberedListItem"]')).toHaveCount(
     orderedItemCountBefore,

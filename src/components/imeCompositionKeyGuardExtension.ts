@@ -2,15 +2,11 @@ import { createExtension } from '@blocknote/core'
 import { SuggestionMenu } from '@blocknote/core/extensions'
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import {
-  activeRichEditorView,
-  isComposingKeyboardEvent,
-  type ComposingEditorView,
-} from './richEditorKeyboard'
+import { isTauri } from '../mock-tauri'
+import { isMac } from '../utils/platform'
+import { activeRichEditorView } from './richEditorKeyboard'
 
 const COMPOSITION_SETTLE_WINDOW_MS = 500
-const COMPOSITION_REPLAY_POLL_MS = 20
-const COMPOSITION_REPLAY_MAX_POLLS = 10
 const SAFARI_IME_DOM_PRESERVER_ATTRIBUTE = 'data-tolaria-ime-dom-preserver'
 
 function isEnterKey(event: KeyboardEvent): boolean {
@@ -20,16 +16,6 @@ function isEnterKey(event: KeyboardEvent): boolean {
     || event.keyCode === 13
 }
 
-function isSpaceKey(event: KeyboardEvent): boolean {
-  return event.key === ' '
-    || event.code === 'Space'
-    || event.keyCode === 32
-}
-
-function isCompositionEditorShortcutKey(event: KeyboardEvent): boolean {
-  return isEnterKey(event) || isSpaceKey(event)
-}
-
 function isRecentCompositionEnd(event: KeyboardEvent, compositionEndedAt: number | null): boolean {
   if (compositionEndedAt === null) return false
 
@@ -37,8 +23,73 @@ function isRecentCompositionEnd(event: KeyboardEvent, compositionEndedAt: number
   return elapsed >= 0 && elapsed < COMPOSITION_SETTLE_WINDOW_MS
 }
 
-function isParagraphInput(event: InputEvent): boolean {
-  return event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak'
+function isMacosTauriRuntime(): boolean {
+  return isTauri() && isMac()
+}
+
+function runEditorEnterCommand(view: EditorView, event: KeyboardEvent): boolean {
+  const handled = view.someProp('handleKeyDown', (handler) => handler(view, event)) === true
+  if (handled) event.preventDefault()
+  return handled
+}
+
+function selectedBlockId(view: EditorView): string | null {
+  const { $from } = view.state.selection
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const id = $from.node(depth).attrs.id
+    if (typeof id === 'string' && id.length > 0) return id
+  }
+  return null
+}
+
+export function createMacosTauriImmediateEnterPlugin(
+  enabled = isMacosTauriRuntime(),
+): Plugin {
+  const key = new PluginKey('tolariaMacosTauriImmediateImeEnter')
+  if (!enabled) return new Plugin({ key })
+
+  let compositionEndedAt: number | null = null
+  let composingEnterBlockId: string | null = null
+  return new Plugin({
+    key,
+    props: {
+      handleDOMEvents: {
+        compositionend: (view, event) => {
+          compositionEndedAt = event.timeStamp
+          const pendingBlockId = composingEnterBlockId
+          composingEnterBlockId = null
+          if (pendingBlockId !== null) {
+            setTimeout(() => {
+              if (view.isDestroyed || selectedBlockId(view) !== pendingBlockId) return
+              runEditorEnterCommand(view, new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                code: 'Enter',
+                key: 'Enter',
+              }))
+            }, 0)
+          }
+          return false
+        },
+        keydown: (view, event) => {
+          if (isEnterKey(event) && (event.isComposing || view.composing)) {
+            compositionEndedAt = null
+            composingEnterBlockId = selectedBlockId(view)
+            return false
+          }
+
+          if (!isRecentCompositionEnd(event, compositionEndedAt)) {
+            compositionEndedAt = null
+            return false
+          }
+
+          compositionEndedAt = null
+          if (!isEnterKey(event) || event.isComposing || view.composing) return false
+          return runEditorEnterCommand(view, event)
+        },
+      },
+    },
+  })
 }
 
 function composedSlashCommandRange(data: string, view: ReturnType<typeof activeRichEditorView>) {
@@ -113,39 +164,24 @@ export function createSafariImeDomPreserverPlugin(
   })
 }
 
-export function shouldStopComposingEditorShortcutKey(
-  event: KeyboardEvent,
-  view?: ComposingEditorView | null,
-  compositionActive = false,
-  compositionEndedAt: number | null = null,
-): boolean {
-  return isCompositionEditorShortcutKey(event)
-    && (
-      compositionActive
-      || isComposingKeyboardEvent(event, view)
-      || (isSpaceKey(event) && isRecentCompositionEnd(event, compositionEndedAt))
-    )
+function createComposedSlashCommandRecoveryPlugin(
+  recover: (data: string) => void,
+): Plugin {
+  return new Plugin({
+    key: new PluginKey('tolariaComposedSlashCommandRecovery'),
+    props: {
+      handleDOMEvents: {
+        compositionend: (_view, event) => {
+          if (event.data) setTimeout(() => recover(event.data), 0)
+          return false
+        },
+      },
+    },
+  })
 }
 
-export function shouldStopComposingParagraphInput(
-  event: InputEvent,
-  view?: ComposingEditorView | null,
-): boolean {
-  if (!isParagraphInput(event)) return false
-  // Once composition has ended, this input is the newline from the same Enter.
-  // Blocking it forces users to press Enter a second time in every editor mode.
-  return event.isComposing || view?.composing === true
-}
-
-export const createImeCompositionKeyGuardExtension = createExtension(({ editor }) => {
+export const createImeCompositionCompatibilityExtension = createExtension(({ editor }) => {
   const readView = () => activeRichEditorView(editor)
-  let compositionActive = false
-  let compositionEndedAt: number | null = null
-  let compositionConfirmedByEnter = false
-  let pendingParagraphAfterComposition = false
-  let replayingParagraph = false
-  let mountedDom: HTMLElement | null = null
-  let mountedSignal: AbortSignal | null = null
 
   const reopenComposedSlashCommand = (data: string) => {
     const suggestionMenu = editor.getExtension(SuggestionMenu)
@@ -164,101 +200,12 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
     }
   }
 
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (replayingParagraph && isEnterKey(event)) return
-
-    if (!shouldStopComposingEditorShortcutKey(
-      event,
-      readView(),
-      compositionActive,
-      compositionEndedAt,
-    )) {
-      compositionEndedAt = null
-      compositionConfirmedByEnter = false
-      return
-    }
-
-    compositionEndedAt = null
-    if (isEnterKey(event)) compositionConfirmedByEnter = true
-    event.stopImmediatePropagation()
-  }
-
-  const handleCompositionStart = () => {
-    compositionActive = true
-    compositionEndedAt = null
-    compositionConfirmedByEnter = false
-    pendingParagraphAfterComposition = false
-  }
-
-  const replayPendingParagraph = (pollCount = 0) => {
-    if (!mountedDom || mountedSignal?.aborted) return
-    if (readView()?.composing === true && pollCount < COMPOSITION_REPLAY_MAX_POLLS) {
-      setTimeout(() => replayPendingParagraph(pollCount + 1), COMPOSITION_REPLAY_POLL_MS)
-      return
-    }
-
-    const event = new KeyboardEvent('keydown', {
-      bubbles: true,
-      cancelable: true,
-      code: 'Enter',
-      key: 'Enter',
-    })
-    replayingParagraph = true
-    try {
-      mountedDom.dispatchEvent(event)
-    } finally {
-      replayingParagraph = false
-    }
-  }
-
-  const handleCompositionEnd = (event: CompositionEvent) => {
-    const shouldGuardConfirmation = compositionActive || readView()?.composing === true
-    compositionActive = false
-    compositionEndedAt = shouldGuardConfirmation && !compositionConfirmedByEnter
-      ? event.timeStamp
-      : null
-    compositionConfirmedByEnter = false
-    if (pendingParagraphAfterComposition) {
-      pendingParagraphAfterComposition = false
-      setTimeout(() => replayPendingParagraph(), 0)
-    }
-    if (event.data) setTimeout(() => reopenComposedSlashCommand(event.data), 0)
-  }
-
-  const handleBeforeInput = (event: InputEvent) => {
-    if (!isParagraphInput(event)) return
-    if (!shouldStopComposingParagraphInput(event, readView())) {
-      compositionConfirmedByEnter = false
-      return
-    }
-
-    pendingParagraphAfterComposition = compositionConfirmedByEnter
-    event.preventDefault()
-    event.stopImmediatePropagation()
-  }
-
   return {
-    key: 'imeCompositionKeyGuard',
-    prosemirrorPlugins: [createSafariImeDomPreserverPlugin()],
-    mount: ({ dom, signal }) => {
-      mountedDom = dom
-      mountedSignal = signal
-      dom.addEventListener('keydown', handleKeyDown, {
-        capture: true,
-        signal,
-      })
-      dom.addEventListener('compositionstart', handleCompositionStart, {
-        capture: true,
-        signal,
-      })
-      dom.addEventListener('compositionend', handleCompositionEnd, {
-        capture: true,
-        signal,
-      })
-      dom.addEventListener('beforeinput', handleBeforeInput as EventListener, {
-        capture: true,
-        signal,
-      })
-    },
+    key: 'imeCompositionCompatibility',
+    prosemirrorPlugins: [
+      createSafariImeDomPreserverPlugin(),
+      createMacosTauriImmediateEnterPlugin(),
+      createComposedSlashCommandRecoveryPlugin(reopenComposedSlashCommand),
+    ],
   } as const
 })

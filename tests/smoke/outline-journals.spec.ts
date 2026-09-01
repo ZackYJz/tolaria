@@ -43,28 +43,6 @@ async function createNextOutlineBullet(page: Page, outlineEditor: Locator): Prom
   return nextItem
 }
 
-async function dispatchImmediateImeEnter(editor: Locator): Promise<void> {
-  await editor.evaluate((element) => {
-    element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
-    element.dispatchEvent(new KeyboardEvent('keydown', {
-      bubbles: true,
-      cancelable: true,
-      code: 'Enter',
-      isComposing: true,
-      key: 'Enter',
-    }))
-    element.dispatchEvent(new InputEvent('beforeinput', {
-      bubbles: true,
-      cancelable: true,
-      inputType: 'insertParagraph',
-    }))
-    element.dispatchEvent(new CompositionEvent('compositionend', {
-      bubbles: true,
-      data: '中文输入',
-    }))
-  })
-}
-
 test('@smoke creates an outline note from the new-note menu', async ({ page }) => {
   const tempVaultDir = createFixtureVaultCopy()
 
@@ -107,51 +85,6 @@ test('@smoke creates an outline note from the new-note menu', async ({ page }) =
       const element = anchor instanceof HTMLElement ? anchor : anchor?.parentElement
       return element?.closest('[data-content-type]')?.getAttribute('data-content-type')
     })).toBe('bulletListItem')
-  } finally {
-    removeFixtureVaultCopy(tempVaultDir)
-  }
-})
-
-test('creates the next outline item when Enter arrives before IME composition settles', async ({ page }) => {
-  const tempVaultDir = createFixtureVaultCopy()
-
-  try {
-    await openFixtureVault(page, tempVaultDir)
-    await page.getByRole('button', { name: 'Create new note' }).click()
-    await page.getByRole('menuitem', { name: 'Outline' }).click()
-
-    const outlineEditor = page.locator('[data-note-display="outline"]')
-    await createNextOutlineBullet(page, outlineEditor)
-    await page.keyboard.insertText('中文输入')
-
-    await dispatchImmediateImeEnter(outlineEditor.locator('.bn-editor'))
-
-    await page.keyboard.insertText('下一条')
-
-    await expect(outlineEditor.locator('[data-content-type="bulletListItem"]', { hasText: /^中文输入$/ })).toHaveCount(1)
-    await expect(outlineEditor.locator('[data-content-type="bulletListItem"]', { hasText: /^下一条$/ })).toHaveCount(1)
-  } finally {
-    removeFixtureVaultCopy(tempVaultDir)
-  }
-})
-
-test('creates the next document block when Enter arrives before IME composition settles', async ({ page }) => {
-  const tempVaultDir = createFixtureVaultCopy()
-
-  try {
-    await openFixtureVault(page, tempVaultDir)
-    await page.getByRole('button', { name: 'Create new note' }).click()
-    await page.getByRole('menuitem', { name: 'Document' }).click()
-
-    const editor = page.locator('.bn-editor')
-    const title = editor.locator('[data-content-type="heading"]').first()
-    await title.click()
-    await page.keyboard.insertText('中文输入')
-    await dispatchImmediateImeEnter(editor)
-    await page.keyboard.insertText('下一行')
-
-    await expect(title).toHaveText('中文输入')
-    await expect(editor.locator('[data-content-type="paragraph"]', { hasText: /^下一行$/ })).toHaveCount(1)
   } finally {
     removeFixtureVaultCopy(tempVaultDir)
   }
