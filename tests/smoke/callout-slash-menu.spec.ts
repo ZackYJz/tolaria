@@ -47,6 +47,40 @@ test('callout slash command inserts a full-width Notion-style block with a selec
     if (!blockContent) return false
     return Math.abs(element.getBoundingClientRect().width - blockContent.getBoundingClientRect().width) < 1
   })).toBe(true)
+  await expect.poll(async () => callout.evaluate((element) => {
+    const icon = element.querySelector<HTMLElement>('.tolaria-callout__icon-button')
+    const body = element.querySelector<HTMLElement>('.tolaria-callout__body')
+    if (!icon || !body) return null
+    const calloutStyle = getComputedStyle(element)
+    const iconBounds = icon.getBoundingClientRect()
+    const bodyBounds = body.getBoundingClientRect()
+    return {
+      bodyTop: Math.round(bodyBounds.top),
+      columnGap: calloutStyle.columnGap,
+      hasVisibleBackground: !['rgba(0, 0, 0, 0)', 'transparent'].includes(calloutStyle.backgroundColor),
+      iconHeight: Math.round(iconBounds.height),
+      iconTop: Math.round(iconBounds.top),
+      iconWidth: Math.round(iconBounds.width),
+      paddingBottom: calloutStyle.paddingBottom,
+      paddingTop: calloutStyle.paddingTop,
+    }
+  })).toEqual({
+    bodyTop: expect.any(Number),
+    columnGap: '8px',
+    hasVisibleBackground: true,
+    iconHeight: 24,
+    iconTop: expect.any(Number),
+    iconWidth: 24,
+    paddingBottom: '16px',
+    paddingTop: '16px',
+  })
+  const verticalAlignment = await callout.evaluate((element) => {
+    const icon = element.querySelector<HTMLElement>('.tolaria-callout__icon-button')
+    const body = element.querySelector<HTMLElement>('.tolaria-callout__body')
+    if (!icon || !body) return Number.POSITIVE_INFINITY
+    return Math.abs(icon.getBoundingClientRect().top - body.getBoundingClientRect().top)
+  })
+  expect(verticalAlignment).toBeLessThan(1)
 
   await callout.getByRole('button', { name: 'Icon' }).click()
   const emojiPicker = page.getByTestId('emoji-picker')

@@ -1,14 +1,15 @@
 import { createReactBlockSpec, type ReactCustomBlockRenderProps } from '@blocknote/react'
-import { createElement, useState } from 'react'
+import { useState } from 'react'
 import { useAppLocale } from '../hooks/useAppPreferences'
 import { translate } from '../lib/i18n'
 import { trackEvent } from '../lib/telemetry'
 import { CALLOUT_BLOCK_TYPE } from '../utils/calloutMarkdown'
 import { resolveCalloutDefinition } from '../utils/calloutCatalog'
 import { isEmoji } from '../utils/emoji'
-import { calloutIconForType } from './calloutIcons'
 import { EmojiPicker } from './EmojiPicker'
 import { Button } from './ui/button'
+
+const DEFAULT_CALLOUT_ICON = '💡'
 
 const CALLOUT_BLOCK_CONFIG = {
   type: CALLOUT_BLOCK_TYPE,
@@ -30,9 +31,7 @@ function CalloutBlockView({ block, contentRef, editor }: CalloutBlockViewProps) 
   const locale = useAppLocale()
   const { calloutType, title } = block.props
   const family = resolveCalloutDefinition({ type: calloutType }).family
-  const icon = isEmoji(title)
-    ? <span aria-hidden="true" className="tolaria-callout__emoji">{title}</span>
-    : createElement(calloutIconForType(calloutType), { 'aria-hidden': true, weight: 'fill' })
+  const icon = isEmoji(title) ? title : DEFAULT_CALLOUT_ICON
   const iconLabel = translate(locale, 'customize.icon')
 
   return (
@@ -51,7 +50,7 @@ function CalloutBlockView({ block, contentRef, editor }: CalloutBlockViewProps) 
           type="button"
           variant="ghost"
         >
-          {icon}
+          <span aria-hidden="true" className="tolaria-callout__emoji">{icon}</span>
         </Button>
         {isPickerOpen && (
           <EmojiPicker

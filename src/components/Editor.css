@@ -637,18 +637,18 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 }
 
 .tolaria-callout {
-  --callout-accent: var(--feedback-info-text);
-  --callout-background: var(--feedback-info-bg);
+  --callout-accent: var(--color-foreground);
+  --callout-background: var(--state-hover);
   position: relative;
   display: grid;
   width: 100%;
   box-sizing: border-box;
-  grid-template-columns: 2rem minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: start;
-  gap: 0.625rem;
+  gap: 8px;
   margin: 0.5rem 0;
-  padding: 0.75rem;
-  border-radius: 0.5rem;
+  padding: 16px;
+  border-radius: 4px;
   background: var(--callout-background);
 }
 
@@ -674,7 +674,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 
 .tolaria-callout--quote {
   --callout-accent: var(--text-secondary);
-  --callout-background: var(--surface-secondary);
+  --callout-background: var(--state-hover);
 }
 
 .tolaria-callout__icon-control {
@@ -682,8 +682,18 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 }
 
 .tolaria-callout__icon-button {
+  display: flex;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 3px;
   color: var(--callout-accent);
-  font-size: 1.25rem;
+  font-size: 20px;
+  line-height: 24px;
 }
 
 .tolaria-callout__icon-button:hover {
@@ -691,18 +701,19 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   color: var(--callout-accent);
 }
 
-.tolaria-callout__icon-button > svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
 .tolaria-callout__emoji {
-  line-height: 1;
+  display: block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
 }
 
 .tolaria-callout__body {
   min-width: 0;
-  padding: 0.3rem 0;
+  min-height: 24px;
+  padding: 0;
+  line-height: 24px;
   color: var(--color-foreground);
 }
 
