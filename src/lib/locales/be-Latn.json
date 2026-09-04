@@ -673,6 +673,7 @@
   "editor.slash.htmlBlock": "HTML-blok",
   "editor.slash.math": "Matematyka",
   "editor.slash.time": "Čas",
+  "editor.slash.toggle": "Zhortvalny blok",
   "editor.htmlBlock.toolbar": "Dziei HTML-bloka",
   "editor.htmlBlock.editSource": "Redahavać krynicu",
   "editor.htmlBlock.doneEditing": "Skončyć redahavannie",

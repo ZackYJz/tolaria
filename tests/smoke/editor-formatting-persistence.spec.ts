@@ -205,6 +205,20 @@ async function assertKeyboardBoldPersists(page: Page, options: {
 
 const slashMenuPersistenceScenarios = [
   {
+    name: 'slash menu toggle blocks persist as portable details Markdown',
+    query: '/tog',
+    optionName: /^Toggle/i,
+    insertedText: 'Persisted toggle',
+    rawAssertion: (raw: string) => {
+      expect(raw).toContain([
+        '<details>',
+        '<summary>Persisted toggle</summary>',
+        '</details>',
+      ].join('\n'))
+    },
+    blockContentType: 'toggleListItem',
+  },
+  {
     name: 'slash menu block commands persist bullet lists',
     query: '/bul',
     optionName: /Bullet List/i,

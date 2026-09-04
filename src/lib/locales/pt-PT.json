@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "Bloco HTML",
   "editor.slash.math": "Matemática",
   "editor.slash.time": "Hora",
+  "editor.slash.toggle": "Bloco recolhível",
   "editor.htmlBlock.toolbar": "Ações de bloco HTML",
   "editor.htmlBlock.editSource": "Editar fonte",
   "editor.htmlBlock.doneEditing": "Edição concluída",

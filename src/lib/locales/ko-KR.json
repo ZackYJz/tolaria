@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML 블록",
   "editor.slash.math": "수학",
   "editor.slash.time": "시간",
+  "editor.slash.toggle": "접기",
   "editor.htmlBlock.toolbar": "HTML 블록 작업",
   "editor.htmlBlock.editSource": "소스 편집",
   "editor.htmlBlock.doneEditing": "편집 완료",

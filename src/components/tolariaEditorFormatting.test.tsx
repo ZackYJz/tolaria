@@ -9,6 +9,7 @@ vi.mock('../lib/telemetry', () => ({
 import {
   addItemsToMediaGroup,
   createCalloutSlashMenuItem,
+  configureToggleSlashMenuItem,
   createDateTimeSlashMenuItems,
   createHtmlBlockSlashMenuItem,
   createJournalTaskSlashMenuItems,
@@ -87,7 +88,7 @@ describe('tolariaEditorFormatting', () => {
     ])
   })
 
-  it('filters unsupported toggle slash-menu variants and removes command descriptions', () => {
+  it('keeps the portable toggle slash command and filters unsupported toggle headings', () => {
     type TolariaSlashMenuTestItem = {
       key: string
       title: string
@@ -108,12 +109,14 @@ describe('tolariaEditorFormatting', () => {
     ] satisfies TolariaSlashMenuTestItem[])
 
     expect(items.map((item) => item.key)).toEqual([
+      'toggle_list',
       'heading',
       'heading_4',
       'bullet_list',
       'code_block',
     ])
     expect(items.map((item) => item.subtext)).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -149,6 +152,24 @@ describe('tolariaEditorFormatting', () => {
       'regular',
       'fill',
     ])
+  })
+
+  it('localizes the toggle command, expands its search aliases, and records use', () => {
+    const onItemClick = vi.fn()
+    const item = configureToggleSlashMenuItem({
+      aliases: ['toggle'],
+      key: 'toggle_list',
+      onItemClick,
+      title: 'Toggle list',
+    } as never, 'Fold')
+
+    expect(item).toMatchObject({
+      aliases: ['toggle', 'collapse', 'fold', 'details', '折叠'],
+      title: 'Fold',
+    })
+    item.onItemClick()
+    expect(onItemClick).toHaveBeenCalledOnce()
+    expect(trackEvent).toHaveBeenCalledWith('editor_toggle_slash_command_used')
   })
 
   it('keeps custom media slash-menu commands searchable', () => {

@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML 块",
   "editor.slash.math": "数学",
   "editor.slash.time": "时间",
+  "editor.slash.toggle": "折叠",
   "editor.htmlBlock.toolbar": "HTML 块操作",
   "editor.htmlBlock.editSource": "编辑源文件",
   "editor.htmlBlock.doneEditing": "编辑完成",

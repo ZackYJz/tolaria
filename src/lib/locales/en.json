@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML block",
   "editor.slash.math": "Math",
   "editor.slash.time": "Time",
+  "editor.slash.toggle": "Toggle",
   "editor.htmlBlock.toolbar": "HTML block actions",
   "editor.htmlBlock.editSource": "Edit source",
   "editor.htmlBlock.doneEditing": "Done editing",

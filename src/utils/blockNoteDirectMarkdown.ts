@@ -1,5 +1,6 @@
 import { restoreWikilinksInBlocks } from './wikilinks'
 import { escapeInlineMarkdownText, wrapInlineMarkdown } from './blockNoteMarkdownInline'
+import { formatToggleDetailsMarkdown, TOGGLE_BLOCK_TYPE } from './toggleMarkdown'
 
 interface TextStyles {
   [style: string]: string | boolean | undefined
@@ -335,6 +336,20 @@ function headingMarkdown(block: BlockLike): string {
   return `${'#'.repeat(level)} ${serializeInlineContent(contentArray(block.content))}`.trimEnd()
 }
 
+function toggleMarkdown(block: BlockLike, context: SerializeContext): string {
+  const previousIndentStack = context.indentStack
+  const previousNumberedStack = context.numberedStack
+  context.indentStack = [0]
+  context.numberedStack = []
+  const children = serializeBlockList(blockChildren(block), 0, context).trim()
+  context.indentStack = previousIndentStack
+  context.numberedStack = previousNumberedStack
+  return formatToggleDetailsMarkdown(
+    literalTextContent(contentArray(block.content)),
+    children,
+  )
+}
+
 function unsupportedBlockMarkdown(block: BlockLike, context: SerializeContext): null {
   context.fallbackReason = typeof block.type === 'string' ? `unsupported:${block.type}` : 'unsupported:unknown'
   return null
@@ -347,6 +362,7 @@ function specialBlockMarkdown(block: BlockLike, context: SerializeContext): stri
     case 'heading': return headingMarkdown(block)
     case 'quote': return quoteMarkdown(block)
     case 'table': return tableMarkdown(block)
+    case TOGGLE_BLOCK_TYPE: return toggleMarkdown(block, context)
     default: return unsupportedBlockMarkdown(block, context)
   }
 }
@@ -416,6 +432,7 @@ function renderUncachedBlock(block: BlockLike, depth: number, context: Serialize
   const ownWithPrefix = prefix
     ? prependLinePrefix(ownMarkdown, prefix)
     : prependBlockIndent({ markdown: ownMarkdown, width: context.indentStack.at(depth) ?? 0 })
+  if (block.type === TOGGLE_BLOCK_TYPE) return ownWithPrefix
   const childMarkdown = serializeChildren(block, depth, context, prefix)
   if (!childMarkdown) return ownWithPrefix
   const separator = isListItemBlock(blockChildren(block).at(0)) ? '\n' : '\n\n'

@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "Blok HTML",
   "editor.slash.math": "Matematika",
   "editor.slash.time": "Waktu",
+  "editor.slash.toggle": "Blok lipat",
   "editor.htmlBlock.toolbar": "Tindakan blok HTML",
   "editor.htmlBlock.editSource": "Edit sumber",
   "editor.htmlBlock.doneEditing": "Selesai mengedit",

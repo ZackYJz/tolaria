@@ -21,6 +21,12 @@ import {
 import { htmlBlockMarkdownCodec } from './htmlBlockMarkdown'
 import { mermaidMarkdownCodec } from './mermaidMarkdown'
 import { tldrawMarkdownCodec } from './tldrawMarkdown'
+import {
+  hasToggleMarkdownBlocks,
+  injectToggleMarkdownBlocks,
+  preProcessToggleMarkdown,
+  serializeToggleMarkdownBlocks,
+} from './toggleMarkdown'
 
 const EDITOR_DURABLE_MARKDOWN_CODECS = [
   htmlBlockMarkdownCodec,
@@ -33,7 +39,8 @@ export function preProcessDurableEditorMarkdown({ markdown }: { markdown: string
     markdown,
     codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
   })
-  return preProcessFileAttachmentMarkdown({ markdown: withDurableBlocks })
+  const withFileAttachments = preProcessFileAttachmentMarkdown({ markdown: withDurableBlocks })
+  return preProcessToggleMarkdown(withFileAttachments)
 }
 
 export function injectDurableEditorMarkdownBlocks(blocks: unknown[]): unknown[] {
@@ -41,7 +48,8 @@ export function injectDurableEditorMarkdownBlocks(blocks: unknown[]): unknown[] 
     blocks,
     codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
   })
-  return injectFileAttachmentBlocks(withDurableBlocks)
+  const withFileAttachments = injectFileAttachmentBlocks(withDurableBlocks)
+  return injectToggleMarkdownBlocks(withFileAttachments)
 }
 
 function serializeCalloutAndMathAwareBlocks(editor: MarkdownSerializer, blocks: unknown[]): string {
@@ -79,22 +87,28 @@ export function serializeDurableEditorBlocks(
   blocks: unknown[],
   vaultPath?: string,
 ): string {
-  return serializeFileAttachmentBlocks({
-    blocks,
-    vaultPath,
-    serializeOrdinaryBlocks: ordinaryBlocks => serializeDurableMarkdownBlocks({
+  const serializeBlocks = (pendingBlocks: unknown[]): string => serializeToggleMarkdownBlocks({
+    blocks: pendingBlocks,
+    serializeBlocks,
+    serializeOrdinaryBlocks: ordinaryBlocks => serializeFileAttachmentBlocks({
       blocks: ordinaryBlocks,
-      codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
-      serializeOrdinaryBlocks: durableOrdinaryBlocks => serializeCalloutAndMathAwareBlocks(
-        editor,
-        durableOrdinaryBlocks,
-      ),
+      vaultPath,
+      serializeOrdinaryBlocks: fileOrdinaryBlocks => serializeDurableMarkdownBlocks({
+        blocks: fileOrdinaryBlocks,
+        codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
+        serializeOrdinaryBlocks: durableOrdinaryBlocks => serializeCalloutAndMathAwareBlocks(
+          editor,
+          durableOrdinaryBlocks,
+        ),
+      }),
     }),
   })
+
+  return serializeBlocks(blocks)
 }
 
 export function hasDurableEditorBlocks(blocks: unknown[]): boolean {
-  return hasCalloutBlocks(blocks) || hasFileAttachmentBlocks(blocks) || hasDurableMarkdownBlocks({
+  return hasToggleMarkdownBlocks(blocks) || hasCalloutBlocks(blocks) || hasFileAttachmentBlocks(blocks) || hasDurableMarkdownBlocks({
     blocks,
     codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
   })

@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML blok",
   "editor.slash.math": "Matematika",
   "editor.slash.time": "Čas",
+  "editor.slash.toggle": "Rozbaľovací blok",
   "editor.htmlBlock.toolbar": "Akcie HTML bloku",
   "editor.htmlBlock.editSource": "Upraviť zdroj",
   "editor.htmlBlock.doneEditing": "Úprava dokončená",

@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML-блок",
   "editor.slash.math": "Матэматыка",
   "editor.slash.time": "Час",
+  "editor.slash.toggle": "Згортвальны блок",
   "editor.htmlBlock.toolbar": "Дзеянні з блокамі HTML",
   "editor.htmlBlock.editSource": "Рэдагаваць крыніцу",
   "editor.htmlBlock.doneEditing": "Рэдагаванне завершана",

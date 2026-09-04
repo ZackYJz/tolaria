@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTMLブロック",
   "editor.slash.math": "数学",
   "editor.slash.time": "時間",
+  "editor.slash.toggle": "折りたたみ",
   "editor.htmlBlock.toolbar": "HTMLブロックアクション",
   "editor.htmlBlock.editSource": "ソースを編集",
   "editor.htmlBlock.doneEditing": "編集完了",

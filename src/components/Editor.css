@@ -274,6 +274,52 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   opacity: 0;
 }
 
+/* BlockNote owns the toggle behavior. These overrides align its disclosure
+   control with Tolaria's compact editor tokens without changing document flow. */
+.editor__blocknote-container .bn-toggle-wrapper {
+  min-width: 0;
+}
+
+.editor__blocknote-container .bn-toggle-button {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: -4px;
+  color: var(--text-secondary);
+  border-radius: 6px;
+}
+
+.editor__blocknote-container .bn-toggle-button:hover {
+  background: var(--state-hover);
+  color: var(--foreground);
+}
+
+.editor__blocknote-container .bn-toggle-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.editor__blocknote-container .bn-toggle-button > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.editor__blocknote-container .bn-toggle-add-block-button {
+  margin-inline-start: 24px;
+  padding: 3px 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.editor__blocknote-container .bn-toggle-add-block-button:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
 .editor__blocknote-container .bn-suggestion-menu-item:is(:hover, [aria-selected="true"]) .tolaria-slash-menu-icon__regular {
   opacity: 0;
 }

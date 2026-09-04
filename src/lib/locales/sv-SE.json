@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML-block",
   "editor.slash.math": "Matematik",
   "editor.slash.time": "Tid",
+  "editor.slash.toggle": "Utfällbart block",
   "editor.htmlBlock.toolbar": "Åtgärder för HTML-block",
   "editor.htmlBlock.editSource": "Redigera källa",
   "editor.htmlBlock.doneEditing": "Redigering klar",

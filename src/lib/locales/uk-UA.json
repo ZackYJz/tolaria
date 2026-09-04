@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML-блок",
   "editor.slash.math": "Формула",
   "editor.slash.time": "Час",
+  "editor.slash.toggle": "Блок згортання",
   "editor.htmlBlock.toolbar": "Дії з HTML-блоком",
   "editor.htmlBlock.editSource": "Редагувати джерело",
   "editor.htmlBlock.doneEditing": "Редагування завершено",

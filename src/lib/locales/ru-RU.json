@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML-блок",
   "editor.slash.math": "Математика",
   "editor.slash.time": "Время",
+  "editor.slash.toggle": "Сворачиваемый блок",
   "editor.htmlBlock.toolbar": "Действия с HTML-блоком",
   "editor.htmlBlock.editSource": "Редактировать источник",
   "editor.htmlBlock.doneEditing": "Редактирование завершено",

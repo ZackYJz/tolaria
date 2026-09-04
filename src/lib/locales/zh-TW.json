@@ -857,6 +857,7 @@
   "editor.slash.htmlBlock": "HTML 區塊",
   "editor.slash.math": "數學",
   "editor.slash.time": "時間",
+  "editor.slash.toggle": "摺疊",
   "editor.htmlBlock.toolbar": "HTML 區塊動作",
   "editor.htmlBlock.editSource": "編輯來源",
   "editor.htmlBlock.doneEditing": "編輯完成",

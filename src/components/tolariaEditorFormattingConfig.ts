@@ -89,6 +89,7 @@ type TolariaSlashMenuLabels = {
   htmlTitle: string
   mathTitle: string
   timeTitle: string
+  toggleTitle: string
 }
 type DateTimeSlashCommandKind = 'date' | 'datetime' | 'time'
 type DateTimeSlashMenuLabels = Pick<
@@ -118,7 +119,6 @@ const UNSUPPORTED_SLASH_MENU_KEYS = new Set([
   'toggle_heading',
   'toggle_heading_2',
   'toggle_heading_3',
-  'toggle_list',
 ])
 
 const TOLARIA_BLOCK_TYPE_SELECT_ICONS: Record<RichEditorBlockTypeKey, PhosphorIcon> = {
@@ -470,12 +470,34 @@ export function filterTolariaSlashMenuItems<T extends TolariaSlashMenuItem>(
     }) as T[]
 }
 
+export function configureToggleSlashMenuItem(
+  item: TolariaSlashMenuItem,
+  title = 'Toggle',
+): TolariaSlashMenuItem {
+  return {
+    ...item,
+    aliases: [...new Set([...(item.aliases ?? []), 'collapse', 'fold', 'details', '折叠'])],
+    onItemClick: () => {
+      item.onItemClick()
+      trackEvent('editor_toggle_slash_command_used')
+    },
+    title,
+  }
+}
+
 export function getTolariaSlashMenuItems(
   editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
   query: string,
   labels?: TolariaSlashMenuLabels,
 ) {
   const defaultItems = getDefaultReactSlashMenuItems(editor) as TolariaSlashMenuItem[]
+  const toggleIndex = defaultItems.findIndex(item => item.key === 'toggle_list')
+  if (toggleIndex !== -1) {
+    defaultItems[toggleIndex] = configureToggleSlashMenuItem(
+      defaultItems[toggleIndex],
+      labels?.toggleTitle,
+    )
+  }
   if (isJournalTaskEditorMode(editor)) {
     const taskGroup = defaultItems.find((item) => item.key === 'check_list')?.group
     addItemsAfterKey(
