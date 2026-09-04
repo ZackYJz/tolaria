@@ -1076,21 +1076,6 @@ function useSuggestionMenuItems(options: {
           await Promise.resolve(
             getTolariaSlashMenuItems(editor, query, {
           calloutTitle: t('editor.slash.callout'),
-          calloutTypeTitles: {
-            abstract: t('editor.slash.callout.abstract'),
-            bug: t('editor.slash.callout.bug'),
-            danger: t('editor.slash.callout.danger'),
-            example: t('editor.slash.callout.example'),
-            failure: t('editor.slash.callout.failure'),
-            info: t('editor.slash.callout.info'),
-            note: t('editor.slash.callout.note'),
-            question: t('editor.slash.callout.question'),
-            quote: t('editor.slash.callout.quote'),
-            success: t('editor.slash.callout.success'),
-            tip: t('editor.slash.callout.tip'),
-            todo: t('editor.slash.callout.todo'),
-            warning: t('editor.slash.callout.warning'),
-          },
           dateTitle: t('editor.slash.date'),
           datetimeTitle: t('editor.slash.datetime'),
           htmlTitle: t('editor.slash.htmlBlock'),

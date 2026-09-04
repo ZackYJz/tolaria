@@ -1,13 +1,14 @@
 import { createReactBlockSpec, type ReactCustomBlockRenderProps } from '@blocknote/react'
-import { createElement } from 'react'
+import { createElement, useState } from 'react'
 import { useAppLocale } from '../hooks/useAppPreferences'
 import { translate } from '../lib/i18n'
-import {
-  CALLOUT_BLOCK_TYPE,
-  calloutHeading,
-} from '../utils/calloutMarkdown'
+import { trackEvent } from '../lib/telemetry'
+import { CALLOUT_BLOCK_TYPE } from '../utils/calloutMarkdown'
 import { resolveCalloutDefinition } from '../utils/calloutCatalog'
+import { isEmoji } from '../utils/emoji'
 import { calloutIconForType } from './calloutIcons'
+import { EmojiPicker } from './EmojiPicker'
+import { Button } from './ui/button'
 
 const CALLOUT_BLOCK_CONFIG = {
   type: CALLOUT_BLOCK_TYPE,
@@ -24,33 +25,43 @@ type CalloutBlockViewProps = ReactCustomBlockRenderProps<
   'inline'
 >
 
-function CalloutHeading({
-  calloutType,
-  heading,
-}: {
-  calloutType: string
-  heading: string
-}) {
-  const icon = createElement(calloutIconForType(calloutType), { 'aria-hidden': true, weight: 'fill' })
-  return <>{icon}<span>{heading}</span></>
-}
-
-function CalloutBlockView({ block, contentRef }: CalloutBlockViewProps) {
+function CalloutBlockView({ block, contentRef, editor }: CalloutBlockViewProps) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
   const locale = useAppLocale()
   const { calloutType, title } = block.props
   const family = resolveCalloutDefinition({ type: calloutType }).family
-  const heading = calloutHeading(calloutType, title, translate(locale, 'editor.callout.defaultHeading'))
+  const icon = isEmoji(title)
+    ? <span aria-hidden="true" className="tolaria-callout__emoji">{title}</span>
+    : createElement(calloutIconForType(calloutType), { 'aria-hidden': true, weight: 'fill' })
+  const iconLabel = translate(locale, 'customize.icon')
 
   return (
     <aside
       className={`tolaria-callout tolaria-callout--${family}`}
       data-callout-type={calloutType}
     >
-      <div className="tolaria-callout__header">
-        <CalloutHeading
-          calloutType={calloutType}
-          heading={heading}
-        />
+      <div className="tolaria-callout__icon-control" contentEditable={false}>
+        <Button
+          aria-label={iconLabel}
+          className="tolaria-callout__icon-button"
+          onClick={() => setIsPickerOpen(current => !current)}
+          onMouseDown={event => event.preventDefault()}
+          size="icon-sm"
+          title={iconLabel}
+          type="button"
+          variant="ghost"
+        >
+          {icon}
+        </Button>
+        {isPickerOpen && (
+          <EmojiPicker
+            onClose={() => setIsPickerOpen(false)}
+            onSelect={(emoji) => {
+              editor.updateBlock(block, { props: { title: emoji } })
+              trackEvent('editor_callout_icon_changed')
+            }}
+          />
+        )}
       </div>
       <div ref={contentRef} className="tolaria-callout__body" />
     </aside>

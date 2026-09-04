@@ -34,10 +34,6 @@ function calloutItem(): TolariaSlashMenuItem {
     aliases: [],
     key: 'callout',
     onItemClick: vi.fn(),
-    submenuItems: [
-      { key: 'callout_note', title: 'Note', onItemClick: vi.fn() },
-      { key: 'callout_tip', title: 'Tip', onItemClick: vi.fn() },
-    ],
     title: 'Callout',
   }
 }
@@ -54,10 +50,10 @@ describe('TolariaSlashMenu', () => {
     expect(mocks.suggestionMenuItemProps).toHaveBeenCalledWith(
       expect.not.objectContaining({ onMouseEnter: expect.anything() }),
     )
-    expect(screen.getByRole('menuitem')).toHaveClass('tolaria-slash-menu__item')
+    expect(screen.getByRole('button', { name: 'Callout' })).toBeVisible()
   })
 
-  it('opens the callout type submenu on the right and selects a clicked style', () => {
+  it('selects the callout command directly without opening a submenu', () => {
     const item = calloutItem()
     const onItemClick = vi.fn()
     render(<TolariaSlashMenu
@@ -67,28 +63,8 @@ describe('TolariaSlashMenu', () => {
       onItemClick={onItemClick}
     />)
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Callout' }))
-
-    const submenu = screen.getByRole('menu', { name: 'Callout' })
-    expect(submenu).toHaveClass('tolaria-slash-menu__submenu')
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Tip' }))
-    expect(onItemClick).toHaveBeenCalledWith(item.submenuItems?.[1])
-  })
-
-  it('supports right-arrow entry and keyboard selection inside the submenu', () => {
-    const item = calloutItem()
-    const onItemClick = vi.fn()
-    render(<TolariaSlashMenu
-      items={[item]}
-      loadingState="loaded"
-      selectedIndex={0}
-      onItemClick={onItemClick}
-    />)
-
-    fireEvent.keyDown(editorElement, { key: 'ArrowRight' })
-    fireEvent.keyDown(editorElement, { key: 'ArrowDown' })
-    fireEvent.keyDown(editorElement, { key: 'Enter' })
-
-    expect(onItemClick).toHaveBeenCalledWith(item.submenuItems?.[1])
+    fireEvent.click(screen.getByRole('button', { name: 'Callout' }))
+    expect(screen.queryByRole('menu', { name: 'Callout' })).not.toBeInTheDocument()
+    expect(onItemClick).toHaveBeenCalledWith(item)
   })
 })

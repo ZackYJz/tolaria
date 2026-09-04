@@ -328,36 +328,6 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   opacity: 1;
 }
 
-.tolaria-slash-menu__submenu {
-  position: fixed;
-  z-index: 90;
-  display: flex;
-  min-width: 10rem;
-  max-height: min(26rem, calc(100vh - 1rem));
-  flex-direction: column;
-  gap: 0.125rem;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  padding: 0.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--popover);
-  box-shadow: 0 4px 16px var(--shadow-dialog);
-  color: var(--popover-foreground);
-}
-
-.tolaria-slash-menu__submenu-item {
-  width: 100%;
-  justify-content: flex-start;
-  gap: 0.5rem;
-  font-weight: 400;
-}
-
-.tolaria-slash-menu__submenu-item:is(:hover, [aria-selected='true']) {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
 /* =============================================
    Bear-style live preview: zero horizontal shift
    ============================================= */
@@ -669,8 +639,15 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 .tolaria-callout {
   --callout-accent: var(--feedback-info-text);
   --callout-background: var(--feedback-info-bg);
+  position: relative;
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
   margin: 0.5rem 0;
-  overflow: hidden;
+  padding: 0.75rem;
   border-radius: 0.5rem;
   background: var(--callout-background);
 }
@@ -700,24 +677,32 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   --callout-background: var(--surface-secondary);
 }
 
-.tolaria-callout__header {
-  display: flex;
-  min-height: 2rem;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.75rem 0.25rem;
-  color: var(--callout-accent);
-  font-size: 1.25rem;
-  font-weight: 650;
+.tolaria-callout__icon-control {
+  position: relative;
 }
 
-.tolaria-callout__header > svg {
+.tolaria-callout__icon-button {
+  color: var(--callout-accent);
+  font-size: 1.25rem;
+}
+
+.tolaria-callout__icon-button:hover {
+  background: color-mix(in srgb, var(--callout-accent) 10%, transparent);
+  color: var(--callout-accent);
+}
+
+.tolaria-callout__icon-button > svg {
   width: 1.25rem;
   height: 1.25rem;
 }
 
+.tolaria-callout__emoji {
+  line-height: 1;
+}
+
 .tolaria-callout__body {
-  padding: 0.15rem 0.75rem 0.65rem;
+  min-width: 0;
+  padding: 0.3rem 0;
   color: var(--color-foreground);
 }
 

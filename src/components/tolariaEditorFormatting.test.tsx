@@ -366,26 +366,10 @@ describe('tolariaEditorFormatting', () => {
     })
   })
 
-  it('creates a callout parent command with every default style in its submenu', () => {
+  it('creates a direct Notion-style callout command with a portable default icon', () => {
     const { block, editor, replaceBlocks } = createSlashCommandEditorFixture()
-    const calloutTypeTitles = Object.fromEntries([
-      'note',
-      'abstract',
-      'info',
-      'todo',
-      'tip',
-      'success',
-      'question',
-      'warning',
-      'failure',
-      'danger',
-      'bug',
-      'example',
-      'quote',
-    ].map(type => [type, type])) as Record<ObsidianCalloutType, string>
     const calloutItem = createCalloutSlashMenuItem(editor, {
       calloutTitle: 'Callout',
-      calloutTypeTitles,
     })
 
     expect(calloutItem).toEqual(expect.objectContaining({
@@ -393,19 +377,16 @@ describe('tolariaEditorFormatting', () => {
       title: 'Callout',
       aliases: ['admonition', 'alert', 'aside'],
     }))
-    expect(calloutItem.submenuItems?.map(item => item.key)).toEqual(
-      Object.keys(calloutTypeTitles).map(type => `callout_${type}`),
-    )
+    expect(calloutItem).not.toHaveProperty('submenuItems')
+    expect(calloutItem).not.toHaveProperty('badge')
 
-    calloutItem.submenuItems?.find(item => item.key === 'callout_tip')?.onItemClick()
+    calloutItem.onItemClick()
 
     expect(replaceBlocks).toHaveBeenCalledWith([block], [{
       type: CALLOUT_BLOCK_TYPE,
-      props: { calloutType: 'tip', title: '' },
+      props: { calloutType: 'note', title: '💡' },
     }])
-    expect(trackEvent).toHaveBeenCalledWith('editor_callout_slash_command_used', {
-      type: 'tip',
-    })
+    expect(trackEvent).toHaveBeenCalledWith('editor_callout_slash_command_used')
   })
 
   it('uses a distinct Phosphor icon for every default callout type', () => {
@@ -415,17 +396,6 @@ describe('tolariaEditorFormatting', () => {
     ]
 
     expect(new Set(types.map(calloutIconForType)).size).toBe(types.length)
-  })
-
-  it('renders one Phosphor icon node for each callout submenu item', () => {
-    const { editor } = createSlashCommandEditorFixture()
-    const submenuItems = createCalloutSlashMenuItem(editor).submenuItems ?? []
-
-    submenuItems.forEach((item) => {
-      const type = item.key.replace('callout_', '')
-      expect(isValidElement(item.icon)).toBe(true)
-      expect((item.icon as ReactElement).type).toBe(calloutIconForType(type))
-    })
   })
 
   it('inserts resolved local date and time values from slash commands', () => {

@@ -37,11 +37,7 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { trackEvent } from '../lib/telemetry'
-import { CALLOUT_BLOCK_TYPE, calloutHeading } from '../utils/calloutMarkdown'
-import {
-  OBSIDIAN_CALLOUT_DEFINITIONS,
-  type ObsidianCalloutType,
-} from '../utils/calloutCatalog'
+import { CALLOUT_BLOCK_TYPE } from '../utils/calloutMarkdown'
 import {
   RICH_EDITOR_BLOCK_TYPE_DEFINITIONS,
   type RichEditorBlockTypeDefinition,
@@ -51,7 +47,6 @@ import { HTML_BLOCK_DEFAULT_HEIGHT, HTML_BLOCK_TYPE } from '../utils/htmlBlockMa
 import { MATH_BLOCK_TYPE } from '../utils/mathMarkdown'
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE, TLDRAW_DEFAULT_HEIGHT } from '../utils/tldrawMarkdown'
-import { calloutIconForType } from './calloutIcons'
 import {
   isJournalTaskEditorMode,
   setCurrentJournalTaskStatus,
@@ -60,7 +55,6 @@ import type { JournalTaskStatus } from '../utils/journalTasks'
 
 export type TolariaSlashMenuItem = DefaultReactSuggestionItem & {
   key: string
-  submenuItems?: TolariaSlashMenuItem[]
 }
 type TolariaBlockTypeSelectItem = RichEditorBlockTypeDefinition & {
   icon: PhosphorIcon
@@ -83,7 +77,6 @@ type BlockSlashMenuItemConfig = {
 }
 type TolariaSlashMenuLabels = {
   calloutTitle: string
-  calloutTypeTitles: Record<ObsidianCalloutType, string>
   dateTitle: string
   datetimeTitle: string
   htmlTitle: string
@@ -180,10 +173,6 @@ const JOURNAL_TASK_SLASH_COMMANDS: ReadonlyArray<{
   { aliases: ['doing', 'in progress', '进行中'], key: 'journal_task_doing', status: 'DOING' },
   { aliases: ['done', 'complete', 'completed', '完成'], key: 'journal_task_done', status: 'DONE' },
 ]
-
-const DEFAULT_CALLOUT_TYPE_TITLES = Object.fromEntries(
-  OBSIDIAN_CALLOUT_DEFINITIONS.map(({ type }) => [type, calloutHeading(type, '')]),
-) as Record<ObsidianCalloutType, string>
 
 const DATE_TIME_SLASH_COMMANDS: ReadonlyArray<{
   aliases: string[]
@@ -346,40 +335,22 @@ export function createHtmlBlockSlashMenuItem(
 
 export function createCalloutSlashMenuItem(
   editor: Parameters<typeof getDefaultReactSlashMenuItems>[0],
-  labels: Pick<TolariaSlashMenuLabels, 'calloutTitle' | 'calloutTypeTitles'> = {
-    calloutTitle: 'Callout',
-    calloutTypeTitles: DEFAULT_CALLOUT_TYPE_TITLES,
-  },
+  labels: Pick<TolariaSlashMenuLabels, 'calloutTitle'> = { calloutTitle: 'Callout' },
 ): TolariaSlashMenuItem {
   const blockEditor = editor as unknown as SlashInsertEditor
-  const submenuItems = OBSIDIAN_CALLOUT_DEFINITIONS.map(({ aliases, type }) => ({
-    aliases: [...aliases],
-    icon: createElement(calloutIconForType(type), {
-      'aria-hidden': true,
-      className: 'size-[18px]',
-      size: 18,
-      weight: 'regular',
-    }),
-    key: `callout_${type}`,
+  return {
+    aliases: ['admonition', 'alert', 'aside'],
+    key: 'callout',
     onItemClick: () => {
       const block = blockEditor.getTextCursorPosition().block
       blockEditor.replaceBlocks([block], [{
         type: CALLOUT_BLOCK_TYPE,
-        props: { calloutType: type, title: '' },
+        props: { calloutType: 'note', title: '💡' },
       }])
-      trackEvent('editor_callout_slash_command_used', { type })
+      trackEvent('editor_callout_slash_command_used')
     },
-    title: labels.calloutTypeTitles[type],
-  } satisfies TolariaSlashMenuItem))
-
-  return {
-    aliases: ['admonition', 'alert', 'aside'],
-    badge: '›',
-    key: 'callout',
-    onItemClick: () => {},
-    submenuItems,
     title: labels.calloutTitle,
-  } as TolariaSlashMenuItem
+  }
 }
 
 function createBlockSlashMenuItem(
