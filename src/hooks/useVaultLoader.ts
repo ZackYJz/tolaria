@@ -285,16 +285,6 @@ interface ResolveNoteStatusOptions {
   unsavedPaths?: Set<string>
 }
 
-function resolveTransientNoteStatus({
-  path,
-  pendingSavePaths,
-  unsavedPaths,
-}: Pick<ResolveNoteStatusOptions, 'path' | 'pendingSavePaths' | 'unsavedPaths'>): NoteStatus | null {
-  if (unsavedPaths?.has(path)) return 'unsaved'
-  if (pendingSavePaths?.has(path)) return 'pendingSave'
-  return null
-}
-
 function resolveGitBackedNoteStatus(file: ModifiedFile | undefined): NoteStatus {
   if (!file) return 'clean'
   if (file.status === 'untracked' || file.status === 'added') return 'new'
@@ -309,9 +299,9 @@ export function resolveNoteStatus({
   pendingSavePaths,
   unsavedPaths,
 }: ResolveNoteStatusOptions): NoteStatus {
-  const transientStatus = resolveTransientNoteStatus({ path, pendingSavePaths, unsavedPaths })
-  if (transientStatus) return transientStatus
+  if (pendingSavePaths?.has(path)) return 'pendingSave'
   if (newPaths.has(path)) return 'new'
+  if (unsavedPaths?.has(path)) return 'unsaved'
   return resolveGitBackedNoteStatus(modifiedFiles.find((file) => file.path === path))
 }
 

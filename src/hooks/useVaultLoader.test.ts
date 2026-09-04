@@ -627,17 +627,16 @@ describe('useVaultLoader', () => {
 
     it('returns unsaved for paths in unsavedPaths', async () => {
       const { result } = await renderVaultLoader()
-      const newEntry: VaultEntry = { ...mockEntries[0], path: '/vault/note/draft.md', filename: 'draft.md', title: 'Draft' }
+      const existingPath = mockEntries[0].path
 
       act(() => {
-        result.current.addEntry(newEntry)
-        result.current.trackUnsaved('/vault/note/draft.md')
+        result.current.trackUnsaved(existingPath)
       })
 
-      expect(result.current.getNoteStatus('/vault/note/draft.md')).toBe('unsaved')
+      expect(result.current.getNoteStatus(existingPath)).toBe('unsaved')
     })
 
-    it('unsaved has higher priority than new', async () => {
+    it('new has higher priority than unsaved', async () => {
       const { result } = await renderVaultLoader()
       const newEntry: VaultEntry = { ...mockEntries[0], path: '/vault/note/draft.md', filename: 'draft.md', title: 'Draft' }
 
@@ -647,23 +646,22 @@ describe('useVaultLoader', () => {
       })
 
       // addEntry also calls trackNew, so path is in both newPaths and unsavedPaths
-      expect(result.current.getNoteStatus('/vault/note/draft.md')).toBe('unsaved')
+      expect(result.current.getNoteStatus('/vault/note/draft.md')).toBe('new')
     })
 
-    it('clearUnsaved transitions from unsaved to new', async () => {
+    it('clearUnsaved restores the existing note git status', async () => {
       const { result } = await renderVaultLoader()
-      const newEntry: VaultEntry = { ...mockEntries[0], path: '/vault/note/draft.md', filename: 'draft.md', title: 'Draft' }
+      const existingPath = mockEntries[0].path
 
       act(() => {
-        result.current.addEntry(newEntry)
-        result.current.trackUnsaved('/vault/note/draft.md')
+        result.current.trackUnsaved(existingPath)
       })
 
-      expect(result.current.getNoteStatus('/vault/note/draft.md')).toBe('unsaved')
+      expect(result.current.getNoteStatus(existingPath)).toBe('unsaved')
 
-      act(() => { result.current.clearUnsaved('/vault/note/draft.md') })
+      act(() => { result.current.clearUnsaved(existingPath) })
 
-      expect(result.current.getNoteStatus('/vault/note/draft.md')).toBe('new')
+      expect(result.current.getNoteStatus(existingPath)).toBe('modified')
     })
 
     it('keeps unsaved state stable when repeated edits do not change tracked paths', async () => {
@@ -1291,6 +1289,11 @@ describe('resolveNoteStatus', () => {
     expect(status('/vault/x.md', new Set(['/vault/x.md']), [mf('/vault/x.md', 'modified')])).toBe('new')
   })
 
+  it('keeps a new note visibly new while it also has unsaved editor changes', () => {
+    const unsaved = new Set(['/vault/x.md'])
+    expect(status('/vault/x.md', new Set(['/vault/x.md']), [], undefined, unsaved)).toBe('new')
+  })
+
   it('pendingSave takes priority over new status', () => {
     const pendingSave = new Set(['/vault/x.md'])
     expect(status('/vault/x.md', new Set(['/vault/x.md']), [], pendingSave)).toBe('pendingSave')
@@ -1320,11 +1323,11 @@ describe('resolveNoteStatus', () => {
     expect(status('/vault/x.md', new Set(), [], emptyPending)).toBe('clean')
   })
 
-  it('unsaved takes priority over all other statuses', () => {
+  it('durable creation states take priority over unsaved edits', () => {
     const unsaved = new Set(['/vault/x.md'])
-    expect(status('/vault/x.md', new Set(['/vault/x.md']), [], undefined, unsaved)).toBe('unsaved')
+    expect(status('/vault/x.md', new Set(['/vault/x.md']), [], undefined, unsaved)).toBe('new')
     expect(status('/vault/x.md', new Set(), [mf('/vault/x.md', 'modified')], undefined, unsaved)).toBe('unsaved')
-    expect(status('/vault/x.md', new Set(['/vault/x.md']), [], new Set(['/vault/x.md']), unsaved)).toBe('unsaved')
+    expect(status('/vault/x.md', new Set(['/vault/x.md']), [], new Set(['/vault/x.md']), unsaved)).toBe('pendingSave')
   })
 
   it('without unsavedPaths parameter, behavior is unchanged', () => {

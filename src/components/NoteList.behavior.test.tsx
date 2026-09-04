@@ -29,6 +29,15 @@ describe('NoteList status indicators', () => {
     expect(screen.getAllByTestId('modified-indicator')).toHaveLength(2)
   })
 
+  it('does not flash a transient save indicator while an existing note is edited', () => {
+    const targetPath = mockEntries[0].path
+    const getNoteStatus = (path: string) => path === targetPath ? 'unsaved' as const : 'clean' as const
+
+    renderNoteList({ getNoteStatus })
+
+    expect(screen.queryByTestId('unsaved-indicator')).not.toBeInTheDocument()
+  })
+
   it('does not show indicators when getNoteStatus is undefined', () => {
     renderNoteList()
     expect(screen.queryByTestId('modified-indicator')).not.toBeInTheDocument()
@@ -42,7 +51,7 @@ describe('NoteList status indicators', () => {
     expect(screen.queryByTestId('modified-indicator')).not.toBeInTheDocument()
   })
 
-  it('keeps the green indicator steady while a new note is edited and saved', () => {
+  it('keeps durable status indicators steady without animating transient edits', () => {
     const targetPath = mockEntries[0].path
     const getNoteStatus = (noteStatus: NoteStatus) => (path: string) => path === targetPath ? noteStatus : 'clean'
     const { props, rerender } = renderNoteList({ getNoteStatus: getNoteStatus('new') })
@@ -56,7 +65,7 @@ describe('NoteList status indicators', () => {
 
     expectSteadyIndicator('new-indicator')
     rerenderWithStatus('unsaved')
-    expectSteadyIndicator('unsaved-indicator')
+    expect(screen.queryByTestId('unsaved-indicator')).not.toBeInTheDocument()
     rerenderWithStatus('pendingSave')
     expectSteadyIndicator('pending-save-indicator')
     rerenderWithStatus('new')

@@ -62,17 +62,12 @@ export function getTypeIcon(
   )
 }
 
-type VisibleNoteStatus = Exclude<NoteStatus, 'clean'>
+type VisibleNoteStatus = Exclude<NoteStatus, 'clean' | 'unsaved'>
 
 const NOTE_STATUS_DOT: Record<VisibleNoteStatus, { color: string; testId: string; title: string }> = {
   pendingSave: {
     color: 'var(--accent-green)',
     testId: 'pending-save-indicator',
-    title: 'Saving to disk…',
-  },
-  unsaved: {
-    color: 'var(--accent-green)',
-    testId: 'unsaved-indicator',
     title: 'Saving to disk…',
   },
   new: {
@@ -88,7 +83,7 @@ const NOTE_STATUS_DOT: Record<VisibleNoteStatus, { color: string; testId: string
 }
 
 function hasStatusDot(noteStatus: NoteStatus): noteStatus is VisibleNoteStatus {
-  return noteStatus !== 'clean'
+  return noteStatus !== 'clean' && noteStatus !== 'unsaved'
 }
 
 function StatusDot({ noteStatus }: { noteStatus: VisibleNoteStatus }) {

@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { test, expect, type Page } from '@playwright/test'
 import { APP_COMMAND_IDS } from '../../src/hooks/appCommandCatalog'
 import {
@@ -11,6 +13,7 @@ const STATUS_DOT_SELECTOR = [
   '[data-testid="new-indicator"]',
   '[data-testid="unsaved-indicator"]',
   '[data-testid="pending-save-indicator"]',
+  '[data-testid="modified-indicator"]',
 ].join(',')
 
 interface StatusDotSample {
@@ -80,6 +83,24 @@ test('new note status indicator stays steady through typing and autosave', async
   const samples = await stopStatusDotSampler(page)
   expect(samples.length).toBeGreaterThan(0)
   expect(samples.filter((sample) => sample.testId === null)).toEqual([])
-  expect(samples.some((sample) => sample.testId === 'unsaved-indicator')).toBe(true)
+  expect(samples.every((sample) => sample.testId === 'new-indicator')).toBe(true)
+  expect(samples.filter((sample) => sample.className?.includes('tab-status-pulse'))).toEqual([])
+})
+
+test('@smoke existing note does not flash a green status indicator while autosaving', async ({ page }) => {
+  const appendedText = `Keep the save status visually stable ${Date.now()}`
+  const notePath = path.join(tempVaultDir, 'project', 'alpha-project.md')
+  await page.getByTestId('note-list-container').getByText('Alpha Project', { exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Alpha Project', level: 1 })).toBeVisible()
+
+  await startStatusDotSampler(page)
+  await page.locator('.bn-block-content').last().click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(` ${appendedText}`, { delay: 25 })
+  await expect.poll(() => fs.readFileSync(notePath, 'utf8'), { timeout: 5_000 }).toContain(appendedText)
+
+  const samples = await stopStatusDotSampler(page)
+  expect(samples.some((sample) => sample.testId === 'unsaved-indicator')).toBe(false)
+  expect(samples.some((sample) => sample.testId === 'pending-save-indicator')).toBe(false)
   expect(samples.filter((sample) => sample.className?.includes('tab-status-pulse'))).toEqual([])
 })
