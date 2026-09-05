@@ -638,7 +638,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 
 .tolaria-callout {
   --callout-accent: var(--color-foreground);
-  --callout-background: var(--state-hover);
+  --callout-background: var(--editor-callout-background);
   position: relative;
   display: grid;
   width: 100%;
@@ -674,7 +674,7 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
 
 .tolaria-callout--quote {
   --callout-accent: var(--text-secondary);
-  --callout-background: var(--state-hover);
+  --callout-background: var(--editor-callout-background);
 }
 
 .tolaria-callout__icon-control {

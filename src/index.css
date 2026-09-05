@@ -127,6 +127,7 @@
   --diff-removed-bg: rgba(244, 67, 54, 0.12);
   --diff-hunk-bg: rgba(33, 150, 243, 0.08);
   --editor-code-block-background: var(--surface-sidebar);
+  --editor-callout-background: var(--editor-code-block-background);
   --editor-code-block-border: var(--border-subtle);
   --editor-code-block-text: var(--text-primary);
   --editor-code-block-language: var(--text-secondary);
@@ -280,6 +281,7 @@
   --diff-removed-bg: rgba(255, 138, 134, 0.14);
   --diff-hunk-bg: rgba(120, 164, 255, 0.13);
   --editor-code-block-background: #161616;
+  --editor-callout-background: var(--state-hover);
   --editor-code-block-border: transparent;
   --editor-code-block-text: #FFFFFF;
   --editor-code-block-language: rgba(255, 255, 255, 0.7);

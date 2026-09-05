@@ -74,6 +74,18 @@ test('callout slash command inserts a full-width Notion-style block with a selec
     paddingBottom: '16px',
     paddingTop: '16px',
   })
+  const backgrounds = await callout.evaluate((element) => {
+    const codeBlockProbe = document.createElement('div')
+    codeBlockProbe.style.backgroundColor = 'var(--editor-code-block-background)'
+    document.body.append(codeBlockProbe)
+    const codeBlock = getComputedStyle(codeBlockProbe).backgroundColor
+    codeBlockProbe.remove()
+    return {
+      callout: getComputedStyle(element).backgroundColor,
+      codeBlock,
+    }
+  })
+  expect(backgrounds.callout).toBe(backgrounds.codeBlock)
   const verticalAlignment = await callout.evaluate((element) => {
     const icon = element.querySelector<HTMLElement>('.tolaria-callout__icon-button')
     const body = element.querySelector<HTMLElement>('.tolaria-callout__body')
