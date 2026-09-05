@@ -95,8 +95,7 @@ fn validate_literal_host(host: &str) -> Result<(), String> {
 
 fn validate_remote_image_url(input: RemoteUrlInput) -> Result<Url, String> {
     let url = Url::parse(&input.0).map_err(|_| remote_image_error(FailureReason("invalid URL")))?;
-    validate_remote_url_protocol(&url)?;
-    validate_remote_url_host(&url)?;
+    validate_public_http_url(&url)?;
     Ok(url)
 }
 
@@ -169,6 +168,15 @@ fn redirected_url(response: &Response, current_url: &Url) -> Result<Option<Url>,
         .join(location)
         .map_err(|_| remote_image_error(FailureReason("redirect URL is invalid")))?;
     validate_remote_image_url(RemoteUrlInput::new(next_url.as_str())).map(Some)
+}
+
+pub(crate) fn validate_public_http_url(url: &Url) -> Result<(), String> {
+    validate_remote_url_protocol(url)?;
+    validate_remote_url_host(url)
+}
+
+pub(crate) fn fetch_public_response(url: &str) -> Result<(Response, Url), String> {
+    fetch_response(RemoteUrlInput::new(url))
 }
 
 fn fetch_response(input: RemoteUrlInput) -> Result<(Response, Url), String> {

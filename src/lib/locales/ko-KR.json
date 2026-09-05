@@ -1075,5 +1075,15 @@
   "locale.ukUA": "우크라이나어",
   "locale.svSE": "스웨덴어",
   "locale.skSK": "슬로바키아어",
-  "telemetryConsent.saveError": "Tolaria가 이 선택을 저장할 수 없습니다. 계정이 앱 설정을 쓸 수 있는지 확인한 다음 다시 시도하세요."
+  "telemetryConsent.saveError": "Tolaria가 이 선택을 저장할 수 없습니다. 계정이 앱 설정을 쓸 수 있는지 확인한 다음 다시 시도하세요.",
+  "editor.slash.bookmark": "Web bookmark",
+  "editor.bookmark.url": "Web page URL",
+  "editor.bookmark.create": "Create bookmark",
+  "editor.bookmark.loading": "Creating bookmark…",
+  "editor.bookmark.cancel": "Cancel",
+  "editor.bookmark.edit": "Edit bookmark",
+  "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
+  "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
+  "editor.bookmark.saveLink": "Save without preview",
+  "editor.bookmark.openFailed": "Could not open this link."
 }

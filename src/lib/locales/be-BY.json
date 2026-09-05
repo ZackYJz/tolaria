@@ -1075,5 +1075,15 @@
   "locale.ukUA": "Украінская",
   "locale.svSE": "Шведская",
   "locale.skSK": "Славацкая",
-  "telemetryConsent.saveError": "Tolaria не змагла захаваць гэты выбар. Праверце, ці можа ваш уліковы запіс запісаць налады праграмы, а потым паўтарыце спробу."
+  "telemetryConsent.saveError": "Tolaria не змагла захаваць гэты выбар. Праверце, ці можа ваш уліковы запіс запісаць налады праграмы, а потым паўтарыце спробу.",
+  "editor.slash.bookmark": "Web bookmark",
+  "editor.bookmark.url": "Web page URL",
+  "editor.bookmark.create": "Create bookmark",
+  "editor.bookmark.loading": "Creating bookmark…",
+  "editor.bookmark.cancel": "Cancel",
+  "editor.bookmark.edit": "Edit bookmark",
+  "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
+  "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
+  "editor.bookmark.saveLink": "Save without preview",
+  "editor.bookmark.openFailed": "Could not open this link."
 }

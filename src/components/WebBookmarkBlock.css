@@ -1,0 +1,20 @@
+/* Web bookmarks retain their saved preview without refetching on note open. */
+.tolaria-bookmark { width: 100%; min-width: 0; position: relative; margin: 4px 0; }
+.editor__blocknote-container .bn-editor a.tolaria-bookmark__card { display: flex; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--border-default); border-radius: 8px; color: var(--text-primary); text-decoration: none; }
+.tolaria-bookmark__card:hover { background: var(--state-hover); }
+.tolaria-bookmark__card:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
+.tolaria-bookmark__content { flex: 1; min-width: 0; padding: 16px 20px; }
+.tolaria-bookmark__title { font-size: 15px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tolaria-bookmark__description { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.tolaria-bookmark__address { display: flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 12px; line-height: 20px; }
+.tolaria-bookmark__address span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tolaria-bookmark__favicon { width: 16px; height: 16px; flex-shrink: 0; object-fit: contain; }
+.tolaria-bookmark__image { width: 32%; max-height: 190px; object-fit: cover; flex-shrink: 0; }
+.tolaria-bookmark__edit { position: absolute; top: 6px; right: 6px; opacity: 0; }
+.tolaria-bookmark:hover .tolaria-bookmark__edit, .tolaria-bookmark:focus-within .tolaria-bookmark__edit { opacity: 1; }
+.tolaria-bookmark__form { border: 1px solid var(--border-default); border-radius: 8px; padding: 16px; }
+.tolaria-bookmark__label { display: grid; gap: 10px; font-size: 14px; }
+.tolaria-bookmark__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tolaria-bookmark__error { color: var(--text-secondary); font-size: 13px; margin-top: 10px; }
+@media (max-width: 480px) { .tolaria-bookmark__content { padding: 12px; } .tolaria-bookmark__image { width: 26%; } }
+@media (hover: none) { .tolaria-bookmark__edit { position: static; opacity: 1; margin-top: 4px; } }

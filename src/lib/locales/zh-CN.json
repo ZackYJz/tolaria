@@ -1075,5 +1075,15 @@
   "locale.ukUA": "乌克兰语",
   "locale.svSE": "瑞典语",
   "locale.skSK": "斯洛伐克语",
-  "telemetryConsent.saveError": "Tolaria 无法保存此选择。请检查您的账户是否可以写入其应用设置，然后重试。"
+  "telemetryConsent.saveError": "Tolaria 无法保存此选择。请检查您的账户是否可以写入其应用设置，然后重试。",
+  "editor.slash.bookmark": "网页书签",
+  "editor.bookmark.url": "网页地址",
+  "editor.bookmark.create": "创建书签",
+  "editor.bookmark.loading": "正在创建书签…",
+  "editor.bookmark.cancel": "取消",
+  "editor.bookmark.edit": "编辑书签",
+  "editor.bookmark.invalidUrl": "请输入有效的 http 或 https 网址。",
+  "editor.bookmark.fetchFailed": "无法加载网页预览。请重试，或仅保存链接。",
+  "editor.bookmark.saveLink": "仅保存链接",
+  "editor.bookmark.openFailed": "无法打开此链接。"
 }

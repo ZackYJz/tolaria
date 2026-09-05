@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- module-level schema, not a component file */
+import { WebBookmarkBlockSpec } from './WebBookmarkBlock'
 import {
   audioParse,
   createCodeBlockSpec,
@@ -497,6 +498,7 @@ export const schema = BlockNoteSchema.create({
   blockSpecs: {
     audio: audioBlock,
     calloutBlock,
+    webBookmark: WebBookmarkBlockSpec(),
     htmlBlock,
     mathBlock,
     mermaidBlock,

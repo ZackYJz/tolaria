@@ -1075,6 +1075,7 @@ function useSuggestionMenuItems(options: {
       return guardSuggestionMenuItems(
           await Promise.resolve(
             getTolariaSlashMenuItems(editor, query, {
+          bookmarkTitle: t('editor.slash.bookmark'),
           calloutTitle: t('editor.slash.callout'),
           dateTitle: t('editor.slash.date'),
           datetimeTitle: t('editor.slash.datetime'),

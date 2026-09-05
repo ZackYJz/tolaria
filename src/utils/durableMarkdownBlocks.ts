@@ -178,7 +178,17 @@ export function preProcessDurableMarkdownBlocks({
     if (line === undefined) continue
     const matched = readMatchedFenceOpening(lineText({ line }), codecs)
     if (!matched) {
-      result.push(line)
+      const fence = /^( {0,3})(`{3,}|~{3,})/.exec(lineText({ line }))?.at(2)
+      if (fence) {
+        const closingIndex = findClosingFence({ lines, start: index, opening: {
+          character: fence.charAt(0) as FenceCharacter, length: fence.length, metadata: null,
+        } })
+        const end = closingIndex === -1 ? lines.length - 1 : closingIndex
+        result.push(...lines.slice(index, end + 1))
+        index = end
+      } else {
+        result.push(line)
+      }
       continue
     }
 
@@ -194,6 +204,11 @@ export function preProcessDurableMarkdownBlocks({
       end: closingIndex,
       metadata: matched.opening.metadata,
     })
+    if (payload === null) {
+      result.push(...lines.slice(index, closingIndex + 1))
+      index = closingIndex
+      continue
+    }
     result.push(`${durableToken(matched.codec, payload)}${lineEnding({ line: lines.at(closingIndex) ?? '' })}`)
     index = closingIndex
   }

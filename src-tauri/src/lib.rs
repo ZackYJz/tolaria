@@ -272,6 +272,7 @@ macro_rules! app_invoke_handler {
     () => {
         tauri::generate_handler![
             commands::list_vault,
+            commands::get_bookmark_metadata,
             commands::read_vault_snapshot,
             commands::get_startup_elapsed_ms,
             commands::record_startup_milestone,

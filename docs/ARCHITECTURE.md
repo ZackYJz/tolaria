@@ -1230,3 +1230,7 @@ Features that work on both platforms without changes:
 **Capabilities:** `src-tauri/capabilities/default.json` targets desktop; `mobile.json` targets iOS/Android with a minimal permission set.
 
 **Detailed feasibility report:** `docs/IPAD-PROTOTYPE.md`
+
+### Web bookmark previews
+
+`WebBookmarkBlock.tsx` renders a Slash-inserted URL form and a saved link card. The `get_bookmark_metadata` Tauri command fetches up to 2 MiB of HTML through the existing public-network request boundary (timeout, redirect and DNS validation), then extracts Open Graph/Twitter/title metadata without executing page scripts. No third-party preview service is used. Fetch failures remain visible and offer an explicit link-only save. The native command rejects reserved-address DNS answers, including proxy fake-IP answers; preview retrieval in such environments requires a publicly routable resolver result. Browser development uses the existing mock command bridge, so mocked previews do not prove native retrieval. Saved images load as remote images with no referrer and hide on failure.

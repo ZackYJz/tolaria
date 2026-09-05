@@ -18,6 +18,7 @@ import {
   isCalloutBlock,
   serializeCalloutBlock,
 } from './calloutMarkdown'
+import { bookmarkMarkdownCodec } from './bookmarkMarkdown'
 import { htmlBlockMarkdownCodec } from './htmlBlockMarkdown'
 import { mermaidMarkdownCodec } from './mermaidMarkdown'
 import { tldrawMarkdownCodec } from './tldrawMarkdown'
@@ -29,6 +30,7 @@ import {
 } from './toggleMarkdown'
 
 const EDITOR_DURABLE_MARKDOWN_CODECS = [
+  bookmarkMarkdownCodec,
   htmlBlockMarkdownCodec,
   mermaidMarkdownCodec,
   tldrawMarkdownCodec,

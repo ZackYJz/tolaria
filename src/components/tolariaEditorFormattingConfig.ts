@@ -37,6 +37,7 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { trackEvent } from '../lib/telemetry'
+import { BOOKMARK_BLOCK_TYPE } from '../utils/bookmarkMarkdown'
 import { CALLOUT_BLOCK_TYPE } from '../utils/calloutMarkdown'
 import {
   RICH_EDITOR_BLOCK_TYPE_DEFINITIONS,
@@ -76,6 +77,7 @@ type BlockSlashMenuItemConfig = {
   type: string
 }
 type TolariaSlashMenuLabels = {
+  bookmarkTitle?: string
   calloutTitle: string
   dateTitle: string
   datetimeTitle: string
@@ -130,6 +132,7 @@ const TOLARIA_BLOCK_TYPE_SELECT_ICONS: Record<RichEditorBlockTypeKey, PhosphorIc
 }
 
 const TOLARIA_SLASH_MENU_ICONS: Partial<Record<string, PhosphorIcon>> = {
+  bookmark: Note,
   audio: SpeakerHigh,
   bullet_list: ListBullets,
   callout: Note,
@@ -491,6 +494,14 @@ export function getTolariaSlashMenuItems(
   const items = addItemsToMediaGroup(
     defaultItems,
     [
+      createBlockSlashMenuItem(editor, {
+        key: 'bookmark',
+        title: labels?.bookmarkTitle ?? 'Web bookmark',
+        aliases: ['bookmark', 'link', 'website', '网页书签', '书签'],
+        type: BOOKMARK_BLOCK_TYPE,
+        props: {},
+        eventName: 'editor_web_bookmark_slash_command_used',
+      }),
       createMermaidSlashMenuItem(editor),
       createMathSlashMenuItem(editor, labels),
       createHtmlBlockSlashMenuItem(editor, labels),
