@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "Kaliarovaja palitra",
+  "settings.palette.description": "Akcentnyja kolery dlia svietlaha i ciomnaha režymaŭ.",
+  "settings.palette.default": "Aryhinalnaja Tolaria",
+  "settings.palette.notion": "Notion · Spakojny sini",
+  "settings.palette.wolai": "wolai · Miakki čyrvony",
+  "settings.palette.flowus": "FlowUs · Manachromnaja",
+  "settings.palette.yuque": "Yuque · Sviežy zialiony"
 }

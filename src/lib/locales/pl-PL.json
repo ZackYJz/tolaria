@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "Paleta kolorów",
+  "settings.palette.description": "Kolory akcentów dla trybu jasnego i ciemnego.",
+  "settings.palette.default": "Oryginalna Tolaria",
+  "settings.palette.notion": "Notion · Spokojny niebieski",
+  "settings.palette.wolai": "wolai · Delikatna czerwień",
+  "settings.palette.flowus": "FlowUs · Monochromatyczna",
+  "settings.palette.yuque": "Yuque · Świeża zieleń"
 }

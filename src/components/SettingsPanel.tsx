@@ -1,3 +1,4 @@
+import { THEME_PALETTES, normalizeThemePalette, type ThemePalette } from '../lib/themePalette'
 import { Copy, Cube, Monitor, Moon, Sun, X } from '@phosphor-icons/react'
 import {
   AI_AGENT_DEFINITIONS,
@@ -111,6 +112,7 @@ interface SettingsDraft {
   releaseChannel: ReleaseChannel
   automaticUpdateChecksEnabled: boolean
   themeMode: ThemeMode
+  themePalette: ThemePalette
   uiLanguage: UiLanguagePreference
   dateDisplayFormat: DateDisplayFormat
   defaultNoteWidth: NoteWidthMode
@@ -161,7 +163,9 @@ interface SettingsBodyProps {
   automaticUpdateChecksEnabled: boolean
   setAutomaticUpdateChecksEnabled: (value: boolean) => void
   themeMode: ThemeMode
+  themePalette: ThemePalette
   setThemeMode: (value: ThemeMode) => void
+  setThemePalette: (value: ThemePalette) => void
   uiLanguage: UiLanguagePreference
   setUiLanguage: (value: UiLanguagePreference) => void
   dateDisplayFormat: DateDisplayFormat
@@ -227,6 +231,7 @@ function createSettingsDraft(settings: Settings, explicitOrganizationEnabled: bo
     releaseChannel: normalizeReleaseChannel(settings.release_channel),
     automaticUpdateChecksEnabled: areAutomaticUpdateChecksEnabled(settings),
     themeMode: resolveSettingsDraftThemeMode(settings.theme_mode),
+    themePalette: normalizeThemePalette(settings.theme_palette),
     uiLanguage: settings.ui_language ?? SYSTEM_UI_LANGUAGE,
     dateDisplayFormat: normalizeDateDisplayFormat(settings.date_display_format) ?? DEFAULT_DATE_DISPLAY_FORMAT,
     defaultNoteWidth: normalizeNoteWidthMode(settings.note_width_mode) ?? DEFAULT_NOTE_WIDTH_MODE,
@@ -278,6 +283,7 @@ function buildSettingsFromDraft(settings: Settings, draft: SettingsDraft): Setti
     release_channel: serializeReleaseChannel(draft.releaseChannel),
     automatic_update_checks_enabled: draft.automaticUpdateChecksEnabled ? null : false,
     theme_mode: draft.themeMode,
+    theme_palette: draft.themePalette,
     ui_language: serializeUiLanguagePreference(draft.uiLanguage),
     date_display_format: draft.dateDisplayFormat,
     note_width_mode: draft.defaultNoteWidth,
@@ -315,7 +321,7 @@ export function SettingsPanel(options: SettingsPanelProps) {
 
   return (
     <SettingsPanelInner
-      key={JSON.stringify(initialDraft)}
+      key={JSON.stringify({ ...initialDraft, themePalette: undefined })}
       settings={settings}
       aiAgentsStatus={aiAgentsStatus}
       initialDraft={initialDraft}
@@ -370,11 +376,15 @@ function useSettingsDraftActions(options: Pick<SettingsPanelInnerProps, 'initial
     updateDraft('allNotesFileVisibility', value)
     onSave(settingsWithAllNotesFileVisibility(settings, value))
   }, [draft.allNotesFileVisibility, onSave, settings, updateDraft])
+  const handleThemePaletteChange = useCallback((value: ThemePalette) => {
+    updateDraft('themePalette', value)
+    onSave({ ...settings, theme_mode: draft.themeMode, theme_palette: value })
+  }, [draft.themeMode, onSave, settings, updateDraft])
   const handleThemeModeChange = useCallback((value: ThemeMode) => {
     updateDraft('themeMode', value)
     applyThemeModeSelection(value)
-    onSave({ ...settings, theme_mode: value })
-  }, [onSave, settings, updateDraft])
+    onSave({ ...settings, theme_mode: value, theme_palette: draft.themePalette })
+  }, [draft.themePalette, onSave, settings, updateDraft])
   const handleSave = useCallback(() => {
     trackTelemetryConsentChange(settings.analytics_enabled === true, draft.analytics)
     trackSettingsPreferenceChanges(settings, draft)
@@ -382,7 +392,7 @@ function useSettingsDraftActions(options: Pick<SettingsPanelInnerProps, 'initial
     onSaveExplicitOrganization?.(draft.explicitOrganization)
     onClose()
   }, [draft, onClose, onSave, onSaveExplicitOrganization, settings])
-  return { draft, updateDraft, handleGitignoredVisibilityChange, handleAllNotesFileVisibilityChange, handleThemeModeChange, handleSave }
+  return { draft, updateDraft, handleGitignoredVisibilityChange, handleAllNotesFileVisibilityChange, handleThemeModeChange, handleThemePaletteChange, handleSave }
 }
 
 function useSettingsPanelInteractions(options: {
@@ -429,7 +439,7 @@ function SettingsPanelInner(options: SettingsPanelInnerProps) {
   const { settings, aiAgentsStatus, initialDraft, initialSectionId, systemLocale, onSave, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, isGitVault, vaultPath, onSaveExplicitOrganization, onClose } = options
   const backdropRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const { draft, updateDraft, handleGitignoredVisibilityChange, handleAllNotesFileVisibilityChange, handleThemeModeChange, handleSave } = useSettingsDraftActions({ initialDraft, onClose, onSave, onSaveExplicitOrganization, settings })
+  const { draft, updateDraft, handleGitignoredVisibilityChange, handleAllNotesFileVisibilityChange, handleThemeModeChange, handleThemePaletteChange, handleSave } = useSettingsDraftActions({ initialDraft, onClose, onSave, onSaveExplicitOrganization, settings })
   const draftLocale = resolveEffectiveLocale(draft.uiLanguage, [systemLocale])
   const t = createTranslator(draftLocale)
   useSettingsPanelInteractions({ backdropRef, handleSave, initialSectionId, onClose, panelRef })
@@ -472,6 +482,7 @@ function SettingsPanelInner(options: SettingsPanelInnerProps) {
             onUpdateWorkspaceIdentity,
           }}
           setThemeMode={handleThemeModeChange}
+          setThemePalette={handleThemePaletteChange}
           setHideGitignoredFiles={handleGitignoredVisibilityChange}
           setAllNotesFileVisibility={handleAllNotesFileVisibilityChange}
         />
@@ -533,12 +544,13 @@ interface SettingsBodyFromDraftProps {
   onSetDefaultWorkspace?: (path: string) => void
   onUpdateWorkspaceIdentity?: (path: string, patch: Partial<VaultOption>) => void
   setThemeMode: (value: ThemeMode) => void
+  setThemePalette: (value: ThemePalette) => void
   setHideGitignoredFiles: (value: boolean) => void
   setAllNotesFileVisibility: (value: AllNotesFileVisibility) => void
 }
 
 function SettingsBodyFromDraft(options: SettingsBodyFromDraftProps) {
-  const { t, draft, locale, systemLocale, updateDraft, isGitVault, vaultPath, aiAgentsStatus, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, setThemeMode, setHideGitignoredFiles, setAllNotesFileVisibility } = options
+  const { t, draft, locale, systemLocale, updateDraft, isGitVault, vaultPath, aiAgentsStatus, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, setThemeMode, setThemePalette, setHideGitignoredFiles, setAllNotesFileVisibility } = options
   return (
     <SettingsBody
       t={t}
@@ -578,6 +590,8 @@ function SettingsBodyFromDraft(options: SettingsBodyFromDraftProps) {
       setReleaseChannel={(value) => updateDraft('releaseChannel', value)}
       automaticUpdateChecksEnabled={draft.automaticUpdateChecksEnabled}
       setAutomaticUpdateChecksEnabled={(value) => updateDraft('automaticUpdateChecksEnabled', value)}
+      themePalette={draft.themePalette}
+      setThemePalette={setThemePalette}
       themeMode={draft.themeMode}
       setThemeMode={setThemeMode}
       uiLanguage={draft.uiLanguage}
@@ -684,6 +698,15 @@ function SettingsSyncAndAppearanceSections(options: SettingsBodyProps) {
         <SectionHeading title={t('settings.appearance.title')} />
         <SettingsGroup>
           <AppearanceSettingsSection t={t} themeMode={themeMode} setThemeMode={setThemeMode} />
+          <SettingsRow label={t('settings.palette.label')} description={t('settings.palette.description')}>
+            <SelectControl
+              value={options.themePalette}
+              onValueChange={(value) => options.setThemePalette(normalizeThemePalette(value))}
+              options={THEME_PALETTES.map((value) => ({ value, label: t(`settings.palette.${value}`) }))}
+              testId="settings-theme-palette"
+              ariaLabel={t('settings.palette.label')}
+            />
+          </SettingsRow>
           <LanguageSettingsSection
             t={t}
             locale={locale}

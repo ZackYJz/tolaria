@@ -1,3 +1,4 @@
+import type { ThemePalette } from './themePalette'
 import type { AiAgentId } from './aiAgents'
 import type { AiAgentPermissionMode } from './aiAgentPermissionMode'
 import { trackEvent } from './telemetry'
@@ -308,4 +309,8 @@ export function trackAiWorkspaceSidebarToggled(collapsed: AnalyticsBoolean, mode
 
 export function trackAiWorkspaceChatTitled(source: AiWorkspaceTitleSource): void {
   trackEvent('ai_workspace_chat_titled', { source })
+}
+
+export function trackThemePaletteChanged(palette: ThemePalette): void {
+  trackEvent('theme_palette_changed', { palette })
 }

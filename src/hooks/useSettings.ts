@@ -1,3 +1,4 @@
+import { normalizeThemePalette } from '../lib/themePalette'
 import { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri, mockInvoke } from '../mock-tauri'
@@ -9,7 +10,7 @@ import {
   TOGGLE_GITIGNORED_VISIBILITY_EVENT,
 } from '../lib/gitignoredVisibilityEvents'
 import { serializeUiLanguagePreference } from '../lib/i18n'
-import { trackThemeModeChanged } from '../lib/productAnalytics'
+import { trackThemeModeChanged, trackThemePaletteChanged } from '../lib/productAnalytics'
 import { normalizeReleaseChannel, serializeReleaseChannel } from '../lib/releaseChannel'
 import { normalizeDateDisplayFormat } from '../utils/dateDisplay'
 import { DEFAULT_THEME_MODE, normalizeThemeMode, type ThemeMode } from '../lib/themeMode'
@@ -57,6 +58,7 @@ const EMPTY_SETTINGS: Settings = {
   release_channel: null,
   automatic_update_checks_enabled: null,
   theme_mode: null,
+  theme_palette: 'default',
   ui_language: null,
   date_display_format: null,
   note_width_mode: null,
@@ -96,6 +98,7 @@ function normalizeSettings(settings: Settings): Settings {
     ),
     automatic_update_checks_enabled: nullableBoolean(settings.automatic_update_checks_enabled),
     theme_mode: normalizeThemeMode(settings.theme_mode),
+    theme_palette: normalizeThemePalette(settings.theme_palette),
     ui_language: serializeUiLanguagePreference(settings.ui_language),
     date_display_format: normalizeDateDisplayFormat(settings.date_display_format),
     note_width_mode: normalizeNoteWidthMode(settings.note_width_mode),
@@ -188,6 +191,9 @@ export function useSettings() {
     try {
       await tauriCall<null>('save_settings', { settings: normalizedSettings })
       setSettings(normalizedSettings)
+      if (normalizeThemePalette(settings.theme_palette) !== normalizedSettings.theme_palette) {
+        trackThemePaletteChanged(normalizeThemePalette(normalizedSettings.theme_palette))
+      }
       const nextThemeMode = effectiveThemeMode(normalizedSettings)
       if (previousThemeMode !== nextThemeMode) {
         trackThemeModeChanged(nextThemeMode)

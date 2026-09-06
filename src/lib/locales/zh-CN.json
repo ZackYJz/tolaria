@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "请输入有效的 http 或 https 网址。",
   "editor.bookmark.fetchFailed": "无法加载网页预览。请重试，或仅保存链接。",
   "editor.bookmark.saveLink": "仅保存链接",
-  "editor.bookmark.openFailed": "无法打开此链接。"
+  "editor.bookmark.openFailed": "无法打开此链接。",
+  "settings.palette.label": "主题配色",
+  "settings.palette.description": "适用于浅色和深色模式的主题色。",
+  "settings.palette.default": "Tolaria 原色",
+  "settings.palette.notion": "Notion · 静谧蓝",
+  "settings.palette.wolai": "wolai · 柔和红",
+  "settings.palette.flowus": "FlowUs · 黑白灰",
+  "settings.palette.yuque": "语雀 · 清新绿"
 }

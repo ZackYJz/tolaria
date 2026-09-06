@@ -30,6 +30,7 @@ const defaultSettings: Settings = {
   release_channel: null,
   automatic_update_checks_enabled: null,
   theme_mode: null,
+  theme_palette: 'default',
   ui_language: null,
   date_display_format: null,
   note_width_mode: null,
@@ -64,6 +65,7 @@ const savedSettings: Settings = {
   release_channel: null,
   automatic_update_checks_enabled: null,
   theme_mode: null,
+  theme_palette: 'default',
   ui_language: null,
   date_display_format: null,
   note_width_mode: null,
@@ -135,6 +137,7 @@ function changedSettings(): Settings {
     release_channel: null,
     automatic_update_checks_enabled: false,
     theme_mode: null,
+    theme_palette: 'default',
     ui_language: 'zh-CN',
     date_display_format: 'iso',
     note_width_mode: 'wide',
@@ -263,6 +266,18 @@ describe('useSettings', () => {
     expect(onComplete).toHaveBeenCalledWith(true)
     expect(mockInvokeFn).toHaveBeenCalledWith('save_settings', { settings: newSettings })
     expect(result.current.settings).toEqual(newSettings)
+  })
+
+  it('tracks palette changes only after a successful save', async () => {
+    const { result } = renderHook(() => useSettings())
+    await waitFor(() => expect(result.current.loaded).toBe(true))
+    await act(async () => { await result.current.saveSettings({ ...defaultSettings, theme_palette: 'notion' }) })
+    expect(trackEventMock).toHaveBeenCalledWith('theme_palette_changed', { palette: 'notion' })
+    trackEventMock.mockClear()
+    mockInvokeFn.mockRejectedValueOnce(new Error('save failed'))
+    await act(async () => { await result.current.saveSettings({ ...defaultSettings, theme_palette: 'yuque' }) })
+    expect(trackEventMock).not.toHaveBeenCalledWith('theme_palette_changed', expect.anything())
+    expect(result.current.settings.theme_palette).toBe('notion')
   })
 
   it('tracks theme mode changes after settings save succeeds', async () => {

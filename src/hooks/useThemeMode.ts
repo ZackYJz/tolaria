@@ -1,3 +1,4 @@
+import { applyThemePaletteToDocument, normalizeThemePalette, writeStoredThemePalette, type ThemePalette } from '../lib/themePalette'
 import { useEffect } from 'react'
 import {
   applyThemeSelectionToDocument,
@@ -58,7 +59,15 @@ function subscribeSystemThemeChanges(mediaQueryList: MediaQueryList): () => void
 export function useThemeMode(
   themeMode: ThemeMode | null | undefined,
   loaded: boolean,
+  themePalette?: ThemePalette | null,
 ): void {
+  useEffect(() => {
+    if (!loaded || typeof document === 'undefined') return
+    const palette = normalizeThemePalette(themePalette)
+    applyThemePaletteToDocument(document, palette)
+    if (typeof window !== 'undefined') writeStoredThemePalette(window.localStorage, palette)
+  }, [loaded, themePalette])
+
   useEffect(() => {
     if (!loaded || typeof document === 'undefined') return
 

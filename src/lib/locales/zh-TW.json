@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "主題配色",
+  "settings.palette.description": "適用於淺色和深色模式的主題色。",
+  "settings.palette.default": "Tolaria 原色",
+  "settings.palette.notion": "Notion · 靜謐藍",
+  "settings.palette.wolai": "wolai · 柔和紅",
+  "settings.palette.flowus": "FlowUs · 黑白灰",
+  "settings.palette.yuque": "语雀 · 清新綠"
 }

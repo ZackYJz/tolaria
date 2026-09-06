@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "Цветовая палитра",
+  "settings.palette.description": "Акцентные цвета для светлого и тёмного режимов.",
+  "settings.palette.default": "Оригинальная Tolaria",
+  "settings.palette.notion": "Notion · Спокойный синий",
+  "settings.palette.wolai": "wolai · Мягкий красный",
+  "settings.palette.flowus": "FlowUs · Монохромная",
+  "settings.palette.yuque": "Yuque · Свежий зелёный"
 }

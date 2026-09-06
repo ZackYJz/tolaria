@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { SettingsPanel } from './SettingsPanel'
@@ -103,6 +104,35 @@ describe('SettingsPanel', () => {
   const onSave = vi.fn()
   const onClose = vi.fn()
   const localStorageMock = createStorageMock()
+
+  it('offers theme palettes and preserves the selected palette when saving', () => {
+    render(<SettingsPanel open settings={{ ...emptySettings, theme_palette: 'notion' }} onSave={onSave} onClose={onClose} />)
+    expect(screen.getByTestId('settings-theme-palette')).toHaveTextContent('Notion')
+    fireEvent.click(screen.getByTestId('settings-save'))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ theme_palette: 'notion' }))
+  })
+
+  it('saves a palette immediately through the existing settings path', async () => {
+    render(<SettingsPanel open settings={emptySettings} onSave={onSave} onClose={onClose} />)
+    fireEvent.pointerDown(screen.getByTestId('settings-theme-palette'), { button: 0, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('option', { name: 'wolai · Soft red' }))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ theme_palette: 'wolai' }))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps other unsaved preferences when a palette is saved immediately', async () => {
+    function StatefulSettings() {
+      const [settings, setSettings] = useState(emptySettings)
+      return <SettingsPanel open settings={settings} onSave={(value) => { onSave(value); setSettings(value) }} onClose={onClose} />
+    }
+    render(<StatefulSettings />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable AutoGit' }))
+    fireEvent.pointerDown(screen.getByTestId('settings-theme-palette'), { button: 0, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('option', { name: 'wolai · Soft red' }))
+    expect(screen.getByRole('switch', { name: 'Enable AutoGit' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('settings-save'))
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ theme_palette: 'wolai', autogit_enabled: true }))
+  })
 
   it('registers only while the Settings surface is visible', () => {
     registerEscapeSurfaceMock.mockReturnValue(unregisterEscapeSurfaceMock)

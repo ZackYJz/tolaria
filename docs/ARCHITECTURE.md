@@ -550,7 +550,7 @@ flowchart TD
 
 ## Styling
 
-The app uses internal app-owned light and dark themes with an optional System preference (see [ADR-0081](adr/0081-internal-light-dark-theme-runtime.md) and [ADR-0112](adr/0112-system-theme-mode.md)). This is not the old vault-authored theming system from ADR-0013: users choose a mode, but themes are owned by the app.
+The app uses internal app-owned light and dark themes with an optional System preference (see [ADR-0081](adr/0081-internal-light-dark-theme-runtime.md) and [ADR-0112](adr/0112-system-theme-mode.md)). This is not the old vault-authored theming system from ADR-0013: users choose a mode, but themes are owned by the app. App-owned accent palettes are selected independently through `settings.theme_palette` (Tolaria original plus Notion-, wolai-, FlowUs-, and Yuque-inspired presets). `src/lib/themePalette.ts` validates the preference and mirrors it for startup; `src/theme-palettes.css` overrides only accent and interaction colors for each light/dark mode. Neutral surfaces, typography, semantic feedback colors, and user-authored category colors remain unchanged.
 
 1. **Global CSS variables** (`src/index.css`): Semantic app colors, borders, surfaces, and interaction states. Bridged to Tailwind v4 via `@theme inline`.
 2. **Editor theme** (`src/theme.json`): BlockNote-specific typography. Flattened to CSS vars by `useEditorTheme`; editor colors resolve through the same semantic app variables.

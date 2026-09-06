@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "Palet warna",
+  "settings.palette.description": "Warna aksen untuk mode terang dan gelap.",
+  "settings.palette.default": "Tolaria asli",
+  "settings.palette.notion": "Notion · Biru tenang",
+  "settings.palette.wolai": "wolai · Merah lembut",
+  "settings.palette.flowus": "FlowUs · Monokrom",
+  "settings.palette.yuque": "Yuque · Hijau segar"
 }

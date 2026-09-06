@@ -1,3 +1,4 @@
+import type { ThemePalette } from './lib/themePalette'
 import type { AiAgentId } from './lib/aiAgents'
 import type { AiAgentPermissionMode } from './lib/aiAgentPermissionMode'
 import type { AiModelProvider } from './lib/aiTargets'
@@ -133,6 +134,7 @@ export interface Settings {
   anonymous_id: string | null
   release_channel: string | null
   automatic_update_checks_enabled?: boolean | null
+  theme_palette?: ThemePalette | null
   theme_mode?: ThemeMode | null
   ui_language?: AppLocale | null
   date_display_format?: DateDisplayFormat | null

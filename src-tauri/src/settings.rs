@@ -108,6 +108,7 @@ pub struct Settings {
     pub release_channel: Option<String>,
     pub automatic_update_checks_enabled: Option<bool>,
     pub theme_mode: Option<String>,
+    pub theme_palette: Option<String>,
     pub ui_language: Option<String>,
     pub date_display_format: Option<String>,
     pub note_width_mode: Option<String>,
@@ -161,6 +162,17 @@ pub fn normalize_default_ai_agent(value: Option<&str>) -> Option<String> {
 pub fn normalize_theme_mode(value: Option<&str>) -> Option<String> {
     match value.map(|candidate| candidate.trim().to_ascii_lowercase()) {
         Some(mode) if mode == "light" || mode == "dark" || mode == "system" => Some(mode),
+        _ => None,
+    }
+}
+
+pub fn normalize_theme_palette(value: Option<&str>) -> Option<String> {
+    match value.map(|candidate| candidate.trim().to_ascii_lowercase()) {
+        Some(palette)
+            if ["default", "notion", "wolai", "flowus", "yuque"].contains(&palette.as_str()) =>
+        {
+            Some(palette)
+        }
         _ => None,
     }
 }
@@ -237,6 +249,7 @@ fn normalize_settings(settings: Settings) -> Settings {
         release_channel: normalize_release_channel(settings.release_channel.as_deref()),
         automatic_update_checks_enabled: settings.automatic_update_checks_enabled,
         theme_mode: normalize_theme_mode(settings.theme_mode.as_deref()),
+        theme_palette: normalize_theme_palette(settings.theme_palette.as_deref()),
         ui_language: normalize_ui_language(settings.ui_language.as_deref()),
         date_display_format: normalize_date_display_format(settings.date_display_format.as_deref()),
         note_width_mode: normalize_note_width_mode(settings.note_width_mode.as_deref()),

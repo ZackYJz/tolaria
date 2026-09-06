@@ -88,7 +88,7 @@ export function useAppPreferences({
     document.documentElement.lang = appLocale
   }, [appLocale])
 
-  useThemeMode(settings.theme_mode, settingsLoaded)
+  useThemeMode(settings.theme_mode, settingsLoaded, settings.theme_palette)
   const documentThemeMode = useDocumentThemeMode()
   const handleToggleThemeMode = useCallback(() => {
     const theme_mode = documentThemeMode === 'dark' ? 'light' : 'dark'

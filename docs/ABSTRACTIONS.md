@@ -877,7 +877,7 @@ Typed ASCII arrow sequences are normalized consistently in both editor modes:
 
 ## Styling
 
-The app uses internal light and dark themes owned by Tolaria, with System as an installation-local preference that follows the OS appearance (see [ADR-0081](adr/0081-internal-light-dark-theme-runtime.md) and [ADR-0112](adr/0112-system-theme-mode.md)). The previous vault-authored theming system remains removed.
+The app uses internal light and dark themes owned by Tolaria, with System as an installation-local preference that follows the OS appearance (see [ADR-0081](adr/0081-internal-light-dark-theme-runtime.md) and [ADR-0112](adr/0112-system-theme-mode.md)). The previous vault-authored theming system remains removed. App-owned accent palettes are selected independently through `settings.theme_palette` (Tolaria original plus Notion-, wolai-, FlowUs-, and Yuque-inspired presets). `src/lib/themePalette.ts` validates the preference and mirrors it for startup; `src/theme-palettes.css` overrides only accent and interaction colors for each light/dark mode. Neutral surfaces, typography, semantic feedback colors, and user-authored category colors remain unchanged.
 
 1. **Global CSS variables** (`src/index.css`): Semantic app colors, borders, surfaces, and interaction states via `:root` / `[data-theme]`, bridged to Tailwind v4
 2. **Editor theme** (`src/theme.json`): BlockNote typography, flattened to CSS vars by `useEditorTheme`

@@ -22,6 +22,7 @@ describe('useThemeMode', () => {
     Object.defineProperty(window, 'localStorage', { value: localStorageMock, configurable: true })
     installMatchMedia(false)
     document.documentElement.removeAttribute('data-theme')
+    document.documentElement.removeAttribute('data-theme-palette')
     document.documentElement.classList.remove('dark')
     window.localStorage.clear()
   })
@@ -38,6 +39,15 @@ describe('useThemeMode', () => {
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
     expect(document.documentElement).toHaveClass('dark')
     expect(window.localStorage.getItem(THEME_MODE_STORAGE_KEY)).toBe('dark')
+  })
+
+  it('applies and mirrors the saved palette independently of light and dark mode', () => {
+    const { rerender } = renderHook(({ mode }: { mode: 'light' | 'dark' }) => useThemeMode(mode, true, 'notion'), { initialProps: { mode: 'light' } })
+    expect(document.documentElement).toHaveAttribute('data-theme-palette', 'notion')
+    expect(window.localStorage.getItem('tolaria:theme-palette')).toBe('notion')
+    rerender({ mode: 'dark' })
+    expect(document.documentElement).toHaveAttribute('data-theme-palette', 'notion')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
   })
 
   it('uses the storage mirror when persisted settings are empty', () => {

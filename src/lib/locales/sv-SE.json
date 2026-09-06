@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "Färgpalett",
+  "settings.palette.description": "Accentfärger för ljust och mörkt läge.",
+  "settings.palette.default": "Tolaria original",
+  "settings.palette.notion": "Notion · Lugn blå",
+  "settings.palette.wolai": "wolai · Mjuk röd",
+  "settings.palette.flowus": "FlowUs · Monokrom",
+  "settings.palette.yuque": "Yuque · Frisk grön"
 }

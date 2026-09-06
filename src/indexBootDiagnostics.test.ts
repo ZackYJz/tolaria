@@ -26,6 +26,15 @@ function firstInlineScriptFromIndex(): string {
 }
 
 describe('index startup script', () => {
+  it.each(['default', 'notion', 'wolai', 'flowus', 'yuque'])('restores the %s palette before React loads', (palette) => {
+    const script = inlineScriptsFromIndex().find(value => value.includes("var key = 'tolaria-theme'"))
+    if (!script) throw new Error('Theme bootstrap script missing')
+    const storage = { getItem: (key: string) => key === 'tolaria:theme-palette' ? palette : 'dark' }
+    new Function('localStorage', script)(storage)
+    expect(document.documentElement).toHaveAttribute('data-theme-palette', palette)
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+  })
+
   it('does not ship a visible boot diagnostics element by default', () => {
     const html = indexHtml()
 

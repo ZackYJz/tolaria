@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "색상 팔레트",
+  "settings.palette.description": "라이트 모드와 다크 모드에 적용할 강조 색상입니다.",
+  "settings.palette.default": "Tolaria 기본",
+  "settings.palette.notion": "Notion · 차분한 파랑",
+  "settings.palette.wolai": "wolai · 부드러운 빨강",
+  "settings.palette.flowus": "FlowUs · 모노크롬",
+  "settings.palette.yuque": "Yuque · 산뜻한 초록"
 }

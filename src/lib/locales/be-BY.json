@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "Каляровая палітра",
+  "settings.palette.description": "Акцэнтныя колеры для светлага і цёмнага рэжымаў.",
+  "settings.palette.default": "Арыгінальная Tolaria",
+  "settings.palette.notion": "Notion · Спакойны сіні",
+  "settings.palette.wolai": "wolai · Мяккі чырвоны",
+  "settings.palette.flowus": "FlowUs · Манахромная",
+  "settings.palette.yuque": "Yuque · Свежы зялёны"
 }

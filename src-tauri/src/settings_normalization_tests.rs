@@ -37,6 +37,7 @@ fn test_settings_json_roundtrip() {
         release_channel: Some("alpha".to_string()),
         automatic_update_checks_enabled: Some(false),
         theme_mode: Some("dark".to_string()),
+        theme_palette: Some("notion".to_string()),
         ui_language: Some("zh-Hans".to_string()),
         date_display_format: Some("iso".to_string()),
         note_width_mode: Some("wide".to_string()),
@@ -79,6 +80,7 @@ fn test_save_and_load_preserves_values() {
         release_channel: Some("alpha".to_string()),
         automatic_update_checks_enabled: Some(false),
         theme_mode: Some("dark".to_string()),
+        theme_palette: Some("notion".to_string()),
         ui_language: Some("zh-Hans".to_string()),
         date_display_format: Some("european".to_string()),
         note_width_mode: Some("wide".to_string()),
@@ -364,4 +366,20 @@ fn test_ui_language_aliases_are_canonicalized() {
     );
     assert_eq!(normalize_ui_language(Some("id")).as_deref(), Some("id-ID"));
     assert_eq!(normalize_ui_language(Some("sk")).as_deref(), Some("sk-SK"));
+}
+
+#[test]
+fn test_theme_palette_roundtrip_and_invalid_values() {
+    for palette in ["default", "notion", "wolai", "flowus", "yuque"] {
+        let loaded = save_and_reload(Settings {
+            theme_palette: Some(palette.to_string()),
+            ..Settings::default()
+        });
+        assert_eq!(loaded.theme_palette.as_deref(), Some(palette));
+    }
+    assert_eq!(
+        normalize_theme_palette(Some(" YUQUE ")).as_deref(),
+        Some("yuque")
+    );
+    assert_eq!(normalize_theme_palette(Some("unsupported")), None);
 }

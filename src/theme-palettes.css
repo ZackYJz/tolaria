@@ -1,0 +1,78 @@
+/* Reference-inspired accents only. Default uses index.css unchanged. */
+:root[data-theme-palette='notion'] {
+  --accent-blue: #2E7198;
+  --accent-blue-hover: #28688D;
+  --state-selected: #ECECEA;
+  --state-selected-strong: #DFDFDC;
+  --state-active: #ECECEA;
+}
+
+:root[data-theme-palette='wolai'] {
+  --accent-blue: #A9474D;
+  --accent-blue-hover: #913A40;
+  --state-selected: #F7E9E9;
+  --state-selected-strong: #F0D7D9;
+  --state-active: #F7E9E9;
+}
+
+:root[data-theme-palette='flowus'] {
+  --accent-blue: #444444;
+  --accent-blue-hover: #292929;
+  --state-selected: #ECECEA;
+  --state-selected-strong: #DFDFDC;
+  --state-active: #ECECEA;
+}
+
+:root[data-theme-palette='yuque'] {
+  --accent-blue: #18794E;
+  --accent-blue-hover: #11643F;
+  --state-selected: #E5F2EA;
+  --state-selected-strong: #D1E8D9;
+  --state-active: #E5F2EA;
+}
+
+:root[data-theme='dark'][data-theme-palette='notion'] {
+  --accent-blue: #85B8D7;
+  --accent-blue-hover: #A8CEE5;
+  --state-selected: #34332F;
+  --state-selected-strong: #41403B;
+  --state-active: #34332F;
+}
+
+:root[data-theme='dark'][data-theme-palette='wolai'] {
+  --accent-blue: #E89A9E;
+  --accent-blue-hover: #F2B9BC;
+  --state-selected: #412B2C;
+  --state-selected-strong: #543638;
+  --state-active: #412B2C;
+}
+
+:root[data-theme='dark'][data-theme-palette='flowus'] {
+  --accent-blue: #C5C5C0;
+  --accent-blue-hover: #E0E0DA;
+  --state-selected: #34332F;
+  --state-selected-strong: #41403B;
+  --state-active: #34332F;
+}
+
+:root[data-theme='dark'][data-theme-palette='yuque'] {
+  --accent-blue: #7ACAA0;
+  --accent-blue-hover: #9FDDBB;
+  --state-selected: #263C30;
+  --state-selected-strong: #304D3D;
+  --state-active: #263C30;
+}
+
+:root:is([data-theme-palette='notion'], [data-theme-palette='wolai'], [data-theme-palette='flowus'], [data-theme-palette='yuque']) {
+  --accent-blue-bg: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  --accent-blue-light: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  --state-drag-target: var(--accent-blue-bg);
+  --state-focus-ring: var(--accent-blue);
+  --border-focus: var(--accent-blue);
+  --syntax-link: var(--accent-blue);
+}
+
+:root[data-theme='dark']:is([data-theme-palette='notion'], [data-theme-palette='wolai'], [data-theme-palette='flowus'], [data-theme-palette='yuque']) {
+  --accent-blue-bg: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  --accent-blue-light: color-mix(in srgb, var(--accent-blue) 16%, transparent);
+}

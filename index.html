@@ -252,6 +252,8 @@
         }
         var mode;
         try {
+          var palette = localStorage.getItem('tolaria:theme-palette');
+          document.documentElement.setAttribute('data-theme-palette', ['default', 'notion', 'wolai', 'flowus', 'yuque'].includes(palette) ? palette : 'default');
           mode = normalizeTheme(localStorage.getItem(key));
           if (mode === null) {
             mode = normalizeTheme(localStorage.getItem(legacyKey));

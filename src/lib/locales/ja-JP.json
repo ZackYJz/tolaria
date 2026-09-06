@@ -1085,5 +1085,12 @@
   "editor.bookmark.invalidUrl": "Enter a valid http or https URL.",
   "editor.bookmark.fetchFailed": "Could not load the page preview. Try again or save the link without a preview.",
   "editor.bookmark.saveLink": "Save without preview",
-  "editor.bookmark.openFailed": "Could not open this link."
+  "editor.bookmark.openFailed": "Could not open this link.",
+  "settings.palette.label": "カラーパレット",
+  "settings.palette.description": "ライトモードとダークモードのアクセントカラー。",
+  "settings.palette.default": "Tolaria オリジナル",
+  "settings.palette.notion": "Notion · 落ち着いた青",
+  "settings.palette.wolai": "wolai · やわらかな赤",
+  "settings.palette.flowus": "FlowUs · モノクロ",
+  "settings.palette.yuque": "Yuque · 爽やかな緑"
 }
