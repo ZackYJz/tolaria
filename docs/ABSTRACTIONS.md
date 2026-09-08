@@ -1128,3 +1128,7 @@ Managed by `useSettings` hook and `SettingsPanel` component. `theme_mode` is ins
 ### Web bookmark blocks
 
 `webBookmark` stores `url`, `title`, `description`, `image`, and `favicon` as string props. `bookmarkMarkdown.ts` preserves that snapshot in a `bookmark` JSON fence through the canonical durable Markdown pipeline, including empty placeholders and nested blocks. Opening a note never refetches metadata; explicit create/edit fetches update the snapshot. Invalid JSON remains editable source, and URL fields accept only HTTP/HTTPS without credentials.
+
+### Public-network address resolution
+
+Remote bookmark and image requests share destination validation in `vault/remote_image.rs`. System DNS is authoritative for ordinary public addresses. Synthetic-only TUN fake-IP answers trigger an encrypted public DNS lookup; the resulting address must pass the same public-IP validation and remains pinned for the HTTP request. Redirects repeat the boundary. This fallback does not make synthetic IPs valid URL targets; see ADR-0181.

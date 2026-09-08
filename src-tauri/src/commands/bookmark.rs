@@ -165,6 +165,17 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "Manual network acceptance: requires internet access"]
+    fn live_trellis_bookmark_metadata() {
+        let metadata =
+            fetch_metadata("https://docs.trytrellis.app/zh/start/install-and-first-task")
+                .expect("live bookmark fetch should succeed");
+        println!("{}", serde_json::to_string(&metadata).unwrap());
+        assert!(!metadata.title.is_empty());
+        assert!(metadata.image.starts_with("https://"));
+    }
+
+    #[test]
     fn rejects_non_public_or_executable_urls_before_requesting() {
         for url in [
             "file:///etc/passwd",

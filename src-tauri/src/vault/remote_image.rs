@@ -8,6 +8,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::path::Path;
 use std::time::Duration;
 
+const FAKE_IP_V4_NETWORK: u32 = 0xc612_0000;
+const FAKE_IP_V4_MASK: u32 = 0xfffe_0000;
+const DNS_BOOTSTRAP_HOST: &str = "cloudflare-dns.com";
+const MAX_DNS_RESPONSE_BYTES: u64 = 64 * 1024;
 const MAX_IMAGE_BYTES: u64 = 15 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 5;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
@@ -132,11 +136,92 @@ fn resolved_public_address(url: &Url) -> Result<SocketAddr, String> {
     let port = url
         .port_or_known_default()
         .ok_or_else(|| remote_image_error(FailureReason("URL port is missing")))?;
-    (host, port)
+    let addresses: Vec<_> = (host, port)
         .to_socket_addrs()
         .map_err(|_| remote_image_error(FailureReason("host lookup failed")))?
-        .find(|address| is_public_ip(address.ip()))
-        .ok_or_else(|| remote_image_error(FailureReason("host is not publicly routable")))
+        .collect();
+    select_public_address(host, port, &addresses, resolve_public_dns)
+}
+
+fn select_public_address(
+    host: &str,
+    port: u16,
+    addresses: &[SocketAddr],
+    fallback: impl FnOnce(&str) -> Result<IpAddr, String>,
+) -> Result<SocketAddr, String> {
+    if let Some(address) = addresses.iter().find(|address| is_public_ip(address.ip())) {
+        return Ok(*address);
+    }
+    // Clash TUN uses the benchmarking range for synthetic DNS answers. Never
+    // connect to these addresses: resolve the hostname independently instead.
+    let has_fake_ip = !addresses.is_empty()
+        && addresses.iter().all(|address| match address.ip() {
+            IpAddr::V4(ip) => u32::from(ip) & FAKE_IP_V4_MASK == FAKE_IP_V4_NETWORK,
+            IpAddr::V6(_) => false,
+        });
+    if has_fake_ip && host.parse::<IpAddr>().is_err() {
+        let ip = fallback(host)?;
+        if is_public_ip(ip) {
+            return Ok(SocketAddr::new(ip, port));
+        }
+    }
+    Err(remote_image_error(FailureReason(
+        "host is not publicly routable",
+    )))
+}
+
+fn resolve_public_dns(host: &str) -> Result<IpAddr, String> {
+    let bootstrap = SocketAddr::from(([1, 1, 1, 1], 443));
+    let client = Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .resolve(DNS_BOOTSTRAP_HOST, bootstrap)
+        .build()
+        .map_err(|_| remote_image_error(FailureReason("secure DNS client setup failed")))?;
+    // The URL keeps the provider hostname for certificate verification and SNI;
+    // the fixed bootstrap address avoids asking the same synthetic DNS again.
+    let response = client
+        .get("https://cloudflare-dns.com/dns-query")
+        .query(&[("name", host), ("type", "A")])
+        .header(reqwest::header::ACCEPT, "application/dns-json")
+        .send()
+        .and_then(Response::error_for_status)
+        .map_err(|_| remote_image_error(FailureReason("secure DNS request failed")))?;
+    let mut bytes = Vec::new();
+    response
+        .take(MAX_DNS_RESPONSE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| remote_image_error(FailureReason("secure DNS response failed")))?;
+    if bytes.len() as u64 > MAX_DNS_RESPONSE_BYTES {
+        return Err(remote_image_error(FailureReason(
+            "secure DNS response too large",
+        )));
+    }
+    parse_public_dns_answer(&bytes)
+}
+
+fn parse_public_dns_answer(bytes: &[u8]) -> Result<IpAddr, String> {
+    let response: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|_| remote_image_error(FailureReason("invalid secure DNS response")))?;
+    if response.get("Status").and_then(serde_json::Value::as_u64) != Some(0)
+        || response.get("TC").and_then(serde_json::Value::as_bool) != Some(false)
+    {
+        return Err(remote_image_error(FailureReason(
+            "secure DNS lookup failed",
+        )));
+    }
+    response
+        .get("Answer")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|answer| answer.get("type").and_then(serde_json::Value::as_u64) == Some(1))
+        .filter_map(|answer| answer.get("data")?.as_str()?.parse::<Ipv4Addr>().ok())
+        .map(IpAddr::V4)
+        .find(|ip| is_public_ip(*ip))
+        .ok_or_else(|| remote_image_error(FailureReason("secure DNS has no public IPv4 answer")))
 }
 
 fn client_for(url: &Url) -> Result<Client, String> {
@@ -146,6 +231,7 @@ fn client_for(url: &Url) -> Result<Client, String> {
     let host = raw_host.trim_matches(['[', ']']);
     let address = resolved_public_address(url)?;
     Client::builder()
+        .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(REQUEST_TIMEOUT)
@@ -371,6 +457,100 @@ mod tests {
         assert_eq!(
             downloaded_filename(&url, ImageExtension("webp")),
             "remote-image.webp"
+        );
+    }
+}
+
+#[cfg(test)]
+mod fake_ip_tests {
+    use super::*;
+
+    #[test]
+    fn only_fake_ip_dns_answers_trigger_fallback() {
+        for ip in ["198.18.0.1", "198.19.255.254"] {
+            let address = format!("{ip}:443").parse().unwrap();
+            let resolved = select_public_address("example.com", 443, &[address], |_| {
+                Ok("1.1.1.1".parse().unwrap())
+            })
+            .unwrap();
+            assert_eq!(resolved, "1.1.1.1:443".parse().unwrap());
+        }
+        for ip in ["198.17.255.255", "198.20.0.0", "127.0.0.1", "10.1.2.3"] {
+            let address = format!("{ip}:443").parse().unwrap();
+            let _ = select_public_address("example.com", 443, &[address], |_| {
+                panic!("unexpected fallback for {ip}")
+            });
+        }
+    }
+
+    #[test]
+    fn ordinary_public_answers_win_and_literal_fake_ips_stay_blocked() {
+        let answers = [
+            "198.18.0.1:443".parse().unwrap(),
+            "1.1.1.1:443".parse().unwrap(),
+        ];
+        assert_eq!(
+            select_public_address("example.com", 443, &answers, |_| panic!(
+                "normal DNS needs no fallback"
+            ))
+            .unwrap(),
+            answers[1]
+        );
+        assert!(validate_remote_image_url(RemoteUrlInput::new("https://198.18.0.1")).is_err());
+        assert!(
+            select_public_address("198.18.0.1", 443, &answers[..1], |_| panic!(
+                "literal addresses must not use DNS"
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn dns_fallback_fails_closed_for_errors_and_non_public_answers() {
+        let mixed = [
+            "198.18.0.1:443".parse().unwrap(),
+            "10.0.0.1:443".parse().unwrap(),
+        ];
+        assert!(
+            select_public_address("example.com", 443, &mixed, |_| panic!(
+                "mixed private DNS must not trigger fallback"
+            ))
+            .is_err()
+        );
+        assert!(parse_public_dns_answer(
+            br#"{"Status":0,"TC":true,"Answer":[{"type":1,"data":"1.1.1.1"}]}"#
+        )
+        .is_err());
+        let answers = ["198.18.0.1:443".parse().unwrap()];
+        assert!(select_public_address("example.com", 443, &answers, |_| Err(
+            "lookup failed".into()
+        ))
+        .is_err());
+        assert!(
+            select_public_address("example.com", 443, &answers, |_| Ok("127.0.0.1"
+                .parse()
+                .unwrap()))
+            .is_err()
+        );
+        assert!(select_public_address("example.com", 443, &[], |_| panic!(
+            "empty DNS is not fake IP"
+        ))
+        .is_err());
+        for json in [
+            r#"{"Status":3}"#,
+            r#"{"Status":0,"TC":false,"Answer":[]}"#,
+            r#"{"Status":0,"TC":false,"Answer":[{"type":1,"data":"10.0.0.1"}]}"#,
+            r#"{"Status":0,"TC":false,"Answer":[{"type":5,"data":"1.1.1.1"}]}"#,
+            "invalid",
+        ] {
+            assert!(parse_public_dns_answer(json.as_bytes()).is_err());
+        }
+        assert_eq!(
+            parse_public_dns_answer(
+                br#"{"Status":0,"TC":false,"Answer":[{"type":1,"data":"104.21.4.112"}]}"#
+            )
+            .unwrap(),
+            "104.21.4.112".parse::<IpAddr>().unwrap()
         );
     }
 }
