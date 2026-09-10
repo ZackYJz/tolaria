@@ -98,7 +98,11 @@ function readToolbarControlState(container: Element): ToolbarControlState | null
 
 export function useToolbarControlState(container: Element): ToolbarControlState | null {
   const [state, setState] = useState(() => readToolbarControlState(container))
-  const update = useCallback(() => setState(readToolbarControlState(container)), [container])
+  const update = useCallback(() => {
+    const next = readToolbarControlState(container)
+    setState(current => current?.button === next?.button
+      && current?.left === next?.left && current?.top === next?.top ? current : next)
+  }, [container])
 
   useEffect(() => {
     const observer = new MutationObserver(update)
@@ -111,6 +115,19 @@ export function useToolbarControlState(container: Element): ToolbarControlState 
       document.removeEventListener('scroll', update, true)
     }
   }, [container, update])
+
+  useEffect(() => {
+    if (!state?.button) return
+    // Floating UI can move the toolbar without mutating its descendants.
+    // Track its final screen position only while the toolbar is mounted.
+    let frame: number
+    const followToolbar = () => {
+      update()
+      frame = requestAnimationFrame(followToolbar)
+    }
+    frame = requestAnimationFrame(followToolbar)
+    return () => cancelAnimationFrame(frame)
+  }, [state?.button, update])
 
   return state
 }

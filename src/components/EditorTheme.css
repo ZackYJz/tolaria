@@ -158,6 +158,48 @@
   flex-shrink: 0;
 }
 
+/* Match the text selector, icon buttons and detached highlight arrow vertically. */
+.editor__blocknote-container .bn-formatting-toolbar {
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.editor__blocknote-container .bn-formatting-toolbar :is(.mantine-Button-root, .mantine-ActionIcon-root) {
+  height: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+
+.editor__blocknote-container .bn-formatting-toolbar .mantine-ActionIcon-root {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.editor__blocknote-container .bn-formatting-toolbar :is(.mantine-ActionIcon-icon, .mantine-Button-inner, .mantine-Button-section) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.editor__blocknote-container .bn-formatting-toolbar .mantine-Button-root {
+  padding-inline: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.editor__blocknote-container .bn-formatting-toolbar button svg {
+  display: block;
+}
+
+.editor__blocknote-container .bn-formatting-toolbar :is(.mantine-Button-root, .mantine-ActionIcon-root):disabled {
+  background-color: transparent;
+}
+
 /* --- Paragraph spacing --- */
 .editor__blocknote-container .bn-block-content[data-content-type="paragraph"] {
   margin-bottom: var(--editor-paragraph-spacing);
@@ -566,6 +608,7 @@
 .markdown-highlight-toolbar-trigger {
   width: 18px;
   min-width: 18px;
+  height: 32px;
   padding: 0;
   color: var(--colors-menu-text);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
