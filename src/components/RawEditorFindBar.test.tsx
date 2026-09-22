@@ -1,7 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { EditorView } from '@codemirror/view'
+import { setEditorFindHighlight } from '../extensions/editorFindHighlight'
 import { RawEditorFindBar } from './RawEditorFindBar'
+
+function lastHighlightValue(view: EditorView) {
+  const specification = vi.mocked(view.dispatch).mock.calls.at(-1)?.[0]
+  const effects = Array.isArray(specification?.effects)
+    ? specification.effects
+    : [specification?.effects]
+  return effects.find(effect => effect?.is(setEditorFindHighlight))?.value
+}
 
 function renderFindBar(overrides: Partial<React.ComponentProps<typeof RawEditorFindBar>> = {}) {
   const view = {
@@ -21,8 +30,14 @@ function renderFindBar(overrides: Partial<React.ComponentProps<typeof RawEditorF
     ...overrides,
   }
 
-  render(<RawEditorFindBar {...props} />)
-  return { props, view }
+  const rendered = render(<RawEditorFindBar {...props} />)
+  return {
+    props,
+    rerender: (nextOverrides: Partial<React.ComponentProps<typeof RawEditorFindBar>>) => {
+      rendered.rerender(<RawEditorFindBar {...props} {...nextOverrides} />)
+    },
+    view,
+  }
 }
 
 describe('RawEditorFindBar', () => {
@@ -86,12 +101,58 @@ describe('RawEditorFindBar', () => {
     expect(onReplaceOpenChange).toHaveBeenCalledWith(true)
   })
 
+  it('keeps the editor selection in place when document edits change the matches', async () => {
+    const { rerender, view } = renderFindBar()
+
+    fireEvent.change(screen.getByTestId('raw-editor-find-input'), {
+      target: { value: 'Alpha' },
+    })
+
+    await waitFor(() => {
+      expect(view.dispatch).toHaveBeenLastCalledWith(expect.objectContaining({
+        selection: { anchor: 0, head: 5 },
+      }))
+    })
+
+    vi.mocked(view.dispatch).mockClear()
+    rerender({ doc: 'Xlpha beta Alpha' })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('raw-editor-find-count')).toHaveTextContent('1 / 1')
+    })
+    expect(view.dispatch).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(view.dispatch).mock.calls[0]?.[0]).not.toHaveProperty('selection')
+    expect(lastHighlightValue(view)).toEqual(expect.objectContaining({ from: 11, to: 16 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next match' }))
+
+    await waitFor(() => {
+      expect(view.dispatch).toHaveBeenLastCalledWith(expect.objectContaining({
+        selection: { anchor: 11, head: 16 },
+      }))
+    })
+  })
+
   it('closes on Escape', () => {
     const onClose = vi.fn()
-    renderFindBar({ onClose })
+    const { view } = renderFindBar({ onClose })
 
     fireEvent.keyDown(screen.getByTestId('raw-editor-find-bar'), { key: 'Escape' })
 
     expect(onClose).toHaveBeenCalled()
+    expect(lastHighlightValue(view)).toBeNull()
+  })
+
+  it('clears the active highlight when the query has no matches', async () => {
+    const { view } = renderFindBar()
+
+    fireEvent.change(screen.getByTestId('raw-editor-find-input'), {
+      target: { value: 'missing' },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('raw-editor-find-count')).toHaveTextContent('No matches')
+      expect(lastHighlightValue(view)).toBeNull()
+    })
   })
 })

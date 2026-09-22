@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CircleNotch as Loader2, FileText, ListBullets, MagnifyingGlass, Plus, SidebarSimple, Table, X } from '@phosphor-icons/react'
 import type { VaultEntry } from '../../types'
 import type { SortOption, SortDirection } from '../../utils/noteListHelpers'
@@ -193,7 +193,25 @@ function HeaderActions(options: Pick<
     onSortChange,
     onCreateNote,
     onToggleSearch,
-} = options
+  } = options
+  const createNoteRef = useRef(onCreateNote)
+  const deferCreateRef = useRef(false)
+  useLayoutEffect(() => {
+    createNoteRef.current = onCreateNote
+  }, [onCreateNote])
+  const captureCreateOrigin = useCallback(() => {
+    const activeElement = document.activeElement
+    deferCreateRef.current = activeElement instanceof Element
+      && activeElement.closest('.raw-editor-codemirror') !== null
+  }, [])
+  const handleCreateNote = useCallback((createOptions?: ImmediateCreateOptions) => {
+    if (!deferCreateRef.current) {
+      createNoteRef.current(createOptions)
+      return
+    }
+    deferCreateRef.current = false
+    window.setTimeout(() => createNoteRef.current(createOptions), 0)
+  }, [])
   return (
     <div className="ml-3 flex shrink-0 items-center justify-end gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       {!isEntityView && <SortDropdown groupLabel="__list__" current={listSort} direction={listDirection} customProperties={customProperties} locale={locale} onChange={onSortChange} />}
@@ -210,20 +228,20 @@ function HeaderActions(options: Pick<
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-xs" className={NOTE_LIST_ACTION_BUTTON_CLASSNAME} title={translate(locale, 'noteList.createNote')} aria-label={translate(locale, 'noteList.createNote')}>
+          <Button type="button" variant="ghost" size="icon-xs" className={NOTE_LIST_ACTION_BUTTON_CLASSNAME} onMouseDown={captureCreateOrigin} title={translate(locale, 'noteList.createNote')} aria-label={translate(locale, 'noteList.createNote')}>
             <Plus size={16} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => onCreateNote({ creationPath: 'note_list_plus' })}>
+          <DropdownMenuItem onSelect={() => handleCreateNote({ creationPath: 'note_list_plus' })}>
             <FileText aria-hidden="true" />
             {translate(locale, 'noteList.createDocument')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onCreateNote({ creationPath: 'note_list_plus', format: 'outline' })}>
+          <DropdownMenuItem onSelect={() => handleCreateNote({ creationPath: 'note_list_plus', format: 'outline' })}>
             <ListBullets aria-hidden="true" />
             {translate(locale, 'noteList.createOutline')}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onCreateNote({ creationPath: 'note_list_plus', format: 'sheet' })}>
+          <DropdownMenuItem onSelect={() => handleCreateNote({ creationPath: 'note_list_plus', format: 'sheet' })}>
             <Table aria-hidden="true" />
             {translate(locale, 'noteList.createSheet')}
           </DropdownMenuItem>

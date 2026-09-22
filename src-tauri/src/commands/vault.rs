@@ -1,3 +1,4 @@
+mod attachment_cmds;
 mod boundary;
 mod file_cmds;
 mod frontmatter_cmds;
@@ -6,6 +7,7 @@ mod rename_cmds;
 mod scan_cmds;
 mod view_cmds;
 
+pub use attachment_cmds::*;
 pub(super) use boundary::VaultBoundary;
 pub use file_cmds::*;
 pub use frontmatter_cmds::*;
@@ -332,6 +334,31 @@ mod tests {
     fn test_get_default_vault_path_returns_ok() {
         let result = get_default_vault_path();
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_rename_attachment_command_validates_and_renames_inside_the_vault() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault_path = dir.path();
+        let attachments = vault_path.join("attachments");
+        std::fs::create_dir(&attachments).unwrap();
+        let source = attachments.join("draft.png");
+        std::fs::write(&source, b"image bytes").unwrap();
+
+        let result = rename_attachment(
+            vault_path.to_string_lossy().to_string(),
+            source.to_string_lossy().to_string(),
+            "final image.png".to_string(),
+        )
+        .expect("attachment command should accept a source inside the active vault");
+
+        assert_eq!(result.new_name, "final image.png");
+        assert_eq!(
+            std::path::Path::new(&result.new_path),
+            attachments.join("final image.png").canonicalize().unwrap()
+        );
+        assert!(attachments.join("final image.png").is_file());
+        assert!(!source.exists());
     }
 
     #[test]

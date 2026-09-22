@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { APP_COMMAND_EVENT_NAME, APP_COMMAND_IDS } from '../../hooks/appCommandDispatcher'
 import { trackEvent } from '../../lib/telemetry'
@@ -71,5 +71,37 @@ describe('NoteListHeader expand sidebar button', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Outline' }))
 
     expect(onCreateNote).toHaveBeenCalledWith({ creationPath: 'note_list_plus', format: 'outline' })
+  })
+
+  it('uses the latest create callback after focus-driven state updates settle', async () => {
+    vi.useFakeTimers()
+    const rawEditor = document.createElement('div')
+    try {
+      const staleCreate = vi.fn()
+      const latestCreate = vi.fn()
+      const { rerender } = renderHeader({ onCreateNote: staleCreate })
+      rawEditor.className = 'raw-editor-codemirror'
+      const rawInput = document.createElement('textarea')
+      rawEditor.append(rawInput)
+      document.body.append(rawEditor)
+      rawInput.focus()
+
+      const createButton = screen.getByRole('button', { name: 'Create new note' })
+      fireEvent.mouseDown(createButton)
+      fireEvent.pointerDown(createButton, {
+        button: 0,
+        ctrlKey: false,
+        pointerType: 'mouse',
+      })
+      rerender(<NoteListHeader {...baseProps} onCreateNote={latestCreate} />)
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Document' }))
+      await act(async () => vi.runAllTimersAsync())
+
+      expect(staleCreate).not.toHaveBeenCalled()
+      expect(latestCreate).toHaveBeenCalledWith({ creationPath: 'note_list_plus' })
+    } finally {
+      rawEditor.remove()
+      vi.useRealTimers()
+    }
   })
 })

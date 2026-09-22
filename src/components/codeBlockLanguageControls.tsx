@@ -7,6 +7,8 @@ import {
   type TolariaBlockNoteEditor,
 } from './tolariaBlockNoteDom'
 import { useCollapsedHeadingIds } from './tolariaCollapsedSections'
+import { useEditorImageRenameSync } from './editorImageRenameSync'
+import { useVaultExpressionContext } from './VaultExpressionContext'
 import {
   Select,
   SelectContent,
@@ -26,7 +28,7 @@ type CodeBlockLanguageTarget = {
   top: number
 }
 
-type LanguageSelectControl = Element & { value: string }
+type LanguageSelectControl = HTMLSelectElement
 
 const NATIVE_LANGUAGE_CONTROL_SELECTOR =
   '.bn-block-content[data-content-type="codeBlock"] > div > select'
@@ -85,6 +87,7 @@ function languageControlIsVisible(
 
   // JSDOM does not perform layout, so its connected fixture controls have an empty rect.
   if (rect.width === 0 && rect.height === 0) return true
+  if (![rect.top, rect.right, rect.bottom, rect.left].every(Number.isFinite)) return true
 
   let clipBottom = window.innerHeight
   let clipLeft = 0
@@ -146,6 +149,23 @@ function sameTargets(current: CodeBlockLanguageTarget[], next: CodeBlockLanguage
   })
 }
 
+function languageOverlayId(blockId: string): string {
+  return `tolaria-code-language-${blockId}`
+}
+
+function repositionCodeBlockLanguageOverlays(): void {
+  document.querySelectorAll<LanguageSelectControl>(NATIVE_LANGUAGE_CONTROL_SELECTOR)
+    .forEach((nativeControl) => {
+      const blockId = nativeControl.closest(BLOCK_CONTAINER_SELECTOR)?.getAttribute('data-id')
+      const overlay = blockId ? document.getElementById(languageOverlayId(blockId)) : null
+      if (!overlay) return
+      const rect = nativeControl.getBoundingClientRect()
+      overlay.style.left = `${rect.left}px`
+      overlay.style.minHeight = `${rect.height}px`
+      overlay.style.top = `${rect.top}px`
+    })
+}
+
 function nodeTouchesEditor(node: Node): boolean {
   if (node.nodeType !== ELEMENT_NODE) return false
   const element = node as Element
@@ -166,16 +186,30 @@ function useCodeBlockLanguageTargets(
 
   useEffect(() => {
     let refreshFrame: number | null = null
+    let repositionFrame: number | null = null
+    const refreshTargets = () => {
+      const nextTargets = codeBlockLanguageTargets(editor)
+      setTargets((current) => sameTargets(current, nextTargets) ? current : nextTargets)
+    }
     const refresh = () => {
       if (refreshFrame !== null) return
       refreshFrame = requestAnimationFrame(() => {
         refreshFrame = null
-        const nextTargets = codeBlockLanguageTargets(editor)
-        setTargets((current) => sameTargets(current, nextTargets) ? current : nextTargets)
+        refreshTargets()
+      })
+    }
+    const reposition = () => {
+      if (repositionFrame !== null) return
+      repositionFrame = requestAnimationFrame(() => {
+        repositionFrame = null
+        repositionCodeBlockLanguageOverlays()
       })
     }
     const observer = new MutationObserver((mutations) => {
-      if (mutations.some(mutationTouchesEditor)) refresh()
+      if (!mutations.some(mutationTouchesEditor)) return
+      if (refreshFrame !== null) cancelAnimationFrame(refreshFrame)
+      refreshFrame = null
+      refreshTargets()
     })
     observer.observe(document.body, {
       attributeFilter: ['class', 'contenteditable', 'style'],
@@ -185,15 +219,16 @@ function useCodeBlockLanguageTargets(
     })
     const unsubscribe = editor.onChange?.(refresh) ?? (() => {})
     window.addEventListener('resize', refresh)
-    document.addEventListener('scroll', refresh, true)
+    document.addEventListener('scroll', reposition, true)
     refresh()
 
     return () => {
       if (refreshFrame !== null) cancelAnimationFrame(refreshFrame)
+      if (repositionFrame !== null) cancelAnimationFrame(repositionFrame)
       observer.disconnect()
       unsubscribe()
       window.removeEventListener('resize', refresh)
-      document.removeEventListener('scroll', refresh, true)
+      document.removeEventListener('scroll', reposition, true)
     }
   }, [collapsedHeadingIds, editor])
 
@@ -249,13 +284,16 @@ function CodeBlockLanguagePicker({
 }
 
 export function CodeBlockLanguageControls({ editor }: { editor: CodeBlockLanguageEditor }) {
+  const { vaultPath } = useVaultExpressionContext()
   const collapsedHeadingIds = useCollapsedHeadingIds(
     editor as unknown as TolariaBlockNoteEditor,
   )
   const targets = useCodeBlockLanguageTargets(editor, collapsedHeadingIds)
+  useEditorImageRenameSync(editor, vaultPath)
 
   return targets.map((target) => createPortal(
     <div
+      id={languageOverlayId(target.blockId)}
       className="editor__code-block-language-overlay"
       data-code-block-id={target.blockId}
       style={{ left: target.left, minHeight: target.height, top: target.top }}

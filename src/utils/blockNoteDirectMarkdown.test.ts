@@ -7,13 +7,24 @@ import {
   serializeBlockNoteMarkdown,
   type DirectMarkdownCapableSerializer,
 } from './blockNoteDirectMarkdown'
-import { serializeRichEditorBodyToMarkdown } from './richEditorMarkdown'
+import {
+  injectRichEditorMarkdownBlocks,
+  preProcessRichEditorMarkdown,
+  serializeRichEditorBodyToMarkdown,
+} from './richEditorMarkdown'
 
 function makeEditor(document: unknown[]): DirectMarkdownCapableSerializer & { document: unknown[] } {
   return {
     document,
     blocksToMarkdownLossy: vi.fn(() => 'legacy markdown\n'),
   }
+}
+
+async function roundTripRichMarkdown(markdown: string): Promise<string> {
+  const editor = BlockNoteEditor.create({ schema })
+  const parsed = await editor.tryParseMarkdownToBlocks(preProcessRichEditorMarkdown(markdown))
+  const blocks = injectRichEditorMarkdownBlocks(parsed)
+  return blocksToMarkdownDirect(blocks).markdown
 }
 
 describe('BlockNote direct Markdown serialization', () => {
@@ -175,6 +186,50 @@ describe('BlockNote direct Markdown serialization', () => {
     expect(editor.__tolariaLastDirectMarkdownMetrics?.fallbackReason).toBe('unsupported:unsupportedWidget')
   })
 
+  it('normalizes unsafe table cardinalities before BlockNote fallback serialization', () => {
+    const document = [
+      { type: 'unsupportedWidget', children: [] },
+      {
+        type: 'table',
+        content: {
+          type: 'tableContent',
+          headerRows: Number.POSITIVE_INFINITY,
+          headerCols: -1,
+          rows: [{
+            cells: [{
+              type: 'tableCell',
+              props: { colspan: 1.5, rowspan: Number.POSITIVE_INFINITY },
+              content: [{ type: 'text', text: 'Safe', styles: {} }],
+            }],
+          }],
+        },
+        children: [],
+      },
+    ]
+    const editor = makeEditor(document)
+    installBlockNoteDirectMarkdown(editor)
+
+    expect(serializeBlockNoteMarkdown(editor, document)).toBe('legacy markdown\n')
+    expect(editor.blocksToMarkdownLossy).toHaveBeenCalledWith([
+      document[0],
+      {
+        ...document[1],
+        content: {
+          ...document[1].content,
+          headerRows: 0,
+          headerCols: 0,
+          rows: [{
+            cells: [{
+              type: 'tableCell',
+              props: { colspan: 1, rowspan: 1 },
+              content: [{ type: 'text', text: 'Safe', styles: {} }],
+            }],
+          }],
+        },
+      },
+    ])
+  })
+
   it('keeps plain hash references and punctuation literal while escaping formatting syntax', () => {
     const blocks = [
       {
@@ -200,6 +255,24 @@ describe('BlockNote direct Markdown serialization', () => {
       '| A\\|B |',
       '| --- |',
     ].join('\n'))
+  })
+
+  it('keeps table-cell aliased wikilinks stable and repairs accumulated alias escapes', async () => {
+    const stableMarkdown = [
+      '| Link | Literal | Plain |',
+      '| --- | --- | --- |',
+      '| [[project/alpha|Project Alpha]] | A\\|B | [[project/beta]] |',
+    ].join('\n')
+    let markdown = stableMarkdown
+
+    for (let cycle = 0; cycle < 3; cycle++) {
+      markdown = await roundTripRichMarkdown(markdown)
+      expect(markdown).toBe('| Link | Literal | Plain |\n| --- | --- | --- |\n| [[project/alpha|Project Alpha]] | A\\|B | [[project/beta]] |')
+    }
+
+    await expect(roundTripRichMarkdown(
+      '| Link |\n| --- |\n| [[project/alpha\\\\\\|Project Alpha]] |',
+    )).resolves.toBe('| Link |\n| --- |\n| [[project/alpha|Project Alpha]] |')
   })
 
   it('does not escape hash references inside saved heading titles', () => {

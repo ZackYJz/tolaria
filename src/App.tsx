@@ -145,6 +145,7 @@ import { useAppAiWorkspaceBridge } from './hooks/useAppAiWorkspaceBridge'
 import { useAiWorkspaceWindowBridgeEvents } from './hooks/useAiWorkspaceWindowBridgeEvents'
 import { useMcpSetupDialogController } from './hooks/useMcpSetupDialogController'
 import { shouldReplaceSyncedTabEntry } from './utils/tabEntrySync'
+import { persistEditorStateBeforeMutation } from './utils/editorMutationFlush'
 import {
   activeVaultModifiedFiles,
   aiWorkspaceWindowContextForPath,
@@ -518,11 +519,21 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const flushPendingEditorContentRef = useRef<((path: string) => void) | null>(null)
   const flushPendingRawContentRef = useRef<((path: string) => void) | null>(null)
   const appSaveFlushBeforeActionRef = useRef<((path: string) => Promise<unknown>) | null>(null)
+  const appSavePendingForPathRef = useRef<((path: string) => Promise<unknown>) | null>(null)
   const flushEditorStateBeforeAction = useCallback(async (path: string) => {
     flushPendingEditorContentRef.current?.(path)
     flushPendingRawContentRef.current?.(path)
     await appSaveFlushBeforeActionRef.current?.(path)
   }, [])
+  const flushEditorStateBeforeMutation = useCallback(
+    (path: string) => persistEditorStateBeforeMutation({
+      path,
+      flushPendingEditorContent: flushPendingEditorContentRef.current,
+      flushPendingRawContent: flushPendingRawContentRef.current,
+      savePendingForPath: appSavePendingForPathRef.current,
+    }),
+    [],
+  )
   const handleCreatedVaultEntryPersisting = useCallback((path: string) => {
     markRecentVaultWrite(path)
     vault.addPendingSave(path)
@@ -540,7 +551,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     removeEntry: vault.removeEntry,
     entries: visibleEntries,
     flushBeforeNoteSwitch: flushEditorStateBeforeAction,
-    flushBeforeNoteMutation: flushEditorStateBeforeAction,
+    flushBeforeNoteMutation: flushEditorStateBeforeMutation,
     reloadVault: vault.reloadVault,
     setToastMessage,
     updateEntry: vault.updateEntry,
@@ -568,6 +579,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
     handleReplaceActiveTab,
     closeAllTabs,
     openTabWithContent,
+    setTabs: setNoteTabs,
   } = notes
   const journalWorkspacePath = multiWorkspaceEnabled ? defaultWorkspacePath : resolvedPath
   const handleOpenJournalDate = useCallback(async (date: Date, source: JournalOpenSource) => {
@@ -750,7 +762,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   // Keep note entry in sync with vault entries so banners (trash/archive)
   // and read-only state react immediately without reopening the note.
   useEffect(() => {
-    notes.setTabs(prev => {
+    setNoteTabs(prev => {
       let changed = false
       const next = prev.map(tab => {
         const fresh = visibleEntries.find(e => e.path === tab.entry.path)
@@ -762,7 +774,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
       })
       return changed ? next : prev
     })
-  }, [visibleEntries, notes.setTabs]) // eslint-disable-line react-hooks/exhaustive-deps -- notes.setTabs is stable (useState setter)
+  }, [visibleEntries, setNoteTabs])
 
   const { handleGoBack, handleGoForward, canGoBack, canGoForward, entriesByPath } = useAppNavigation({
     entries: visibleEntries,
@@ -831,7 +843,8 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   })
   useEffect(() => {
     appSaveFlushBeforeActionRef.current = appSave.flushBeforeAction
-  }, [appSave.flushBeforeAction])
+    appSavePendingForPathRef.current = appSave.savePendingForPath
+  }, [appSave.flushBeforeAction, appSave.savePendingForPath])
 
   const handleChangeWorkspace = useCallback(async (entry: VaultEntry, workspace: WorkspaceIdentity) => {
     const sourceVaultPath = vaultPathForEntry(entry, resolvedPath)
@@ -1718,23 +1731,32 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
   const handleAiWorkspaceConversationsChange = useCallback((conversations: AiWorkspaceConversationSetting[]) => {
     void saveSettings({ ...settings, ai_workspace_conversations: conversations })
   }, [saveSettings, settings])
+  const aiWorkspaceModelProviders = settings.ai_model_providers ?? []
+  const aiWorkspaceConversationSettings = settings.ai_workspace_conversations ?? null
+  const aiWorkspaceInitialConversationId = lastAiWorkspaceConversationId ?? undefined
+  const aiWorkspaceActiveEntry = activeTab?.entry ?? null
+  const aiWorkspaceActiveNoteContent = activeTab?.content ?? null
+  const aiWorkspaceOpenTabs = notes.tabs.map((tab) => tab.entry)
+  const handleRestoreVaultAiGuidance = aiFeaturesEnabled
+    ? () => { void restoreVaultAiGuidance() }
+    : undefined
   const aiWorkspaceSurface = (
     <AppAiWorkspaceSurface
       mode="side"
       open={effectiveShowAIChat}
       aiAgentsStatus={aiAgentsStatus}
-      aiModelProviders={settings.ai_model_providers ?? []}
-      conversationSettings={settings.ai_workspace_conversations ?? null}
+      aiModelProviders={aiWorkspaceModelProviders}
+      conversationSettings={aiWorkspaceConversationSettings}
       conversationSettingsReady={settingsLoaded}
       defaultAiAgent={aiAgentPreferences.defaultAiAgent}
       defaultAiTarget={aiAgentPreferences.defaultAiTarget}
       defaultAiAgentReadiness={aiAgentPreferences.defaultAiAgentReadiness}
       defaultAiAgentReady={aiAgentPreferences.defaultAiAgentReady}
-      initialActiveConversationId={lastAiWorkspaceConversationId ?? undefined}
-      activeEntry={activeTab?.entry ?? null}
-      activeNoteContent={activeTab?.content ?? null}
+      initialActiveConversationId={aiWorkspaceInitialConversationId}
+      activeEntry={aiWorkspaceActiveEntry}
+      activeNoteContent={aiWorkspaceActiveNoteContent}
       entries={visibleEntries}
-      openTabs={notes.tabs.map((tab) => tab.entry)}
+      openTabs={aiWorkspaceOpenTabs}
       noteList={aiNoteList}
       noteListFilter={aiNoteListFilter}
       onActiveConversationChange={handleActiveAiWorkspaceConversationChange}
@@ -1743,7 +1765,7 @@ function MainApp({ noteWindowParams }: { noteWindowParams: NoteWindowParams | nu
       onConversationSettingsChange={handleAiWorkspaceConversationsChange}
       onOpenAiSettings={handleOpenAiSettings}
       onOpenNote={notes.handleNavigateWikilink}
-      onRestoreVaultAiGuidance={aiFeaturesEnabled ? () => { void restoreVaultAiGuidance() } : undefined}
+      onRestoreVaultAiGuidance={handleRestoreVaultAiGuidance}
       onUnsupportedAiPaste={setToastMessage}
       onFileCreated={vaultBridge.handleAgentFileCreated}
       onFileModified={vaultBridge.handleAgentFileModified}

@@ -1,6 +1,7 @@
 import { restoreWikilinksInBlocks } from './wikilinks'
 import { escapeInlineMarkdownText, wrapInlineMarkdown } from './blockNoteMarkdownInline'
 import { formatToggleDetailsMarkdown, TOGGLE_BLOCK_TYPE } from './toggleMarkdown'
+import { normalizeUnsafeTableCardinalities } from './blockNoteTableCardinality'
 
 interface TextStyles {
   [style: string]: string | boolean | undefined
@@ -302,11 +303,31 @@ function quoteMarkdown(block: BlockLike): string {
   return text.split('\n').map(line => `> ${line}`).join('\n')
 }
 
+function escapeTableCellMarkdown(markdown: string): string {
+  return markdown.replace(ESCAPE_TABLE_CELL_RE, character => character === '|' ? '\\|' : ' ')
+}
+
+function tableWikilinkMarkdown(item: InlineItem): string {
+  const target = item.props?.target
+  if (!target) return ''
+
+  const aliasSeparator = target.indexOf('|')
+  if (aliasSeparator < 0) return `[[${target}]]`
+
+  let targetEnd = aliasSeparator
+  while (target.charAt(targetEnd - 1) === '\\') targetEnd -= 1
+  return `[[${target.slice(0, targetEnd)}${target.slice(aliasSeparator)}]]`
+}
+
+function tableInlineItemMarkdown(item: InlineItem): string {
+  return item.type === 'wikilink'
+    ? tableWikilinkMarkdown(item)
+    : escapeTableCellMarkdown(serializeInlineItem(item))
+}
+
 function tableCellMarkdown(cell: TableCellValue): string {
-  const text = typeof cell === 'string'
-    ? cell
-    : serializeInlineContent(contentArray(cell.content))
-  return text.replace(ESCAPE_TABLE_CELL_RE, character => character === '|' ? '\\|' : ' ')
+  if (typeof cell === 'string') return escapeTableCellMarkdown(cell)
+  return contentArray(cell.content).map(tableInlineItemMarkdown).join('')
 }
 
 function tableMarkdown(block: BlockLike): string | null {
@@ -550,5 +571,6 @@ export function serializeBlockNoteMarkdown(
 ): string {
   const direct = editor.blocksToMarkdownDirect?.(blocks)
   if (direct?.supported) return direct.markdown
-  return editor.blocksToMarkdownLossy(restoreWikilinksInBlocks(blocks))
+  const safeBlocks = normalizeUnsafeTableCardinalities(blocks)
+  return editor.blocksToMarkdownLossy(restoreWikilinksInBlocks(safeBlocks))
 }

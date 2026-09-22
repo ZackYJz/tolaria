@@ -16,7 +16,7 @@ import {
   resolveAiTarget,
   type AiModelProvider,
 } from '../lib/aiTargets'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { GitProviderId, Settings } from '../types'
 import {
   APP_LOCALES,
@@ -316,12 +316,14 @@ function applyThemeModeSelection(value: ThemeMode): void {
 
 export function SettingsPanel(options: SettingsPanelProps) {
   const { open, settings, aiAgentsStatus = createMissingAiAgentsStatus(), initialSectionId = null, locale = 'en', systemLocale = locale, onSave, onCopyMcpConfig, vaults = [], defaultWorkspacePath = null, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, isGitVault = true, vaultPath = '', explicitOrganizationEnabled = true, onSaveExplicitOrganization, onClose } = options
+  const initialDraft = useMemo(
+    () => createSettingsDraft(settings, explicitOrganizationEnabled),
+    [explicitOrganizationEnabled, settings],
+  )
   if (!open) return null
-  const initialDraft = createSettingsDraft(settings, explicitOrganizationEnabled)
 
   return (
     <SettingsPanelInner
-      key={JSON.stringify({ ...initialDraft, themePalette: undefined })}
       settings={settings}
       aiAgentsStatus={aiAgentsStatus}
       initialDraft={initialDraft}
@@ -361,9 +363,27 @@ type SettingsPanelInnerProps = Omit<
   explicitOrganizationEnabled: boolean
 }
 
+function mergeSettingsDraft(
+  current: SettingsDraft,
+  previousSource: SettingsDraft,
+  nextSource: SettingsDraft,
+): SettingsDraft {
+  return (Object.keys(current) as Array<keyof SettingsDraft>).reduce(
+    (nextDraft, key) => current[key] === previousSource[key]
+      ? nextDraft
+      : { ...nextDraft, [key]: current[key] },
+    { ...nextSource },
+  )
+}
+
 function useSettingsDraftActions(options: Pick<SettingsPanelInnerProps, 'initialDraft' | 'onClose' | 'onSave' | 'onSaveExplicitOrganization' | 'settings'>) {
   const { initialDraft, onClose, onSave, onSaveExplicitOrganization, settings } = options
   const [draft, setDraft] = useState(initialDraft)
+  const [draftSource, setDraftSource] = useState(initialDraft)
+  if (draftSource !== initialDraft) {
+    setDraftSource(initialDraft)
+    setDraft((current) => mergeSettingsDraft(current, draftSource, initialDraft))
+  }
   const updateDraft = useCallback(<Key extends keyof SettingsDraft>(key: Key, value: SettingsDraft[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }))
   }, [])
@@ -445,6 +465,45 @@ function SettingsPanelInner(options: SettingsPanelInnerProps) {
   useSettingsPanelInteractions({ backdropRef, handleSave, initialSectionId, onClose, panelRef })
 
   return (
+    <SettingsPanelFrame {...{ backdropRef, handleSave, onClose, panelRef, t }}>
+      <SettingsBodyFromDraft
+        t={t}
+        draft={draft}
+        locale={draftLocale}
+        systemLocale={systemLocale}
+        updateDraft={updateDraft}
+        isGitVault={isGitVault}
+        vaultPath={vaultPath}
+        aiAgentsStatus={aiAgentsStatus}
+        onCopyMcpConfig={onCopyMcpConfig}
+        vaults={vaults ?? []}
+        defaultWorkspacePath={defaultWorkspacePath}
+        {...{
+          onRemoveVault,
+          onReorderVaults,
+          onSetDefaultWorkspace,
+          onUpdateWorkspaceIdentity,
+        }}
+        setThemeMode={handleThemeModeChange}
+        setThemePalette={handleThemePaletteChange}
+        setHideGitignoredFiles={handleGitignoredVisibilityChange}
+        setAllNotesFileVisibility={handleAllNotesFileVisibilityChange}
+      />
+    </SettingsPanelFrame>
+  )
+}
+
+interface SettingsPanelFrameProps {
+  backdropRef: React.RefObject<HTMLDivElement | null>
+  children: ReactNode
+  handleSave: () => void
+  onClose: () => void
+  panelRef: React.RefObject<HTMLDivElement | null>
+  t: Translate
+}
+
+function SettingsPanelFrame({ backdropRef, children, handleSave, onClose, panelRef, t }: SettingsPanelFrameProps) {
+  return (
     <div
       ref={backdropRef}
       className="fixed inset-0 z-[1300] flex items-center justify-center"
@@ -463,29 +522,7 @@ function SettingsPanelInner(options: SettingsPanelInnerProps) {
         }}
       >
         <SettingsHeader onClose={onClose} t={t} />
-        <SettingsBodyFromDraft
-          t={t}
-          draft={draft}
-          locale={draftLocale}
-          systemLocale={systemLocale}
-          updateDraft={updateDraft}
-          isGitVault={isGitVault}
-          vaultPath={vaultPath}
-          aiAgentsStatus={aiAgentsStatus}
-          onCopyMcpConfig={onCopyMcpConfig}
-          vaults={vaults ?? []}
-          defaultWorkspacePath={defaultWorkspacePath}
-          {...{
-            onRemoveVault,
-            onReorderVaults,
-            onSetDefaultWorkspace,
-            onUpdateWorkspaceIdentity,
-          }}
-          setThemeMode={handleThemeModeChange}
-          setThemePalette={handleThemePaletteChange}
-          setHideGitignoredFiles={handleGitignoredVisibilityChange}
-          setAllNotesFileVisibility={handleAllNotesFileVisibilityChange}
-        />
+        {children}
         <SettingsFooter onClose={onClose} onSave={handleSave} t={t} />
       </div>
     </div>
@@ -632,7 +669,7 @@ function SettingsBody(props: SettingsBodyProps) {
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <SettingsBodyNav t={props.t} />
-      <div className="min-w-0 flex-1 overflow-auto px-6 py-4">
+      <div className="min-w-0 flex-1 overflow-auto px-6 py-4" data-testid="settings-scroll-area">
         <SettingsSyncAndAppearanceSections {...props} />
         <SettingsContentSections {...props} />
         <SettingsAgentWorkflowSections {...props} />
@@ -642,19 +679,11 @@ function SettingsBody(props: SettingsBodyProps) {
 }
 
 function SettingsSyncAndAppearanceSections(options: SettingsBodyProps) {
-  const { t, locale, systemLocale, pullInterval, setPullInterval, gitFeaturesEnabled, setGitFeaturesEnabled, gitProvider, setGitProvider, gitWslDistro, setGitWslDistro, isGitVault, vaultPath, autoGitEnabled, setAutoGitEnabled, autoGitAiCommitMessagesEnabled, setAutoGitAiCommitMessagesEnabled, autoGitIdleThresholdSeconds, setAutoGitIdleThresholdSeconds, autoGitInactiveThresholdSeconds, setAutoGitInactiveThresholdSeconds, releaseChannel, setReleaseChannel, automaticUpdateChecksEnabled, setAutomaticUpdateChecksEnabled, multiWorkspaceEnabled, setMultiWorkspaceEnabled, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, themeMode, setThemeMode, uiLanguage, setUiLanguage } = options
+  const { t, locale, systemLocale, multiWorkspaceEnabled, setMultiWorkspaceEnabled, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, themeMode, setThemeMode, uiLanguage, setUiLanguage } = options
   return (
     <>
       <SettingsSection id={SETTINGS_SECTION_IDS.sync} showDivider={false}>
-        <SyncAndUpdatesSection
-          t={t}
-          pullInterval={pullInterval}
-          setPullInterval={setPullInterval}
-          releaseChannel={releaseChannel}
-          setReleaseChannel={setReleaseChannel}
-          automaticUpdateChecksEnabled={automaticUpdateChecksEnabled}
-          setAutomaticUpdateChecksEnabled={setAutomaticUpdateChecksEnabled}
-        />
+        <SyncAndUpdatesSection {...options} />
       </SettingsSection>
       <SettingsSection id={SETTINGS_SECTION_IDS.workspaces}>
         <SectionHeading icon={<Cube size={16} aria-hidden="true" />} title={t('settings.workspaces.title')} />
@@ -673,25 +702,7 @@ function SettingsSyncAndAppearanceSections(options: SettingsBodyProps) {
         />
       </SettingsSection>
       <SettingsSection id={SETTINGS_SECTION_IDS.autogit}>
-        <GitSettingsSection
-          t={t}
-          gitFeaturesEnabled={gitFeaturesEnabled}
-          setGitFeaturesEnabled={setGitFeaturesEnabled}
-          gitProvider={gitProvider}
-          setGitProvider={setGitProvider}
-          gitWslDistro={gitWslDistro}
-          setGitWslDistro={setGitWslDistro}
-          isGitVault={isGitVault}
-          vaultPath={vaultPath}
-          autoGitEnabled={autoGitEnabled}
-          setAutoGitEnabled={setAutoGitEnabled}
-          autoGitAiCommitMessagesEnabled={autoGitAiCommitMessagesEnabled}
-          setAutoGitAiCommitMessagesEnabled={setAutoGitAiCommitMessagesEnabled}
-          autoGitIdleThresholdSeconds={autoGitIdleThresholdSeconds}
-          setAutoGitIdleThresholdSeconds={setAutoGitIdleThresholdSeconds}
-          autoGitInactiveThresholdSeconds={autoGitInactiveThresholdSeconds}
-          setAutoGitInactiveThresholdSeconds={setAutoGitInactiveThresholdSeconds}
-        />
+        <GitSettingsSection {...options} />
       </SettingsSection>
 
       <SettingsSection id={SETTINGS_SECTION_IDS.appearance}>
@@ -786,15 +797,7 @@ function SettingsAgentWorkflowSections(options: SettingsBodyProps) {
   )
 }
 
-function SyncAndUpdatesSection({
-  t,
-  pullInterval,
-  setPullInterval,
-  releaseChannel,
-  setReleaseChannel,
-  automaticUpdateChecksEnabled,
-  setAutomaticUpdateChecksEnabled,
-}: Pick<
+type SyncAndUpdatesSectionProps = Pick<
   SettingsBodyProps,
   | 't'
   | 'pullInterval'
@@ -803,7 +806,9 @@ function SyncAndUpdatesSection({
   | 'setReleaseChannel'
   | 'automaticUpdateChecksEnabled'
   | 'setAutomaticUpdateChecksEnabled'
->) {
+>
+
+function SyncAndUpdatesSection({ t, pullInterval, setPullInterval, releaseChannel, setReleaseChannel, automaticUpdateChecksEnabled, setAutomaticUpdateChecksEnabled }: SyncAndUpdatesSectionProps) {
   return (
     <>
       <SectionHeading title={t('settings.sync.title')} />
