@@ -16,6 +16,16 @@ pub use rename_cmds::*;
 pub use scan_cmds::*;
 pub use view_cmds::*;
 
+/// Synchronous Tauri commands run on the main thread, so path validation and
+/// note IO there freeze the UI whenever the disk, OneDrive or antivirus is slow.
+async fn off_main_thread<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| format!("Task panicked: {error}"))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,6 +138,16 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn off_main_thread_runs_work_on_a_blocking_pool_thread() {
+        let caller = std::thread::current().id();
+
+        let worker = off_main_thread(|| Ok(std::thread::current().id()))
+            .await
+            .unwrap();
+
+        assert_ne!(worker, caller);
+    }
     #[test]
     fn test_batch_archive_notes() {
         let (dir, note) = temp_note("---\nStatus: Active\n---\n# Note\n");
@@ -144,29 +164,33 @@ mod tests {
         assert!(content.contains("Status: Active"));
     }
 
-    #[test]
-    fn test_reload_vault_entry_reads_from_disk() {
+    #[tokio::test]
+    async fn test_reload_vault_entry_reads_from_disk() {
         let dir = tempfile::TempDir::new().unwrap();
         let note = dir.path().join("test.md");
         std::fs::write(&note, "---\ntitle: Test\nStatus: Active\n---\n# Test\n").unwrap();
 
-        let entry = reload_vault_entry(note.clone(), vault_path_arg(dir.path())).unwrap();
+        let entry = reload_vault_entry(note.clone(), vault_path_arg(dir.path()))
+            .await
+            .unwrap();
         assert_eq!(entry.title, "Test");
         assert_eq!(entry.status, Some("Active".to_string()));
 
         std::fs::write(&note, "---\ntitle: Test\nStatus: Done\n---\n# Test\n").unwrap();
-        let fresh = reload_vault_entry(note, vault_path_arg(dir.path())).unwrap();
+        let fresh = reload_vault_entry(note, vault_path_arg(dir.path()))
+            .await
+            .unwrap();
         assert_eq!(fresh.status, Some("Done".to_string()));
     }
 
-    #[test]
-    fn test_reload_vault_entry_nonexistent() {
-        let result = reload_vault_entry("/nonexistent/path.md".into(), None);
+    #[tokio::test]
+    async fn test_reload_vault_entry_nonexistent() {
+        let result = reload_vault_entry("/nonexistent/path.md".into(), None).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_get_note_content_rejects_path_outside_active_vault() {
+    #[tokio::test]
+    async fn test_get_note_content_rejects_path_outside_active_vault() {
         let dir = tempfile::TempDir::new().unwrap();
         let vault_path = dir.path();
         let inside = vault_path.join("inside.md");
@@ -177,6 +201,7 @@ mod tests {
         std::fs::write(&outside, "# Outside\n").unwrap();
 
         let err = get_note_content(outside, vault_path_arg(vault_path))
+            .await
             .expect_err("expected out-of-vault read to be rejected");
 
         assert_eq!(err, ACTIVE_VAULT_PATH_ERROR);
@@ -201,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_create_note_content_rejects_traversal_outside_active_vault() {
-        assert_note_write_rejects_escape(create_note_content);
+        assert_note_write_rejects_escape(create_note_content_blocking);
     }
 
     #[test]

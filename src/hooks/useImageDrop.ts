@@ -5,13 +5,12 @@ import type { DragDropEvent as TauriDragDropPayload } from '@tauri-apps/api/webv
 import { isTauri } from '../mock-tauri'
 import { cleanupTauriEventListeners } from '../utils/tauriEventCleanup'
 import { attachmentAssetUrlFromPath } from '../utils/vaultAttachments'
+import { createImageDropClaim } from '../utils/imageDropClaim'
 
 const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff']
 const UNSUPPORTED_HEIC_EXTENSIONS = ['heic', 'heif']
 const UNSUPPORTED_HEIC_MIME_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence']
-const TAURI_DRAG_DROP_EVENT = 'tauri://drag-drop'
-const TAURI_DRAG_LEAVE_EVENT = 'tauri://drag-leave'
 
 type ImageUrlHandler = (url: string) => void
 type UnsupportedImageImportError = {
@@ -44,6 +43,7 @@ type HtmlDroppedImagesRequest = {
   vaultPath: string | undefined
 }
 type NativeDropEventRequest = {
+  dropClaim: ReturnType<typeof createImageDropClaim>
   event: TauriDropEvent
   onImageImportError: ImageImportErrorHandler | undefined
   onImageUrl: ImageUrlHandler | undefined
@@ -268,6 +268,7 @@ function insertDroppedImages({
 }
 
 function handleNativeDropEvent({
+  dropClaim,
   event,
   onImageImportError,
   onImageUrl,
@@ -281,14 +282,17 @@ function handleNativeDropEvent({
   const { payload } = event
   if (payload.type === 'drop') {
     setIsDragOver(false)
+    const imagePaths = payload.paths.filter(path => isImagePath(path) || isUnsupportedHeicPath(path))
+    if (!dropClaim.claim({ channel: 'native', filenames: imagePaths.map(filenameFromPath) })) return
     insertDroppedImages({
-      imagePaths: payload.paths,
+      imagePaths,
       onImageImportError,
       vaultPath,
       onImageUrl,
     })
     return
   }
+  if (payload.type === 'enter') dropClaim.reset()
   setIsDragOver(false)
 }
 
@@ -296,17 +300,7 @@ async function registerNativeDropListeners(
   handler: (event: TauriDropEvent) => void,
 ): Promise<UnlistenFn[]> {
   const { getCurrentWebview } = await import('@tauri-apps/api/webview')
-  const webview = getCurrentWebview()
-  const unlisteners: UnlistenFn[] = []
-
-  try {
-    unlisteners.push(await webview.listen<TauriDragDropPayload>(TAURI_DRAG_DROP_EVENT, handler))
-    unlisteners.push(await webview.listen<TauriDragDropPayload>(TAURI_DRAG_LEAVE_EVENT, handler))
-    return unlisteners
-  } catch (error) {
-    cleanupTauriEventListeners(unlisteners)
-    throw error
-  }
+  return [await getCurrentWebview().onDragDropEvent(handler)]
 }
 
 interface UseImageDropOptions {
@@ -319,6 +313,7 @@ interface UseImageDropOptions {
 }
 
 export function useImageDrop({ containerRef, onImageImportError, onImageUrl, vaultPath }: UseImageDropOptions) {
+  const dropClaimRef = useRef(createImageDropClaim())
   const [isDragOver, setIsDragOver] = useState(false)
   const onImageImportErrorRef = useRef(onImageImportError)
   useEffect(() => { onImageImportErrorRef.current = onImageImportError }, [onImageImportError])
@@ -331,6 +326,10 @@ export function useImageDrop({ containerRef, onImageImportError, onImageUrl, vau
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    const handleDragEnter = (event: DragEvent) => {
+      if (!container.contains(event.relatedTarget as Node)) dropClaimRef.current.reset()
+    }
 
     const handleDragOver = (e: DragEvent) => {
       if (!e.dataTransfer || !hasImageFiles(e.dataTransfer)) return
@@ -354,6 +353,7 @@ export function useImageDrop({ containerRef, onImageImportError, onImageUrl, vau
 
       event.preventDefault()
       event.stopImmediatePropagation()
+      if (!dropClaimRef.current.claim({ channel: 'dom', filenames: files.map(file => file.name) })) return
       insertHtmlDroppedImages({
         files,
         onImageImportError: onImageImportErrorRef.current,
@@ -362,11 +362,13 @@ export function useImageDrop({ containerRef, onImageImportError, onImageUrl, vau
       })
     }
 
+    container.addEventListener('dragenter', handleDragEnter)
     container.addEventListener('dragover', handleDragOver)
     container.addEventListener('dragleave', handleDragLeave)
     container.addEventListener('drop', handleDrop, true)
 
     return () => {
+      container.removeEventListener('dragenter', handleDragEnter)
       container.removeEventListener('dragover', handleDragOver)
       container.removeEventListener('dragleave', handleDragLeave)
       container.removeEventListener('drop', handleDrop, true)
@@ -383,7 +385,9 @@ export function useImageDrop({ containerRef, onImageImportError, onImageUrl, vau
     void (async () => {
       try {
         const nextUnlisteners = await registerNativeDropListeners((event) => {
+          if (!mounted) return
           handleNativeDropEvent({
+            dropClaim: dropClaimRef.current,
             event,
             onImageImportError: onImageImportErrorRef.current,
             onImageUrl: onImageUrlRef.current,

@@ -3,6 +3,9 @@ set -euo pipefail
 
 total_shards="${1:-${PLAYWRIGHT_SHARDS:-8}}"
 concurrency="${PLAYWRIGHT_CONCURRENCY:-$total_shards}"
+# Optional sub-range, so CI can split the shards across containers.
+first_shard="${PLAYWRIGHT_FIRST_SHARD:-1}"
+last_shard="${PLAYWRIGHT_LAST_SHARD:-$total_shards}"
 log_dir="${TMPDIR:-/tmp}/tolaria-playwright-shards-$$"
 batch_pids=()
 shared_server="${PLAYWRIGHT_SHARED_SERVER:-1}"
@@ -21,6 +24,12 @@ if [[ ! "$concurrency" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 
+if [[ ! "$first_shard" =~ ^[1-9][0-9]*$ || ! "$last_shard" =~ ^[1-9][0-9]*$ ]] ||
+  (( first_shard > last_shard || last_shard > total_shards )); then
+  printf 'PLAYWRIGHT_FIRST_SHARD/PLAYWRIGHT_LAST_SHARD must satisfy 1 <= first <= last <= %s\n' "$total_shards" >&2
+  exit 2
+fi
+
 mkdir -p "$log_dir"
 
 stop_shared_server() {
@@ -28,9 +37,11 @@ stop_shared_server() {
     return
   fi
 
-  kill -TERM "$server_pid" 2>/dev/null || true
+  # The server runs in its own process group so pnpm and the Vite grandchild stop with it;
+  # killing only the node wrapper used to leave an orphaned Vite holding the port.
+  kill -TERM -- "-${server_pid}" 2>/dev/null || kill -TERM "$server_pid" 2>/dev/null || true
   sleep 2
-  kill -KILL "$server_pid" 2>/dev/null || true
+  kill -KILL -- "-${server_pid}" 2>/dev/null || kill -KILL "$server_pid" 2>/dev/null || true
   server_pid=""
 }
 
@@ -73,6 +84,51 @@ wait_for_shared_server() {
 
     sleep 1
   done
+
+  if [[ -n "$server_pid" ]] && ! kill -0 "$server_pid" 2>/dev/null; then
+    printf '[chunk-playwright] shared server exited; %s is served by another process\n' "$base_url" >&2
+    sed 's/^/[shared-server] /' "${log_dir}/shared-server.log" >&2 || true
+    return 1
+  fi
+}
+
+refuse_occupied_server_port() {
+  if ! curl -fsS --max-time 5 "$base_url" >/dev/null 2>&1; then
+    return
+  fi
+
+  # Never reuse a server we did not start: it serves a stale tree, and starting Vite against the
+  # shared cache dir would wipe the optimized deps that the stale server is still serving.
+  printf '[chunk-playwright] %s already answers before the shared server started.\n' "$base_url" >&2
+  printf '[chunk-playwright] Stop the stale server on port %s and rerun.\n' "$server_port" >&2
+  return 1
+}
+
+warm_shared_server() {
+  if [[ "${PLAYWRIGHT_WARM_SERVER:-0}" != "1" ]]; then
+    return
+  fi
+
+  # A cold Vite server compiles the whole module graph during the first shards' tests, which
+  # can push timing-sensitive smoke tests past their timeouts. Load the app once first.
+  local started="$SECONDS"
+  printf '[chunk-playwright] warming shared server at %s\n' "$base_url"
+  if ! timeout 150 node -e '
+    const { chromium } = require("@playwright/test")
+    const warm = async () => {
+      const browser = await chromium.launch()
+      const page = await browser.newPage()
+      await page.goto(process.argv[1], { waitUntil: "networkidle", timeout: 120000 })
+      await browser.close()
+    }
+    warm().catch((error) => {
+      console.error(error.message)
+      process.exit(1)
+    })
+  ' "$base_url"; then
+    printf '[chunk-playwright] warm-up failed; continuing with a cold server\n' >&2
+  fi
+  printf '[chunk-playwright] warm-up took %ss\n' "$((SECONDS - started))"
 }
 
 start_shared_server() {
@@ -80,11 +136,19 @@ start_shared_server() {
     return
   fi
 
+  refuse_occupied_server_port
+
+  local session_cmd=()
+  if command -v setsid >/dev/null 2>&1; then
+    session_cmd=(setsid)
+  fi
+
   printf '[chunk-playwright] starting shared server at %s\n' "$base_url"
   TOLARIA_VITE_CACHE_DIR="${TOLARIA_VITE_CACHE_DIR:-${TMPDIR:-/tmp}/tolaria-vite-smoke-shared}" \
-    node scripts/playwright-smoke-server.mjs "$server_port" >"${log_dir}/shared-server.log" 2>&1 &
+    "${session_cmd[@]}" node scripts/playwright-smoke-server.mjs "$server_port" >"${log_dir}/shared-server.log" 2>&1 &
   server_pid="$!"
   wait_for_shared_server
+  warm_shared_server
 }
 
 run_batch() {
@@ -95,7 +159,7 @@ run_batch() {
 
   batch_pids=()
 
-  while [[ "$shard" -le "$total_shards" && "${#batch_pids[@]}" -lt "$concurrency" ]]; do
+  while [[ "$shard" -le "$last_shard" && "${#batch_pids[@]}" -lt "$concurrency" ]]; do
     local name="smoke-${shard}-${total_shards}"
     local log_file="${log_dir}/${name}.log"
 
@@ -130,12 +194,12 @@ run_batch() {
   return "$failures"
 }
 
-next_shard=1
+next_shard="$first_shard"
 failed=0
 
 start_shared_server
 
-while [[ "$next_shard" -le "$total_shards" ]]; do
+while [[ "$next_shard" -le "$last_shard" ]]; do
   if ! run_batch "$next_shard"; then
     failed=1
   fi

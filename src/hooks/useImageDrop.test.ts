@@ -22,12 +22,14 @@ let nativeDropUnlisten = () => {
   capturedDragDropHandler = undefined
 }
 
+const nativeSubscription = vi.fn((cb: DragDropCallback) => {
+  capturedDragDropHandler = cb
+  return Promise.resolve(nativeDropUnlisten)
+})
+
 vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({
-    listen: vi.fn((_eventName: string, cb: DragDropCallback) => {
-      capturedDragDropHandler = cb
-      return Promise.resolve(nativeDropUnlisten)
-    }),
+    onDragDropEvent: nativeSubscription,
   }),
 }))
 
@@ -313,10 +315,12 @@ describe('useImageDrop — Tauri native drag-drop', () => {
   }
 
   it('registers the native window drag/drop listener', async () => {
+    nativeSubscription.mockClear()
     const { result } = renderImageDropTauri()
 
     await waitForNativeDropListeners()
 
+    expect(nativeSubscription).toHaveBeenCalledOnce()
     expect(result.current.isDragOver).toBe(false)
   })
 
@@ -413,6 +417,32 @@ describe('useImageDrop — Tauri native drag-drop', () => {
       data: expect.any(String),
     })
     expect(invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['native-first', 1], ['dom-first', 1], ['native-first', 2], ['dom-first', 2],
+  ] as const)('imports each image once when both drop channels fire (%s, %i images)', async (order, count) => {
+    const onImageUrl = vi.fn()
+    const { invoke } = await import('@tauri-apps/api/core')
+    vi.mocked(invoke).mockClear()
+    vi.mocked(invoke).mockResolvedValue('/vault/attachments/photo.png')
+    renderImageDropTauri({ onImageUrl, vaultPath: '/vault' })
+    await waitForNativeDropListeners()
+
+    const files = ['photo.png', 'other.png'].slice(0, count).map(name => new File(['png'], name, { type: 'image/png' }))
+    const nativeDrop = () => emitNativeDropEvent({ type: 'drop', paths: [...files.map(file => `/tmp/${file.name}`), '/tmp/readme.txt'], position: { x: 100, y: 100 } })
+    const domDrop = () => container.dispatchEvent(createDragEvent('drop', files))
+    act(() => {
+      if (order === 'native-first') { nativeDrop(); domDrop() }
+      else { domDrop(); nativeDrop() }
+    })
+    await waitFor(() => { expect(onImageUrl).toHaveBeenCalledTimes(count) })
+    expect(invoke).toHaveBeenCalledTimes(count)
+    expect(onImageUrl).toHaveBeenCalledTimes(count)
+
+    // Clipboard uploads use the same uploader but are independent of drop claims.
+    await uploadImageFile(files[0], '/vault')
+    expect(invoke).toHaveBeenCalledTimes(count + 1)
   })
 
   it('reports unsupported HEIC native drops without copying them into the vault', async () => {

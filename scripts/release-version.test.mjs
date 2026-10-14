@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
-import { computeAlphaRelease, computeStableRelease, formatReleaseEnv } from './release-version.mjs'
+import {
+  computeAlphaRelease,
+  computeStableRelease,
+  formatReleaseEnv,
+  shouldSkipAlphaRelease,
+} from './release-version.mjs'
 
 const today = '2026-08-02'
 const alphaReleaseCases = [
@@ -114,6 +119,34 @@ describe('release version computation', () => {
   it('preserves alpha sequencing and poisoned-version recovery', () => {
     for (const { name, input, expected } of alphaReleaseCases) {
       assert.deepEqual(computeAlphaRelease(input), expected, name)
+    }
+  })
+
+  it('skips the desktop alpha when a push only changes non-desktop paths', () => {
+    const skipped = [
+      ['site/index.md'],
+      ['.circleci/config.yml', '.github/workflows/README.md'],
+      ['apps/web/vite.config.ts', 'apps/server/src/index.ts'],
+      ['packages/protocol/src/index.ts', 'docs/web/s1-tauri-inventory.md'],
+    ]
+    for (const changed of skipped) {
+      assert.equal(shouldSkipAlphaRelease(changed), true, changed.join(', '))
+    }
+  })
+
+  it('still builds the desktop alpha when any desktop input changes', () => {
+    const released = [
+      [],
+      ['src/App.tsx'],
+      ['apps/web/vite.config.ts', 'src/lib/vaultBackend/types.ts'],
+      ['docs/web/s1-tauri-inventory.md', 'package.json'],
+      ['docs/ARCHITECTURE.md'],
+      ['docs/webhooks.md'],
+      ['applications/readme.md'],
+      ['.github/workflows/ci.yml'],
+    ]
+    for (const changed of released) {
+      assert.equal(shouldSkipAlphaRelease(changed), false, changed.join(', '))
     }
   })
 })

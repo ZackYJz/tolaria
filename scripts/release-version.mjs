@@ -7,6 +7,11 @@ const CALENDAR_STABLE_PATTERN = /^v(\d{4})-(\d{2})-(\d{2})$/
 const LEGACY_STABLE_PATTERN = /^stable-v(\d{4})\.(\d{1,2})\.(\d{1,2})$/
 const STABLE_BRIDGE_TAG = 'v2027-08-28'
 const STABLE_BRIDGE_OPERATOR_DATE = '2026-08-28'
+// Paths that never ship in the desktop app. A push that only touches these
+// skips the alpha build: CI/site plumbing, and the Tolaria Web lane
+// (apps/, packages/, docs/web/), which has its own deploy path.
+const NON_DESKTOP_PATH_PREFIXES = ['site/', '.circleci/', 'apps/', 'packages/', 'docs/web/']
+const NON_DESKTOP_PATHS = new Set(['.github/workflows/README.md'])
 
 function parseDateParts(parts, source) {
   const [year, month, day] = parts.map(Number)
@@ -31,7 +36,8 @@ function parseToday(today) {
 
 function parseStableTag(tag) {
   const match = CALENDAR_STABLE_PATTERN.exec(tag) ?? LEGACY_STABLE_PATTERN.exec(tag)
-  return match ? parseDateParts(match.slice(1), tag) : null
+  if (!match) return null
+  return parseDateParts(match.slice(1), tag)
 }
 
 function parseAlphaTag(tag) {
@@ -67,6 +73,21 @@ function releaseFromTag(tag, todayDate, recoveryBridgeDate) {
   return { channel: 'alpha', displayVersion, tag, version }
 }
 
+// The bridge is pending until an alpha has been published on or after the bridge date.
+function recoveryBridgeIsPending(alphaReleases, todayDate, recoveryBridgeDate) {
+  if (!recoveryBridgeDate) return false
+  const futureAlphaDates = alphaReleases.filter(({ date }) => date > todayDate).map(({ date }) => date)
+  const latestFutureAlpha = latestDate(futureAlphaDates)
+  return !latestFutureAlpha || latestFutureAlpha < recoveryBridgeDate
+}
+
+// A stable release already using today's date pushes the alpha to tomorrow so semver still increases.
+function regularAlphaDate(stableDates, todayDate) {
+  const latestValidStable = latestDate(stableDates.filter((value) => value <= todayDate))
+  const stableUsesToday = latestValidStable && compareDates(latestValidStable, todayDate) === 0
+  return stableUsesToday ? nextDay(todayDate) : todayDate
+}
+
 export function computeAlphaRelease({ alphaTags, stableTags, tagsAtHead, today }) {
   const todayDate = parseToday(today)
   const stableDates = stableTags.map(parseStableTag).filter(Boolean)
@@ -78,17 +99,8 @@ export function computeAlphaRelease({ alphaTags, stableTags, tagsAtHead, today }
     return releaseFromTag(tagsAtHead[0], todayDate, recoveryBridgeDate)
   }
 
-  const latestFutureAlpha = latestDate(
-    alphaReleases.filter(({ date }) => date > todayDate).map(({ date }) => date),
-  )
-  const needsRecoveryBridge =
-    recoveryBridgeDate && (!latestFutureAlpha || latestFutureAlpha < recoveryBridgeDate)
-  const latestValidStable = latestDate(stableDates.filter((value) => value <= todayDate))
-  const regularDate =
-    latestValidStable && compareDates(latestValidStable, todayDate) === 0
-      ? nextDay(todayDate)
-      : todayDate
-  const releaseDate = needsRecoveryBridge ? recoveryBridgeDate : regularDate
+  const needsRecoveryBridge = recoveryBridgeIsPending(alphaReleases, todayDate, recoveryBridgeDate)
+  const releaseDate = needsRecoveryBridge ? recoveryBridgeDate : regularAlphaDate(stableDates, todayDate)
   const core = calendarCore(releaseDate)
   const sequence = alphaReleases.filter(({ date }) => calendarCore(date) === core).length + 1
   const displaySequence = needsRecoveryBridge ? 0 : sequence
@@ -111,6 +123,14 @@ export function computeStableRelease({ tag, today }) {
   }
   const version = calendarCore(tagDate)
   return { channel: 'stable', displayVersion: tag.startsWith('v') ? tag : version, tag, version }
+}
+
+function isNonDesktopPath(path) {
+  return NON_DESKTOP_PATHS.has(path) || NON_DESKTOP_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))
+}
+
+export function shouldSkipAlphaRelease(changedPaths) {
+  return changedPaths.length > 0 && changedPaths.every(isNonDesktopPath)
 }
 
 function gitLines(args) {
@@ -166,10 +186,7 @@ function alphaReleaseFromGit(today) {
     tagsAtHead: gitLines(['tag', '--points-at', 'HEAD']).filter((tag) => tag.startsWith('alpha-v')),
     today,
   })
-  const ignored = changed.every(
-    (path) => path.startsWith('site/') || path.startsWith('.circleci/') || path === '.github/workflows/README.md',
-  )
-  return { release, skipRelease: changed.length > 0 && ignored }
+  return { release, skipRelease: shouldSkipAlphaRelease(changed) }
 }
 
 function runStableCli(today, format) {

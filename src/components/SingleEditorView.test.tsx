@@ -26,6 +26,9 @@ describe('SingleEditorView', () => {
     state.blockNoteViewError = null
     state.blockNoteViewErrorOnce = false
     state.imageDropState.isDragOver = false
+    state.linkToolbarExtension = {
+      getLinkElementAtPos: vi.fn(),
+    }
     state.wikilinkEntriesRef.current = []
     state.wikilinkCandidates = []
     mockOpenExternalUrl.mockClear()
@@ -230,6 +233,55 @@ describe('SingleEditorView', () => {
 
     expect(onWikiItemClick).toHaveBeenCalledOnce()
     expect(onMentionItemClick).toHaveBeenCalledOnce()
+  })
+
+  it('ignores link-toolbar DOM lookups while the Tiptap view is unmounted', () => {
+    state.linkToolbarExtension.getLinkElementAtPos = vi.fn(() => {
+      throw new Error("[tiptap error]: The editor view is not available. Cannot access view['nodeDOM'].")
+    })
+
+    render(
+      <SingleEditorView
+        editor={createEditor() as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    expect(state.linkToolbarExtension.getLinkElementAtPos(7)).toBeNull()
+  })
+
+  it('preserves link-toolbar DOM lookups while the editor is mounted', () => {
+    const link = document.createElement('a')
+    const getLinkElementAtPos = vi.fn(() => link)
+    state.linkToolbarExtension.getLinkElementAtPos = getLinkElementAtPos
+
+    render(
+      <SingleEditorView
+        editor={createEditor() as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    expect(state.linkToolbarExtension.getLinkElementAtPos(11)).toBe(link)
+    expect(getLinkElementAtPos).toHaveBeenCalledWith(11)
+  })
+
+  it('does not hide unrelated link-toolbar lookup failures', () => {
+    state.linkToolbarExtension.getLinkElementAtPos = vi.fn(() => {
+      throw new Error('Unexpected link lookup failure')
+    })
+
+    render(
+      <SingleEditorView
+        editor={createEditor() as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    expect(() => state.linkToolbarExtension.getLinkElementAtPos(13)).toThrow('Unexpected link lookup failure')
   })
 
   it('renders when a reload returns an entry with missing suggestion metadata', () => {

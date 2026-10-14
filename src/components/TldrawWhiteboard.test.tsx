@@ -1,5 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ComponentType } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Editor } from 'tldraw'
 import { TldrawWhiteboard } from './TldrawWhiteboard'
@@ -7,6 +7,9 @@ import { TooltipProvider } from './ui/tooltip'
 
 interface MockTldrawProps {
   assetUrls: MockAssetUrls
+  components?: {
+    Canvas?: ComponentType
+  }
   onMount: (editor: Editor) => () => void
   user?: MockTldrawUser
 }
@@ -25,7 +28,7 @@ interface MockAssetUrls {
 }
 
 interface MockCreateTLStoreOptions {
-  onMount?: (editor: Editor) => void | (() => void)
+  onMount?: (editor: Editor) => undefined | (() => void)
 }
 
 interface MockTldrawStore {
@@ -35,7 +38,10 @@ interface MockTldrawStore {
 }
 
 const tldrawMock = vi.hoisted(() => ({
+  DefaultCanvas: vi.fn(),
   Tldraw: vi.fn(),
+  defaultHandleExternalTldrawContent: vi.fn(),
+  useEditor: vi.fn(),
 }))
 
 const tldrawStoreMock = vi.hoisted(() => ({
@@ -94,12 +100,14 @@ vi.mock('tldraw', async () => {
         this.h = h
       }
     },
+    DefaultCanvas: tldrawMock.DefaultCanvas,
     Tldraw: tldrawMock.Tldraw,
     createTLStore: tldrawStoreMock.createTLStore,
     defaultUserPreferences: {
       colorScheme: 'light',
       locale: 'en',
     },
+    defaultHandleExternalTldrawContent: tldrawMock.defaultHandleExternalTldrawContent,
     getSnapshot: tldrawStoreMock.getSnapshot,
     loadSnapshot: tldrawStoreMock.loadSnapshot,
     useTldrawUser: vi.fn(({ userPreferences }: { userPreferences: { colorScheme: string } }) => ({
@@ -108,6 +116,7 @@ vi.mock('tldraw', async () => {
         get: () => userPreferences,
       },
     })),
+    useEditor: tldrawMock.useEditor,
   }
 })
 
@@ -146,9 +155,14 @@ function mockEditor(): Editor {
   canvas.className = 'tl-canvas'
   container.append(canvas)
 
+  const externalContentHandlers = new Map<string, (content: unknown) => Promise<void>>()
   return {
     dispatch: vi.fn(),
+    externalContentHandlers,
     getContainer: vi.fn(() => container),
+    registerExternalContentHandler: vi.fn((type: string, handler: (content: unknown) => Promise<void>) => {
+      externalContentHandlers.set(type, handler)
+    }),
     textMeasure: {
       measureElementTextNodeSpans: vi.fn(() => {
         throw new TypeError("undefined is not an object (evaluating 'v.top')")
@@ -156,6 +170,15 @@ function mockEditor(): Editor {
     },
     updateViewportScreenBounds: vi.fn(),
   } as unknown as Editor
+}
+
+function registeredTldrawPasteHandler(editor: Editor) {
+  const handlers = (editor as unknown as {
+    externalContentHandlers: Map<string, (content: unknown) => Promise<void>>
+  }).externalContentHandlers
+  const handler = handlers.get('tldraw')
+  expect(handler).toEqual(expect.any(Function))
+  return handler as (content: unknown) => Promise<void>
 }
 
 function maskedTldrawIcon(mask: string): HTMLElement {
@@ -288,6 +311,26 @@ describe('TldrawWhiteboard', () => {
     expect(() => editor.textMeasure.measureElementTextNodeSpans(measuredTextElement())).toThrow('top')
   })
 
+  it('installs the text measurement guard before the default canvas renders', () => {
+    renderWhiteboard()
+
+    const editor = mockEditor()
+    tldrawMock.useEditor.mockReturnValue(editor)
+    const Canvas = renderedTldrawProps().components?.Canvas
+    expect(Canvas).toEqual(expect.any(Function))
+
+    render(<Canvas />)
+
+    expect(tldrawMock.DefaultCanvas).toHaveBeenCalled()
+    expect(editor.textMeasure.measureElementTextNodeSpans(measuredTextElement())).toEqual({
+      didTruncate: false,
+      spans: [{
+        box: { h: 24, w: 88, x: 0, y: 0 },
+        text: 'Label',
+      }],
+    })
+  })
+
   it('mirrors tldraw icon masks to WebKit masks while mounted', async () => {
     const styleWrites = vi.spyOn(CSSStyleDeclaration.prototype, 'setProperty')
     renderWhiteboard()
@@ -352,6 +395,40 @@ describe('TldrawWhiteboard', () => {
     expect(screen.getByTestId('tldraw-whiteboard-permission-error')).toHaveTextContent('reopen the note')
 
     cleanup()
+  })
+
+  it('keeps an incompatible whiteboard paste from reaching the error boundary', async () => {
+    tldrawMock.defaultHandleExternalTldrawContent.mockRejectedValueOnce(
+      new Error('Could not put content: could not migrate content'),
+    )
+    renderWhiteboard()
+
+    const editor = mockEditor()
+    const cleanupRuntime = renderedTldrawProps().onMount(editor)
+
+    await act(async () => {
+      await registeredTldrawPasteHandler(editor)({ type: 'tldraw', content: {} })
+    })
+
+    expect(screen.getByTestId('tldraw-whiteboard-paste-error')).toHaveTextContent(
+      'Whiteboard content could not be pasted',
+    )
+    expect(screen.getByTestId('mock-tldraw')).toBeInTheDocument()
+    cleanupRuntime()
+  })
+
+  it('does not hide unrelated whiteboard paste failures', async () => {
+    tldrawMock.defaultHandleExternalTldrawContent.mockRejectedValueOnce(new Error('Unexpected paste failure'))
+    renderWhiteboard()
+
+    const editor = mockEditor()
+    const cleanupRuntime = renderedTldrawProps().onMount(editor)
+
+    await expect(
+      registeredTldrawPasteHandler(editor)({ type: 'tldraw', content: {} }),
+    ).rejects.toThrow('Unexpected paste failure')
+    expect(screen.queryByTestId('tldraw-whiteboard-paste-error')).not.toBeInTheDocument()
+    cleanupRuntime()
   })
 
   it('prevents whiteboard permission rejections before earlier global listeners observe them', () => {

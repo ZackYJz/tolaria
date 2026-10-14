@@ -3,8 +3,7 @@ use crate::frontmatter::FrontmatterValue;
 
 use super::boundary::{with_existing_paths, with_validated_path, ValidatedPathMode};
 
-#[tauri::command]
-pub fn update_frontmatter(
+pub(crate) fn update_frontmatter_blocking(
     path: String,
     key: String,
     value: FrontmatterValue,
@@ -19,7 +18,16 @@ pub fn update_frontmatter(
 }
 
 #[tauri::command]
-pub fn delete_frontmatter_property(
+pub async fn update_frontmatter(
+    path: String,
+    key: String,
+    value: FrontmatterValue,
+    vault_path: Option<String>,
+) -> Result<String, String> {
+    super::off_main_thread(move || update_frontmatter_blocking(path, key, value, vault_path)).await
+}
+
+pub(crate) fn delete_frontmatter_property_blocking(
     path: String,
     key: String,
     vault_path: Option<String>,
@@ -30,6 +38,16 @@ pub fn delete_frontmatter_property(
         ValidatedPathMode::Existing,
         |validated_path| frontmatter::delete_frontmatter_property(validated_path, &key),
     )
+}
+
+#[tauri::command]
+pub async fn delete_frontmatter_property(
+    path: String,
+    key: String,
+    vault_path: Option<String>,
+) -> Result<String, String> {
+    super::off_main_thread(move || delete_frontmatter_property_blocking(path, key, vault_path))
+        .await
 }
 
 #[tauri::command]
@@ -59,8 +77,8 @@ mod tests {
         std::fs::write(path, content).unwrap();
     }
 
-    #[test]
-    fn update_frontmatter_command_validates_and_updates_note() {
+    #[tokio::test]
+    async fn update_frontmatter_command_validates_and_updates_note() {
         let dir = tempfile::TempDir::new().unwrap();
         let path = note_path(&dir, "note.md");
         write_note(&path, "---\nStatus: Draft\n---\n# Note\n");
@@ -71,14 +89,15 @@ mod tests {
             FrontmatterValue::String("Done".to_string()),
             Some(dir.path().to_string_lossy().into_owned()),
         )
+        .await
         .unwrap();
 
         assert!(updated.contains("Status: Done"));
         assert_eq!(std::fs::read_to_string(path).unwrap(), updated);
     }
 
-    #[test]
-    fn delete_frontmatter_property_command_removes_existing_key() {
+    #[tokio::test]
+    async fn delete_frontmatter_property_command_removes_existing_key() {
         let dir = tempfile::TempDir::new().unwrap();
         let path = note_path(&dir, "note.md");
         write_note(&path, "---\nStatus: Draft\nOwner: Ada\n---\n# Note\n");
@@ -88,6 +107,7 @@ mod tests {
             "Owner".to_string(),
             Some(dir.path().to_string_lossy().into_owned()),
         )
+        .await
         .unwrap();
 
         assert!(!updated.contains("Owner:"));

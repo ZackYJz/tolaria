@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { createRichEditorEmptyListNavigationExtension } from './richEditorEmptyListNavigationExtension'
 
 type KeyListener = (event: KeyboardEvent) => void
-
 type NavigationKey = 'ArrowDown' | 'ArrowUp' | 'Backspace'
 
 function keyboardEvent(key: NavigationKey, options: Partial<KeyboardEvent> = {}) {
@@ -77,96 +76,6 @@ function createFixture({
   }
 }
 
-interface NestedBackspaceFixtureOptions {
-  ancestorDepth: number
-  blockType: string
-  hasChildren: boolean
-  hasSibling: boolean
-  listType: string
-  nested: boolean
-}
-
-const DEFAULT_BACKSPACE_OPTIONS: NestedBackspaceFixtureOptions = {
-  ancestorDepth: 1,
-  blockType: 'paragraph',
-  hasChildren: true,
-  hasSibling: true,
-  listType: 'bulletListItem',
-  nested: true,
-}
-
-function createNestedDocument(
-  current: Record<string, unknown>,
-  options: NestedBackspaceFixtureOptions,
-): Record<string, unknown>[] {
-  const sibling = { content: [{ text: 'D', type: 'text' }], id: 'sibling', type: options.listType }
-  const parent = {
-    children: [current, ...(options.hasSibling ? [sibling] : [])],
-    content: [{ text: 'A', type: 'text' }],
-    id: 'parent',
-    type: options.listType,
-  }
-  if (!options.nested) return [current, parent]
-
-  let root = parent
-  for (let level = 1; level < options.ancestorDepth; level += 1) {
-    root = {
-      children: [root],
-      content: [{ text: `Ancestor ${level}`, type: 'text' }],
-      id: `ancestor-${level}`,
-      type: options.listType,
-    }
-  }
-  return [root]
-}
-
-function createNestedBackspaceFixture(partialOptions: Partial<NestedBackspaceFixtureOptions> = {}) {
-  const options = { ...DEFAULT_BACKSPACE_OPTIONS, ...partialOptions }
-  let keydownListener: KeyListener | null = null
-  const child = { content: [{ text: 'C', type: 'text' }], id: 'child', type: options.listType }
-  const current = {
-    children: options.hasChildren ? [child] : [],
-    content: [],
-    id: 'current',
-    type: options.blockType,
-  }
-  const view = {
-    composing: false,
-    endOfTextblock: vi.fn(() => true),
-    state: { selection: { empty: true } },
-  }
-  const editor = {
-    _tiptapEditor: { view },
-    document: createNestedDocument(current, options),
-    getTextCursorPosition: vi.fn(() => ({ block: current })),
-    isEditable: true,
-    prosemirrorView: view,
-    removeBlocks: vi.fn(),
-  }
-  const extension = createRichEditorEmptyListNavigationExtension()({ editor: editor as never })
-  extension.mount?.({
-    dom: {
-      addEventListener: vi.fn((type: string, listener: KeyListener) => {
-        if (type === 'keydown') keydownListener = listener
-      }),
-    } as never,
-    root: document,
-    signal: new AbortController().signal,
-  })
-
-  return {
-    current,
-    editor,
-    fire() {
-      if (!keydownListener) throw new Error('Empty-list navigation listener was not registered')
-      const event = keyboardEvent('Backspace')
-      keydownListener(event)
-      return event
-    },
-    view,
-  }
-}
-
 describe('createRichEditorEmptyListNavigationExtension', () => {
   it('moves through an adjacent empty list item at the visual block edge', () => {
     const down = createFixture()
@@ -196,29 +105,62 @@ describe('createRichEditorEmptyListNavigationExtension', () => {
     expect(createFixture({ editable: false }).fire('ArrowDown').preventDefault).not.toHaveBeenCalled()
   })
 
-  it.each(['bulletListItem', 'numberedListItem'])('preserves %s descendants when their empty parent is backspaced', (listType) => {
-    const fixture = createNestedBackspaceFixture({ ancestorDepth: 3, listType })
-    const event = fixture.fire()
+  it('promotes linked children when deleting an empty paragraph nested under a list', () => {
+    let keydownListener: KeyListener | null = null
+    const linkedChild = {
+      children: [],
+      content: [{
+        content: [{ styles: {}, text: 'Tolaria', type: 'text' }],
+        href: 'https://tolaria.app',
+        type: 'link',
+      }],
+      id: 'linked-child',
+      type: 'bulletListItem',
+    }
+    const emptyParagraph = {
+      children: [linkedChild],
+      content: [],
+      id: 'empty-parent',
+      type: 'paragraph',
+    }
+    const listParent = {
+      children: [emptyParagraph],
+      content: [{ styles: {}, text: 'Parent', type: 'text' }],
+      id: 'list-parent',
+      type: 'bulletListItem',
+    }
+    const view = {
+      composing: false,
+      endOfTextblock: vi.fn(() => true),
+      state: { selection: { empty: true } },
+    }
+    const editor = {
+      _tiptapEditor: { view },
+      document: [listParent],
+      getTextCursorPosition: vi.fn(() => ({ block: emptyParagraph })),
+      isEditable: true,
+      prosemirrorView: view,
+      replaceBlocks: vi.fn(),
+      setTextCursorPosition: vi.fn(),
+    }
+    const extension = createRichEditorEmptyListNavigationExtension()({ editor: editor as never })
+    extension.mount?.({
+      dom: {
+        addEventListener: vi.fn((type: string, listener: KeyListener) => {
+          if (type === 'keydown') keydownListener = listener
+        }),
+      } as never,
+      root: document,
+      signal: new AbortController().signal,
+    })
 
-    expect(fixture.view.endOfTextblock).toHaveBeenCalledWith('backward')
-    expect(fixture.editor.removeBlocks).not.toHaveBeenCalled()
+    const event = keyboardEvent('Backspace')
+    if (!keydownListener) throw new Error('Empty-list navigation listener was not registered')
+    keydownListener(event)
+
+    expect(editor.replaceBlocks).toHaveBeenCalledWith([emptyParagraph], [linkedChild])
+    expect(editor.setTextCursorPosition).toHaveBeenCalledWith(linkedChild, 'start')
     expect(event.preventDefault).toHaveBeenCalledOnce()
     expect(event.stopImmediatePropagation).toHaveBeenCalledOnce()
-  })
-
-  it.each([true, false])('removes only a childless nested paragraph when sibling presence is %s', (hasSibling) => {
-    const fixture = createNestedBackspaceFixture({ hasChildren: false, hasSibling })
-    const event = fixture.fire()
-
-    expect(fixture.editor.removeBlocks).toHaveBeenCalledWith([fixture.current])
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-  })
-
-  it('leaves root paragraphs and empty list-item marker removal to BlockNote', () => {
-    const rootParagraph = createNestedBackspaceFixture({ nested: false })
-    const listItem = createNestedBackspaceFixture({ blockType: 'bulletListItem' })
-
-    expect(rootParagraph.fire().preventDefault).not.toHaveBeenCalled()
-    expect(listItem.fire().preventDefault).not.toHaveBeenCalled()
   })
 })

@@ -3,11 +3,12 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import * as eslintConfig from 'eslint/config'
 
-export default defineConfig([
-  globalIgnores([
+export default eslintConfig.defineConfig([
+  eslintConfig.globalIgnores([
     'dist',
+    'apps/web/dist',
     'coverage',
     'site/.vitepress/cache/',
     'site/.vitepress/dist/',

@@ -5,15 +5,56 @@ GitHub Release publication, documentation deployment, and pull-request branch ma
 
 ## Workflows
 
-- `validation` runs frontend lint/build/coverage, Rust lint/coverage, the curated Playwright smoke
-  lane, CodeScene, Codacy, and Linux build verification.
+- `validation` runs frontend lint/build/coverage, parallel Rust lint and coverage jobs, the curated
+  Playwright smoke lane, CodeScene, Codacy, and Linux build verification.
 - `alpha-release` runs on qualifying `main` pushes and publishes signed macOS ARM64/x86_64,
   Linux x86_64, and Windows x86_64 artifacts.
 - `stable-release` runs for `v20*` and `stable-v*` tags and publishes the same platform set plus
   stable macOS DMGs.
 
-The frontend, Rust, and Playwright jobs reuse `.chunk/` lane scripts. Chunk sidecars remain the
-preferred pre-push path; CircleCI is the authoritative outer loop.
+The frontend and Playwright jobs reuse `.chunk/` lane scripts. The parallel Rust jobs run the same
+lint, format, and coverage commands as `.chunk/run-rust-gate.sh`. Chunk sidecars remain the preferred
+pre-push path; CircleCI is the authoritative outer loop.
+
+## Shadow mode and cutover
+
+The migration from GitHub Actions is staged:
+
+- Pipeline parameters default to shadow mode. `validation` runs on every push, while
+  `alpha-release` and `stable-release` only run when a pipeline is triggered with
+  `run_release_workflows: true`. GitHub Actions keeps owning signed alpha/stable releases,
+  documentation deployment, and pull-request branch updates until the release contexts below are
+  provisioned and a full shadow release has produced every platform artifact.
+- Codecov uploads run in validation but do not fail the job while `codecov_required` is `false`.
+  Codecov rejects tokenless uploads to the protected `main` branch, so add `CODECOV_TOKEN` to the
+  `tolaria-ci` context and set `codecov_required` to `true` before GitHub Actions `ci.yml` is
+  retired.
+- Disable a GitHub Actions workflow only after the matching CircleCI jobs are green on `main`.
+- Validation is split into independent jobs so the slowest job (`static-gates`, mostly the
+  Codacy scan) sets the wall clock: about 4-5 minutes per main push on the Free plan (Docker
+  large), down from about 16. Vitest coverage runs as `frontend_coverage_shards` CircleCI
+  containers whose reports `frontend-coverage-report` merges before enforcing the global
+  thresholds. Playwright smoke runs its 8 shards on two containers (4 each, 2 at a time), and
+  `playwright-smoke-report` records the pass once both containers are green. Parallel jobs never
+  record a pass marker themselves, because a passing container would mark the whole job as passed.
+- Every job except `static-gates` halts early (and reports success) when none of its inputs
+  changed since the last `main` commit on which that same job passed (`skip_unless_changed`,
+  with the pass recorded as a small `validated-v1-<job>-main-<sha>` cache entry). Frontend jobs ignore
+  `src-tauri/**/*.rs` and `docs/`; Rust jobs only need `src-tauri/`, `src/shared/`,
+  `mcp-server/`, or `.circleci/`. Trigger a pipeline with `run_all_validation: true` to run
+  everything.
+
+| GitHub Actions workflow | CircleCI replacement | Status |
+| --- | --- | --- |
+| `ci.yml` frontend static quality + tests | `validation/static-gates` (Codacy, CodeScene, docs), `validation/frontend-lint-build`, `validation/frontend-coverage` (6 containers) + `validation/frontend-coverage-report` | Shadow |
+| `ci.yml` Rust tests, coverage, Clippy, rustfmt | `validation/rust-coverage`, `validation/rust-lint` | Shadow |
+| `ci.yml` Linux build verification (PRs) | `validation/linux-build-verification` (non-main branches) | Shadow |
+| none (pre-push only) | `validation/playwright-smoke` | New |
+| none | `performance/performance-regression` | Opt-in (`run_performance_gate`); thresholds need CI baselines |
+| `release.yml` + `release-build-artifacts.yml` | `alpha-release` | Gated off |
+| `release-stable.yml` | `stable-release` | Gated off |
+| `deploy-docs.yml` | `publish-docs` | Gated off (needs Pages source change) |
+| `auto-update-prs.yml` | `update-pr-branches` | Gated off |
 
 ## Contexts
 
@@ -64,8 +105,11 @@ jobs from receiving signing credentials.
 Install the CircleCI GitHub App for the repository and enable CircleCI Checks. Require these checks
 for protected branches:
 
-- `validation/frontend-quality`
-- `validation/rust-quality`
+- `validation/static-gates`
+- `validation/frontend-lint-build`
+- `validation/frontend-coverage-report`
+- `validation/rust-coverage`
+- `validation/rust-lint`
 - `validation/playwright-smoke`
 
 Configure GitHub Pages to publish from the root of the `gh-pages` branch. CircleCI builds the site,

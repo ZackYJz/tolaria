@@ -33,6 +33,15 @@ const angleClose = String.fromCharCode(62)
 const cppInclude = `#include ${angleOpen}iostream${angleClose}`
 const cppSource = `${cppInclude}\nint main() { return 0; }`
 const fencedCppSource = ['```', cppSource, '```'].join('\n')
+const longBoldText = `**${'Markdown source '.repeat(6).trim()}**`
+const chatGptMarkdown = [
+  '# ChatGPT Markdown',
+  'Paragraph immediately follows the heading.',
+  '',
+  '- One list item',
+  '',
+  longBoldText,
+].join('\n')
 
 function htmlTag(name: string): string {
   return `${angleOpen}${name}${angleClose}`
@@ -96,6 +105,19 @@ describe('handleRichEditorPaste', () => {
     expect(handleRichEditorPaste(context)).toBe(true)
 
     expect(context.defaultPasteHandler).toHaveBeenCalledWith({ prioritizeMarkdownOverHTML: false })
+    expect(context.editor.pasteText).not.toHaveBeenCalled()
+  })
+
+  it('prefers structured plain-text Markdown over a flattened rich fallback', () => {
+    const context = pasteContext({
+      'text/html': '<p>Flattened HTML fallback</p>',
+      'text/plain': chatGptMarkdown,
+    })
+
+    expect(handleRichEditorPaste(context)).toBe(true)
+
+    expect(context.editor.pasteMarkdown).toHaveBeenCalledWith(chatGptMarkdown)
+    expect(context.defaultPasteHandler).not.toHaveBeenCalled()
     expect(context.editor.pasteText).not.toHaveBeenCalled()
   })
 

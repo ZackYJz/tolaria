@@ -1,5 +1,7 @@
 ---
 exclude_paths:
+  - "apps/web/dist/**"
+  - "apps/web/tests/**"
   - ".chunk/**"
   - "coverage/**"
   - "dist/**"

@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { LinkToolbarExtension } from '@blocknote/core/extensions'
 import {
   GridSuggestionMenuController,
   LinkToolbarController,
@@ -6,8 +7,10 @@ import {
   SuggestionMenuController,
   type FormattingToolbarProps,
   type SideMenuProps,
+  type useCreateBlockNote,
 } from '@blocknote/react'
 import type { AppLocale } from '../lib/i18n'
+import { errorMessageIncludes } from '../utils/vaultErrors'
 import { TolariaFilePanelController } from './TolariaFilePanel'
 import { TolariaLinkToolbar } from './TolariaLinkToolbar'
 import { TolariaSlashMenu } from './TolariaSlashMenu'
@@ -18,17 +21,54 @@ import type { SuggestionAction } from './singleEditorSuggestionItems'
 import type { useSuggestionMenuItems } from './singleEditorSuggestionItems'
 
 type EditorInteractionControllersProps = ReturnType<typeof useSuggestionMenuItems> & {
+  editor: ReturnType<typeof useCreateBlockNote>
   locale: AppLocale
   onToolbarMouseDown: (event: Pick<React.MouseEvent<HTMLElement>, 'target' | 'preventDefault'>) => void
   runEditorAction: (action: SuggestionAction) => void
   vaultPath?: string
 }
 
+type LinkToolbarElementLookup = {
+  getLinkElementAtPos: (position: number) => HTMLAnchorElement | null
+}
+
+const guardedLinkToolbarExtensions = new WeakSet<LinkToolbarElementLookup>()
+
+function isUnavailableEditorViewError(error: unknown) {
+  return errorMessageIncludes(error, '[tiptap error]', 'editor view is not available')
+}
+
+function guardLinkToolbarElementLookup(extension: LinkToolbarElementLookup) {
+  if (guardedLinkToolbarExtensions.has(extension)) return
+
+  const getLinkElementAtPos = extension.getLinkElementAtPos.bind(extension)
+  extension.getLinkElementAtPos = (position) => {
+    try {
+      return getLinkElementAtPos(position)
+    } catch (error) {
+      if (isUnavailableEditorViewError(error)) return null
+      throw error
+    }
+  }
+  guardedLinkToolbarExtensions.add(extension)
+}
+
+function TolariaLinkToolbarController({
+  editor,
+  ...props
+}: React.ComponentProps<typeof LinkToolbarController> & Pick<EditorInteractionControllersProps, 'editor'>) {
+  const extension = editor.getExtension?.(LinkToolbarExtension)
+  if (extension) guardLinkToolbarElementLookup(extension)
+
+  return <LinkToolbarController {...props} />
+}
+
 function EditorToolbarControllers({
+  editor,
   locale,
   onToolbarMouseDown,
   vaultPath,
-}: Pick<EditorInteractionControllersProps, 'locale' | 'onToolbarMouseDown' | 'vaultPath'>) {
+}: Pick<EditorInteractionControllersProps, 'editor' | 'locale' | 'onToolbarMouseDown' | 'vaultPath'>) {
   const sideMenu = useCallback((props: SideMenuProps) => <TolariaSideMenu {...props} locale={locale} />, [locale])
   const formattingToolbar = useCallback(
     (props: FormattingToolbarProps) => (
@@ -52,7 +92,11 @@ function EditorToolbarControllers({
         formattingToolbar={formattingToolbar}
         floatingUIOptions={floatingUIOptions}
       />
-      <LinkToolbarController linkToolbar={linkToolbar} floatingUIOptions={floatingUIOptions} />
+      <TolariaLinkToolbarController
+        editor={editor}
+        linkToolbar={linkToolbar}
+        floatingUIOptions={floatingUIOptions}
+      />
       <TolariaFilePanelController />
     </>
   )

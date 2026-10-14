@@ -11,3 +11,4 @@ patchedDependencies:
   '@tiptap/extension-code@3.19.0': patches/@tiptap__extension-code@3.19.0.patch
   '@tiptap/extension-link@3.19.0': patches/@tiptap__extension-link@3.19.0.patch
   prosemirror-tables@1.8.5: patches/prosemirror-tables@1.8.5.patch
+  prosemirror-view@1.41.6: patches/prosemirror-view@1.41.6.patch

@@ -96,8 +96,7 @@ fn resolve_reload_vault_path(
     ))
 }
 
-#[tauri::command]
-pub fn reload_vault_entry(
+pub(crate) fn reload_vault_entry_blocking(
     path: PathBuf,
     vault_path: Option<PathBuf>,
 ) -> Result<VaultEntry, String> {
@@ -112,6 +111,14 @@ pub fn reload_vault_entry(
         ValidatedPathMode::Existing,
         |validated_path| vault::reload_entry(Path::new(validated_path)),
     )
+}
+
+#[tauri::command]
+pub async fn reload_vault_entry(
+    path: PathBuf,
+    vault_path: Option<PathBuf>,
+) -> Result<VaultEntry, String> {
+    super::off_main_thread(move || reload_vault_entry_blocking(path, vault_path)).await
 }
 
 #[tauri::command]
@@ -305,12 +312,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn reload_vault_entry_command_reads_note_inside_vault() {
+    #[tokio::test]
+    async fn reload_vault_entry_command_reads_note_inside_vault() {
         let dir = tempfile::TempDir::new().unwrap();
         let note_path = write_note(dir.path(), "note.md", "# Reloaded Title\n\nBody");
 
-        let entry = reload_vault_entry(note_path, Some(dir.path().to_path_buf())).unwrap();
+        let entry = reload_vault_entry(note_path, Some(dir.path().to_path_buf()))
+            .await
+            .unwrap();
 
         assert_eq!(entry.title, "Reloaded Title");
     }

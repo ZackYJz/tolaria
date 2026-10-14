@@ -51,6 +51,26 @@ function reconcileListUpdate(
   else onUpdate(key, newItems)
 }
 
+function saveListProperty({
+  key,
+  newItems,
+  typeArrayKeys,
+  onUpdate,
+  onDelete,
+}: {
+  key: string
+  newItems: string[]
+  typeArrayKeys: ReadonlySet<string>
+  onUpdate: (key: string, value: FrontmatterValue) => void
+  onDelete?: (key: string) => void
+}) {
+  if (newItems.length > 0 && typeArrayKeys.has(canonicalFrontmatterKey(key))) {
+    onUpdate(key, newItems)
+    return
+  }
+  reconcileListUpdate(newItems, onUpdate, onDelete, key)
+}
+
 function collectTypeMetadata(entries: VaultEntry[] | undefined) {
   const typeEntries = (entries ?? []).filter(e => e.isA === 'Type')
   const availableTypes = new Set<string>()
@@ -170,6 +190,29 @@ function buildTypeDerivedPropertyEntries({
   return result
 }
 
+function typeArraySchemaKeys(entries: VaultEntry[] | undefined, entryIsA: string | null): Set<string> {
+  const typeEntry = findTypeEntry(entries, entryIsA)
+  if (!typeEntry) return new Set()
+
+  return new Set(
+    Object.entries(typeEntry.properties ?? {})
+      .filter(([, value]) => Array.isArray(value))
+      .map(([key]) => canonicalFrontmatterKey(key)),
+  )
+}
+
+function splitTypeDerivedPropertyEntries(entries: PropertyEntry[]) {
+  const arrayEntries: PropertyEntry[] = []
+  const placeholderEntries: PropertyEntry[] = []
+
+  for (const [key, value] of entries) {
+    if (Array.isArray(value)) arrayEntries.push([key, []])
+    else placeholderEntries.push([key, value])
+  }
+
+  return { arrayEntries, placeholderEntries }
+}
+
 function addTagValues(
   tagsByKey: Map<string, Set<string>>,
   key: string,
@@ -275,10 +318,18 @@ export function usePropertyPanelState(deps: PropertyPanelDeps) {
     () => collectAllVaultTags(entries, displayOverrides),
     [displayOverrides, entries],
   )
-  const propertyEntries = useMemo(() => buildVisiblePropertyEntries(frontmatter), [frontmatter])
-  const typeDerivedPropertyEntries = useMemo(
+  const typeArrayKeys = useMemo(() => typeArraySchemaKeys(entries, entryIsA), [entries, entryIsA])
+  const derivedPropertyEntries = useMemo(
     () => buildTypeDerivedPropertyEntries({ entries, entryIsA, frontmatter }),
     [entries, entryIsA, frontmatter],
+  )
+  const { arrayEntries, placeholderEntries: typeDerivedPropertyEntries } = useMemo(
+    () => splitTypeDerivedPropertyEntries(derivedPropertyEntries),
+    [derivedPropertyEntries],
+  )
+  const propertyEntries = useMemo(
+    () => [...buildVisiblePropertyEntries(frontmatter), ...arrayEntries],
+    [arrayEntries, frontmatter],
   )
 
   const handleSaveValue = useCallback((key: string, newValue: string) => {
@@ -295,8 +346,14 @@ export function usePropertyPanelState(deps: PropertyPanelDeps) {
 
   const handleSaveList = useCallback((key: string, newItems: string[]) => {
     if (!onUpdateProperty) return
-    reconcileListUpdate(newItems, onUpdateProperty, onDeleteProperty, key)
-  }, [onUpdateProperty, onDeleteProperty])
+    saveListProperty({
+      key,
+      newItems,
+      typeArrayKeys,
+      onUpdate: onUpdateProperty,
+      onDelete: onDeleteProperty,
+    })
+  }, [onUpdateProperty, onDeleteProperty, typeArrayKeys])
 
   const handleAdd = useCallback((rawKey: string, rawValue: string, mode: PropertyDisplayMode) => {
     if (!rawKey.trim() || !onAddProperty) return

@@ -194,6 +194,44 @@ describe('usePropertyPanelState', () => {
     ])
   })
 
+  it('keeps Type-declared arrays multi-valued before an instance has values', () => {
+    const onUpdateProperty = vi.fn()
+    const entries = [
+      makeEntry({
+        title: 'Book',
+        isA: 'Type',
+        properties: {
+          Projects: [],
+          Genres: ['science fiction', 'classic'],
+          Owner: 'Luca',
+        },
+      }),
+    ]
+
+    const { result } = renderHook(() =>
+      usePropertyPanelState({
+        entries,
+        entryIsA: 'Book',
+        frontmatter: {},
+        onUpdateProperty,
+      }),
+    )
+
+    expect(result.current.propertyEntries).toEqual([
+      ['Projects', []],
+      ['Genres', []],
+    ])
+    expect(result.current.typeDerivedPropertyEntries).toEqual([
+      ['Owner', 'Luca'],
+    ])
+
+    act(() => {
+      result.current.handleSaveList('Projects', ['Tolaria'])
+    })
+
+    expect(onUpdateProperty).toHaveBeenCalledWith('Projects', ['Tolaria'])
+  })
+
   it('saves scalar and list properties through the correct handlers', () => {
     const onUpdateProperty = vi.fn()
     const onDeleteProperty = vi.fn()

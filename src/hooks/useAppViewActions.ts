@@ -7,7 +7,7 @@ import { createViewFilename } from '../utils/viewFilename'
 import { nextViewOrder } from '../utils/viewOrdering'
 import { viewMatchesSelection, viewVaultPath } from '../utils/viewIdentity'
 import { viewCreationVaultPath } from '../utils/viewTargetVault'
-import { isActiveVaultUnavailableError } from '../utils/vaultErrors'
+import { errorMessage, isActiveVaultUnavailableError } from '../utils/vaultErrors'
 import { trackEvent } from '../lib/telemetry'
 
 interface EditingViewState {
@@ -123,10 +123,6 @@ function savedViewDefinition(
 
 function shouldPreserveViewRootPath(views: ViewFile[], editingRootPath?: string): boolean {
   return Boolean(editingRootPath) || views.some((view) => view.rootPath)
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
 }
 
 function savedViewEvent(editingView: EditingViewState | null): 'view_created' | 'view_updated' {
@@ -253,8 +249,8 @@ async function deleteExistingView(context: DeleteViewContext): Promise<void> {
   setToastMessage('View deleted')
 }
 
-function availableViewFields(visibleEntries: VaultEntry[]): string[] {
-  const builtIn = ['type', 'status', 'title', 'favorite', 'body']
+export function availableViewFields(visibleEntries: VaultEntry[]): string[] {
+  const builtIn = ['type', 'status', 'title', 'archived', 'favorite', 'body']
   if (visibleEntries.length === 0) return builtIn
   const customFields = new Set<string>()
   for (const entry of visibleEntries) {

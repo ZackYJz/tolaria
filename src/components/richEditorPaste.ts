@@ -90,6 +90,9 @@ const STANDALONE_CODE_FENCE_RE = /^\s*(?:`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*\r?\n\s
 const SPACED_LITERAL_ASTERISK_RE = /\S\s+\*\s+\S/u
 const PREFIX_GLOB_ASTERISK_RE = /(?:^|\s)\*(?![*\s])[\w./-]+(?=\s|$)/u
 const SUFFIX_GLOB_ASTERISK_RE = /(?:^|\s)[\w./-]+\*(?=\s|$)/u
+const MARKDOWN_BLOCK_SIGNAL_RE = /^(?: {0,3}#{1,6}| {0,3}>| {0,3}(?:[-+*]|\d+[.)]))[ \t]+\S/mu
+const MARKDOWN_REFERENCE_LINK_RE = /\[[^\]\n]+\]\[[^\]\n]+\]/u
+const LONG_MARKDOWN_STRONG_RE = /(\*\*|__)(?!\s)[\s\S]{1,2000}?\S\1/u
 const LINK_PASTE_PROTOCOLS = new Set(['http:', 'https:'])
 
 type ImportRemoteImages = (request: {
@@ -141,6 +144,18 @@ function shouldPasteHTMLImagesFromHTML(clipboardData: DataTransfer | null): bool
   if (hasBlockNoteClipboardPayload(clipboardData)) return false
 
   return HTML_IMAGE_TAG_RE.test(clipboardWebMarkup(clipboardData).value)
+}
+
+function structuredPlainTextMarkdown(clipboardData: DataTransfer | null): string | null {
+  if (!clipboardData || hasBlockNoteClipboardPayload(clipboardData)) return null
+  if (!clipboardWebMarkup(clipboardData).value) return null
+
+  const plainText = clipboardData.getData('text/plain')
+  return MARKDOWN_BLOCK_SIGNAL_RE.test(plainText)
+    || MARKDOWN_REFERENCE_LINK_RE.test(plainText)
+    || LONG_MARKDOWN_STRONG_RE.test(plainText)
+    ? plainText
+    : null
 }
 
 function clipboardWebMarkup(clipboardData: DataTransfer): ClipboardMarkup {
@@ -320,6 +335,17 @@ function codeBlocksAsMarkdown(blocks: PasteCodeBlock[]): string {
   return blocks.map(markdownCodeBlockFromPasteBlock).join('\n\n')
 }
 
+function pasteCodeBlocks(editor: RichPasteEditor, clipboardData: DataTransfer | null): boolean {
+  const codeBlocks = [...htmlCodeBlocks(clipboardData), ...markdownCodeBlocks(clipboardData)]
+  if (insertCodeBlocks(editor, codeBlocks)) return true
+
+  const markdown = codeBlocksAsMarkdown(codeBlocks)
+  if (!markdown || !editor.pasteMarkdown) return false
+
+  editor.pasteMarkdown(markdown)
+  return true
+}
+
 function linkedCodeMarkdownSource(clipboardData: DataTransfer | null): string | null {
   if (!clipboardData || hasBlockNoteClipboardPayload(clipboardData)) return null
   if (!hasExplicitMarkdownPayload(clipboardData) && clipboardWebMarkup(clipboardData).value) return null
@@ -409,20 +435,18 @@ export function handleRichEditorPaste({
   event,
 }: RichEditorPasteContext): boolean | undefined {
   if (linkSelectedTextFromPaste(event.clipboardData, editor)) return true
-
-  const codeBlocks = [...htmlCodeBlocks(event.clipboardData), ...markdownCodeBlocks(event.clipboardData)]
-  if (insertCodeBlocks(editor, codeBlocks)) return true
-
-  const codeBlockMarkdown = codeBlocksAsMarkdown(codeBlocks)
-  if (codeBlockMarkdown && editor.pasteMarkdown) {
-    editor.pasteMarkdown(codeBlockMarkdown)
-    return true
-  }
+  if (pasteCodeBlocks(editor, event.clipboardData)) return true
 
   if (insertLinkedCodeMarkdown(editor, event.clipboardData)) return true
 
   if (shouldPasteHTMLImagesFromHTML(event.clipboardData)) {
     return defaultPasteHandler({ prioritizeMarkdownOverHTML: false })
+  }
+
+  const structuredMarkdown = structuredPlainTextMarkdown(event.clipboardData)
+  if (structuredMarkdown && editor.pasteMarkdown) {
+    editor.pasteMarkdown(structuredMarkdown)
+    return true
   }
 
   const plainText = literalPlainText(event.clipboardData)

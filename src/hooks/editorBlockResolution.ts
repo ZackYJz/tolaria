@@ -17,6 +17,7 @@ import {
 import { tryParseFastMarkdownBlocksOffThread } from './editorFastMarkdownBlocks'
 import { logEditorBlockResolutionTrace } from '../utils/editorPerformanceTrace'
 import {
+  captureRichEditorMarkdownSource,
   injectRichEditorMarkdownBlocks,
   preProcessRichEditorMarkdown,
 } from '../utils/richEditorMarkdown'
@@ -37,6 +38,7 @@ type BlockResolutionStrategy =
   | 'tab-cache'
 
 interface BlockResolutionContext {
+  editor: ReturnType<typeof useCreateBlockNote>
   bytes: number
   cache: Map<NotePath, CachedTabState>
   content: NoteContent
@@ -209,6 +211,13 @@ function traceResolvedState(
   strategy: BlockResolutionStrategy,
   fallbackReason?: string | null,
 ): CachedTabState {
+  captureRichEditorMarkdownSource({
+    editor: context.editor,
+    blocks: resolved.blocks,
+    tabContent: context.content,
+    notePath: context.targetPath,
+    vaultPath: context.vaultPath,
+  })
   traceResolvedBlocks({
     blockCount: resolved.blocks.length,
     durationMs: now() - context.startedAt,
@@ -307,7 +316,7 @@ export async function resolveBlocksForTarget(
   },
 ): Promise<CachedTabState> {
   const { editor, cache, targetPath, content, vaultPath } = options
-  const context = { bytes: sourceBytes(content), cache, content, startedAt: now(), targetPath, vaultPath }
+  const context = { editor, bytes: sourceBytes(content), cache, content, startedAt: now(), targetPath, vaultPath }
   const cached = cachedTabResolution(context) ?? parsedCacheResolution(context)
   if (cached) return cached
 

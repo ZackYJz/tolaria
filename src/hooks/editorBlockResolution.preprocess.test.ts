@@ -273,7 +273,7 @@ describe('preProcessRichEditorMarkdown', () => {
       notePath: targetPath,
       tabContent: content,
       vaultPath: '/vault',
-    })).toBe(`${content}\n`)
+    })).toBe(content)
   })
 
   it.each([

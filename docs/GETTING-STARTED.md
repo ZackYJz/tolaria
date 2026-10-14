@@ -47,13 +47,16 @@ If your distribution stores the 64-bit library elsewhere, use that path instead,
 
 ### Linux AppImage packaging checks
 
-Linux release CI currently uses Tauri's stock linuxdeploy AppImage output plugin:
+Linux release CI uses Tauri CLI 2.12.1 or newer with its updated stock linuxdeploy and GTK plugins. Before packaging, the job exports Tolaria's host-library exclusion policy; after packaging, it extracts every sealed AppImage and verifies that those libraries are absent:
 
 ```bash
+export LINUXDEPLOY_EXCLUDED_LIBRARIES="$(node scripts/appimage-launcher-tools.mjs print-linuxdeploy-exclusions)"
 pnpm tauri build --target x86_64-unknown-linux-gnu --bundles deb,rpm,appimage
+node scripts/appimage-launcher-tools.mjs validate-appimage-libraries \
+  src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
 ```
 
-Release validation verifies that the Linux job produced an AppImage, at least one installer bundle, and updater signature artifacts. Windows release jobs always require Tauri updater signatures; when Authenticode certificate secrets are configured, they also import the CI code-signing certificate, build NSIS with a generated Tauri Authenticode signing config, and verify the app executable plus installer signatures before upload. The experimental AppImage output-plugin shim in `scripts/appimage-launcher-tools.mjs` is retained for local investigation, but it is not wired into release packaging because linuxdeploy currently exits before sealing the AppImage when the shim is pre-seeded in Tauri's tools cache.
+The exclusion boundary keeps systemd/udev, D-Bus, Wayland, epoxy, and nghttp2 on the host while retaining the coherent bundled GTK/GLib stack needed by older distributions. Release validation also verifies that the Linux job produced an AppImage, at least one installer bundle, and updater signature artifacts. Windows release jobs always require Tauri updater signatures; when Authenticode certificate secrets are configured, they also import the CI code-signing certificate, build NSIS with a generated Tauri Authenticode signing config, and verify the app executable plus installer signatures before upload. The experimental AppImage output-plugin shim in `scripts/appimage-launcher-tools.mjs` remains available for local investigation but is not pre-seeded in release packaging; its stricter `validate-appimages` check (symlink-safe AppRun plus fcitx payload) only passes for shim-built AppImages. Without the exclusion export, linuxdeploy still bundles these libraries on Tauri CLI 2.12.1, so keep both steps together.
 
 ## Quick Start
 
@@ -101,6 +104,8 @@ chunk validate --remote lint
 
 For Playwright smoke, prefer the shared-server shard runner after setup:
 
+The smoke server scans `index.html` for desktop dependencies. Keep the separate web collaboration prototype out of this dependency scan: its workspace dependencies can abort prebundling and trigger page reloads during smoke interactions. Command-palette tests wait for mounted command routing and focus sidebar navigation before sending a single shortcut; editor tests wait for visible, enabled controls.
+
 ```bash
 chunk sidecar ssh --sidecar-id <playwright-sidecar-id> -- 'cd /home/user/tolaria && PLAYWRIGHT_CONCURRENCY=4 bash .chunk/run-playwright-shards.sh 8'
 ```
@@ -117,9 +122,10 @@ The sidecar is Linux-based, so keep native macOS Tauri QA and app-focus screensh
 
 ## CircleCI
 
-CircleCI is the authoritative outer-loop CI/CD system. `.circleci/config.yml` runs the same
-frontend, Rust, and Playwright lane scripts used by Chunk, then owns native macOS, Linux, and
-Windows release builds, GitHub Release publication, and documentation deployment.
+CircleCI is the authoritative outer-loop CI/CD system. `.circleci/config.yml` reuses the Chunk
+frontend and Playwright lanes, runs the same Rust lint/format and coverage commands in parallel,
+then owns native macOS, Linux, and Windows release builds, GitHub Release publication, and
+documentation deployment.
 
 Validate configuration changes before pushing:
 
@@ -473,7 +479,7 @@ That browser harness is a deterministic desktop command bridge, not real native 
 # Unit tests (fast, no browser)
 pnpm test
 
-# Unit tests with coverage (must pass ≥70%)
+# Unit tests with coverage (must pass ≥71%)
 pnpm test:coverage
 
 # Rust tests

@@ -1,4 +1,4 @@
-import { Component, memo } from 'react'
+import { Component, memo, useLayoutEffect } from 'react'
 import type { ErrorInfo, MutableRefObject, ReactNode } from 'react'
 import { IronCalc } from '@ironcalc/workbook'
 import { translate, type AppLocale } from '../lib/i18n'
@@ -7,6 +7,7 @@ import { SheetFormulaAutocompleteMenu } from './SheetFormulaAutocompleteMenu'
 import { WikilinkSuggestionMenu } from './WikilinkSuggestionMenu'
 import { useSheetEditorController } from './sheet-editor/useSheetEditorController'
 import { isIronCalcWasmBridgeError } from './sheet-editor/sheetReleasedModel'
+import { installSheetSelectionGuard } from './sheet-editor/sheetSelectionGuard'
 import type { VaultEntry } from '../types'
 import './SheetEditor.css'
 
@@ -195,6 +196,10 @@ function SheetContextMenuOverlay({
       workbook: NonNullable<SheetEditorControllerState['workbook']>
     }) {
       const { interactionHandlers, sheetElementRef, sheetKeyboardActive, wikilinkAutocomplete } = controller
+
+      useLayoutEffect(() => {
+        installSheetSelectionGuard(workbook.model)
+      }, [workbook.model])
 
       return (
         <div

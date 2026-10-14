@@ -1,6 +1,7 @@
 // Wikilink placeholder tokens for markdown round-trip
 import { advanceMarkdownFence, type MarkdownFence, type MarkdownFenceScanOptions } from './markdownFences'
 import { stripInlineMarkdown } from './inlineMarkdown'
+import { transformOutsideInlineCode } from './markdownInlineCode'
 import wordCountContract from '../shared/wordCountContract.json'
 
 const WL_START = '\u2039WIKILINK:'
@@ -92,7 +93,8 @@ function replaceWikilinksWithPlaceholders(
   line: MarkdownLine,
   options: WikilinkReplacementOptions,
 ): MarkdownLine {
-  return line.replace(WIKILINK_RE, (_match, target) => wikilinkPlaceholder(target, options))
+  return transformOutsideInlineCode(line, part =>
+    part.replace(WIKILINK_RE, (_match, target) => wikilinkPlaceholder(target, options)))
 }
 
 function wikilinkPlaceholder(

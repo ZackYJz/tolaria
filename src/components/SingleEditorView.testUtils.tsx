@@ -16,6 +16,9 @@ const state = vi.hoisted(() => ({
   hoverGuardMock: vi.fn(),
   imageDropState: { isDragOver: false },
   linkActivationMock: vi.fn(),
+  linkToolbarExtension: {
+    getLinkElementAtPos: vi.fn<(position: number) => HTMLAnchorElement | null>(),
+  },
   wikilinkEntriesRef: { current: [] as VaultEntry[] },
   wikilinkCandidates: [] as Record<string, unknown>[],
 }))
@@ -308,6 +311,7 @@ export function createEditor() {
       },
     },
     focus: vi.fn(),
+    getExtension: vi.fn(() => state.linkToolbarExtension),
     getBlock: vi.fn(() => null),
     getTextCursorPosition: vi.fn(() => ({ block: cursorBlock })),
     insertBlocks: vi.fn(),

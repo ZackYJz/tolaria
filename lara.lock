@@ -397,7 +397,7 @@ files:
     settings.privacy.crashReportingDescription: e9d7c7efce44adc08d0460be1aad5c42
     settings.privacy.analytics: 29d55bb222ea76e1a17396375dfab228
     settings.privacy.analyticsDescription: a0f8b61d555d6d3fd279de2f47aaca76
-    settings.footerShortcut: 7dc840d6b0ef9f422a663ba41975871e
+    settings.footerShortcut: 67c68a95191f7dddc0e5e66aa18519fb
     settings.cancel: ea4788705e6873b424c65e91c2846b19
     settings.save: c9cc8cce247e49bae79f15173ce97354
     common.cancel: ea4788705e6873b424c65e91c2846b19
@@ -454,6 +454,7 @@ files:
     ai.panel.send: 747c6a3564774149c989884e0c581d53
     ai.panel.stop: 4c7fadd610e7adf3e0ab80fa4459ad96
     ai.panel.stoppedResponse: d223fbbd5ade7a06a14ea75105df4f9d
+    ai.error.claude.notAuthenticated: 7384f901818c66d6fa6c2744597f7c53
     ai.error.claude.tooManyRedirects: 590099fedac46db892be91909814b0c7
     ai.error.pi.emptyOutput: f7e27de4f237828178113efbf60e8e52
     ai.error.pi.emptyOutputWithDiagnostic: 41a47dab0883245a1ac42013368e2da4
@@ -798,6 +799,8 @@ files:
     editor.wikilink.createNote: 25aabcecfee9ad6c2847aa43a8239195
     editor.whiteboard.enterFullscreen: 606bf766125ecff4b33ca98122222c72
     editor.whiteboard.exitFullscreen: afd0a0414d79d047f00319921e4d4944
+    editor.whiteboard.incompatiblePasteTitle: c08e3ff742975d83ce9696ea15b421d6
+    editor.whiteboard.incompatiblePasteBody: 47486c3aac28437050bb28c72b6a2793
     editor.whiteboard.permissionDeniedTitle: f40def4c1928438aa4ac86421fed9fd9
     editor.whiteboard.permissionDeniedBody: eb1399413cae00b1614695d3c5c7ac9f
     editor.exportPdf.unavailable: 2fce9834984172b64b66767485d815e9
@@ -1064,3 +1067,17 @@ files:
     locale.svSE: 41171a0fcd362ce98b5f0f11398713b6
     locale.skSK: 9accc467b159e7ce158e53209c0cde2a
     telemetryConsent.saveError: e0f211ccfec32ee21581f7883afa4665
+    collab.connect.title: 11b36225617f29772af4bad7f0875400
+    collab.connect.token: 4c1ab1e0d3eda5c34acfadd2179c22a1
+    collab.connect.name: 221e705c06e231636fdbccfdd14f4d5c
+    collab.connect.note: 3a60dd03d933b89e2e0cf967cc700129
+    collab.connect.submit: def6a4a12ab785272e3c6442cc176a19
+    collab.status.connecting: 182e7eda4e721ad00737460b88701dee
+    collab.status.syncing: 50e713b46c854e5b8de9f821ad50238f
+    collab.status.synced: 9168ea748695dd9405ddceda0caf52d8
+    collab.status.offline: d91bd16c8b273210ae6a7e34c7fc55a1
+    collab.status.closed: ef70e46fd3bbc21e3e1f0b6815e750c0
+    collab.conflict: b5deac9b01926ea3fcfec8be58dfa199
+    collab.presence.label: bf4d8656b98dec65392089af27b4fe04
+    collab.presence.you: 2f42560ef5401cbf55847b22cff66f1a
+    collab.error.open: 799ae0bab73d97e81222f9417ef969ed

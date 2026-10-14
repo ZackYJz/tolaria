@@ -3,10 +3,11 @@
   "files": {
     "includes": [
       "**",
-      "!src-tauri/gen/**",
-      "!target/**",
-      "!dist/**",
-      "!node_modules/**"
+      "!src-tauri/gen",
+      "!target",
+      "!dist",
+      "!apps/web/dist",
+      "!node_modules"
     ]
   },
   "css": {

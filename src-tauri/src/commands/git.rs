@@ -22,11 +22,23 @@ where
     T: Send + 'static,
     F: FnOnce(&str, &str) -> Result<T, String> + Send + 'static,
 {
+    run_vault_git_operation(vault_path, move |vault_path| {
+        let path = expand_tilde(&path);
+        operation(vault_path, &path)
+    })
+    .await?
+}
+
+#[cfg(desktop)]
+async fn run_vault_git_operation<T, F>(vault_path: VaultPathArg, operation: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&str) -> T + Send + 'static,
+{
     let vault_path = expand_tilde(&vault_path).into_owned();
-    let path = expand_tilde(&path).into_owned();
-    tokio::task::spawn_blocking(move || operation(&vault_path, &path))
+    tokio::task::spawn_blocking(move || operation(&vault_path))
         .await
-        .map_err(|error| format!("Task panicked: {error}"))?
+        .map_err(|error| format!("Task panicked: {error}"))
 }
 
 // ── Git commands (desktop) ──────────────────────────────────────────────────
@@ -60,56 +72,68 @@ pub async fn get_modified_files(
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_file_diff(vault_path: VaultPathArg, path: NotePathArg) -> Result<String, String> {
-    let vault_path = expand_tilde(&vault_path);
-    let path = expand_tilde(&path);
-    crate::git::get_file_diff(&vault_path, &path)
+pub async fn get_file_diff(vault_path: VaultPathArg, path: NotePathArg) -> Result<String, String> {
+    run_note_git_operation(vault_path, path, crate::git::get_file_diff).await
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_file_diff_at_commit(
+pub async fn get_file_diff_at_commit(
     vault_path: VaultPathArg,
     path: NotePathArg,
     commit_hash: CommitHashArg,
 ) -> Result<String, String> {
-    let vault_path = expand_tilde(&vault_path);
-    let path = expand_tilde(&path);
-    crate::git::get_file_diff_at_commit(&vault_path, &path, &commit_hash)
+    run_note_git_operation(vault_path, path, move |vault_path, path| {
+        crate::git::get_file_diff_at_commit(vault_path, path, &commit_hash)
+    })
+    .await
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_vault_pulse(
+pub async fn get_vault_pulse(
     vault_path: VaultPathArg,
     limit: Option<usize>,
     skip: Option<usize>,
 ) -> Result<Vec<PulseCommit>, String> {
-    let vault_path = expand_tilde(&vault_path);
     let limit = limit.unwrap_or(20);
     let skip = skip.unwrap_or(0);
-    crate::git::get_vault_pulse(vault_path.as_ref(), limit, skip)
+    run_vault_git_operation(vault_path, move |vault_path| {
+        crate::git::get_vault_pulse(vault_path, limit, skip)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn git_commit(vault_path: VaultPathArg, message: CommitMessageArg) -> Result<String, String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::git_commit(&vault_path, &message)
+pub async fn git_commit(
+    vault_path: VaultPathArg,
+    message: CommitMessageArg,
+) -> Result<String, String> {
+    run_vault_git_operation(vault_path, move |vault_path| {
+        crate::git::git_commit(vault_path, &message)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn git_author_identity(vault_path: VaultPathArg) -> Result<GitAuthorIdentity, String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::git_author_identity(&vault_path)
+pub async fn git_author_identity(vault_path: VaultPathArg) -> Result<GitAuthorIdentity, String> {
+    run_vault_git_operation(vault_path, |vault_path| {
+        crate::git::git_author_identity(vault_path)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_last_commit_info(vault_path: VaultPathArg) -> Result<Option<LastCommitInfo>, String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::get_last_commit_info(vault_path.as_ref())
+pub async fn get_last_commit_info(
+    vault_path: VaultPathArg,
+) -> Result<Option<LastCommitInfo>, String> {
+    run_vault_git_operation(vault_path, |vault_path| {
+        crate::git::get_last_commit_info(vault_path)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
@@ -134,34 +158,42 @@ pub async fn git_pull(vault_path: VaultPathArg) -> Result<GitPullResult, String>
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_conflict_files(vault_path: VaultPathArg) -> Result<Vec<String>, String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::get_conflict_files(vault_path.as_ref())
+pub async fn get_conflict_files(vault_path: VaultPathArg) -> Result<Vec<String>, String> {
+    run_vault_git_operation(vault_path, |vault_path| {
+        crate::git::get_conflict_files(vault_path)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_conflict_mode(vault_path: VaultPathArg) -> String {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::get_conflict_mode(vault_path.as_ref())
+pub async fn get_conflict_mode(vault_path: VaultPathArg) -> Result<String, String> {
+    run_vault_git_operation(vault_path, |vault_path| {
+        crate::git::get_conflict_mode(vault_path)
+    })
+    .await
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn git_resolve_conflict(
+pub async fn git_resolve_conflict(
     vault_path: VaultPathArg,
     file: NotePathArg,
     strategy: ConflictStrategyArg,
 ) -> Result<(), String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::git_resolve_conflict(vault_path.as_ref(), &file, &strategy)
+    run_vault_git_operation(vault_path, move |vault_path| {
+        crate::git::git_resolve_conflict(vault_path, &file, &strategy)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn git_commit_conflict_resolution(vault_path: VaultPathArg) -> Result<String, String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::git_commit_conflict_resolution(vault_path.as_ref())
+pub async fn git_commit_conflict_resolution(vault_path: VaultPathArg) -> Result<String, String> {
+    run_vault_git_operation(vault_path, |vault_path| {
+        crate::git::git_commit_conflict_resolution(vault_path)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
@@ -215,12 +247,14 @@ pub async fn git_file_url(
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn git_discard_file(
+pub async fn git_discard_file(
     vault_path: VaultPathArg,
     relative_path: NotePathArg,
 ) -> Result<(), String> {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::discard_file_changes(&vault_path, &relative_path)
+    run_vault_git_operation(vault_path, move |vault_path| {
+        crate::git::discard_file_changes(vault_path, &relative_path)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
@@ -236,9 +270,11 @@ pub async fn is_git_repo(vault_path: VaultPathArg) -> bool {
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn git_workspace_info(vault_path: VaultPathArg) -> GitWorkspaceInfo {
-    let vault_path = expand_tilde(&vault_path);
-    crate::git::git_workspace_info(std::path::Path::new(vault_path.as_ref()))
+pub async fn git_workspace_info(vault_path: VaultPathArg) -> Result<GitWorkspaceInfo, String> {
+    run_vault_git_operation(vault_path, |vault_path| {
+        crate::git::git_workspace_info(std::path::Path::new(vault_path))
+    })
+    .await
 }
 
 #[cfg(desktop)]
@@ -517,164 +553,5 @@ pub fn init_git_repo(_vault_path: VaultPathArg) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-
-    fn vault_path(dir: &TempDir) -> String {
-        dir.path().to_string_lossy().into_owned()
-    }
-
-    fn note_path(dir: &TempDir, name: &str) -> String {
-        dir.path().join(name).to_string_lossy().into_owned()
-    }
-
-    fn create_initialized_vault() -> (TempDir, String) {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("note.md"), "# Note\n").unwrap();
-        let vault = vault_path(&dir);
-        init_git_repo(vault.clone()).unwrap();
-        (dir, vault)
-    }
-
-    #[tokio::test]
-    async fn desktop_git_commands_route_to_git_backend() {
-        let (dir, vault) = create_initialized_vault();
-        let note = note_path(&dir, "note.md");
-
-        assert!(is_git_repo(vault.clone()).await);
-
-        fs::write(dir.path().join("note.md"), "# Updated\n").unwrap();
-        let modified = get_modified_files(vault.clone(), None).await.unwrap();
-        assert!(modified.iter().any(|file| file.relative_path == "note.md"));
-
-        let diff = get_file_diff(vault.clone(), note.clone()).unwrap();
-        assert!(diff.contains("# Updated"));
-
-        git_commit(vault.clone(), "Update note".to_string()).unwrap();
-        let history = get_file_history(vault.clone(), note.clone()).await.unwrap();
-        assert!(history.iter().any(|commit| commit.message == "Update note"));
-
-        let last_commit = get_last_commit_info(vault.clone()).unwrap().unwrap();
-        assert!(!last_commit.short_hash.is_empty());
-
-        let commit_diff = get_file_diff_at_commit(
-            vault.clone(),
-            note.clone(),
-            history.first().unwrap().hash.clone(),
-        )
-        .unwrap();
-        assert!(commit_diff.contains("# Updated"));
-
-        let pulse = get_vault_pulse(vault.clone(), Some(5), Some(0)).unwrap();
-        assert!(!pulse.is_empty());
-
-        fs::write(dir.path().join("note.md"), "# Discard me\n").unwrap();
-        git_discard_file(vault.clone(), "note.md".to_string()).unwrap();
-        assert_eq!(
-            fs::read_to_string(dir.path().join("note.md")).unwrap(),
-            "# Updated\n"
-        );
-
-        assert!(get_conflict_files(vault.clone()).unwrap().is_empty());
-        assert_eq!(get_conflict_mode(vault.clone()), "none");
-        assert!(
-            git_resolve_conflict(vault.clone(), "note.md".to_string(), "invalid".to_string(),)
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn init_git_repo_rejects_broad_personal_folders() {
-        let dir = TempDir::new().unwrap();
-        let documents = dir.path().join("Documents");
-        fs::create_dir_all(&documents).unwrap();
-        fs::write(documents.join("unrelated.txt"), "not a vault").unwrap();
-
-        let err = init_git_repo(documents.to_string_lossy().into_owned())
-            .expect_err("expected Documents itself to be rejected before git init");
-
-        assert!(err.contains("dedicated vault folder"));
-        assert!(!documents.join(".git").exists());
-    }
-
-    #[tokio::test]
-    async fn init_git_repo_allows_named_vault_subfolder_under_documents() {
-        let dir = TempDir::new().unwrap();
-        let vault = dir.path().join("Documents").join("Tolaria");
-        fs::create_dir_all(&vault).unwrap();
-        fs::write(vault.join("note.md"), "# Note\n").unwrap();
-        let vault = vault.to_string_lossy().into_owned();
-
-        init_git_repo(vault.clone()).unwrap();
-
-        assert!(is_git_repo(vault).await);
-    }
-
-    #[tokio::test]
-    async fn is_git_repo_accepts_vault_nested_inside_parent_worktree() {
-        let parent = TempDir::new().unwrap();
-        fs::write(parent.path().join("README.md"), "# Parent\n").unwrap();
-        crate::git::init_repo(parent.path()).unwrap();
-
-        let nested_vault = parent.path().join("demo-vault-v2");
-        fs::create_dir_all(&nested_vault).unwrap();
-        fs::write(nested_vault.join("note.md"), "# Nested\n").unwrap();
-
-        assert!(is_git_repo(nested_vault.to_string_lossy().into_owned()).await);
-        assert!(!nested_vault.join(".git").exists());
-    }
-
-    #[test]
-    fn init_git_repo_rejects_nested_worktree_vault_without_direct_git_metadata() {
-        let parent = TempDir::new().unwrap();
-        fs::write(parent.path().join("README.md"), "# Parent\n").unwrap();
-        crate::git::init_repo(parent.path()).unwrap();
-
-        let nested_vault = parent.path().join("demo-vault-v2");
-        fs::create_dir_all(&nested_vault).unwrap();
-        fs::write(nested_vault.join("note.md"), "# Nested\n").unwrap();
-
-        let err = init_git_repo(nested_vault.to_string_lossy().into_owned())
-            .expect_err("expected nested vault to reuse the parent worktree");
-
-        assert!(err.contains("inside a Git work tree"));
-        assert!(!nested_vault.join(".git").exists());
-    }
-
-    #[tokio::test]
-    async fn desktop_remote_commands_report_no_remote() {
-        let (_dir, vault) = create_initialized_vault();
-
-        let pull = git_pull(vault.clone()).await.unwrap();
-        assert_eq!(pull.status, "no_remote");
-
-        let push = git_push(vault.clone()).await.unwrap();
-        assert_eq!(push.status, "no_remote");
-
-        let status = git_remote_status(vault.clone()).await.unwrap();
-        assert!(!status.has_remote);
-        assert_eq!((status.ahead, status.behind), (0, 0));
-    }
-
-    #[tokio::test]
-    async fn desktop_remote_commands_report_no_remote_for_gitless_vault() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("note.md"), "# Note\n").unwrap();
-        let vault = vault_path(&dir);
-
-        let pull = git_pull(vault.clone()).await.unwrap();
-        assert_eq!(pull.status, "no_remote");
-        assert!(pull.updated_files.is_empty());
-        assert!(pull.conflict_files.is_empty());
-
-        let push = git_push(vault.clone()).await.unwrap();
-        assert_eq!(push.status, "no_remote");
-
-        let status = git_remote_status(vault).await.unwrap();
-        assert!(!status.has_remote);
-        assert_eq!(status.branch, "");
-        assert_eq!((status.ahead, status.behind), (0, 0));
-    }
-}
+#[path = "git_tests.rs"]
+mod tests;
