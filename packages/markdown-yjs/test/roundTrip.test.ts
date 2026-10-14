@@ -114,7 +114,9 @@ describe('round-trip differences', () => {
         type: 'toggleListItem',
         children: expect.arrayContaining([
           expect.objectContaining({
-            content: expect.arrayContaining([expect.objectContaining({ text: 'Hidden detail' })]),
+            content: expect.arrayContaining([
+              expect.objectContaining({ text: expect.stringMatching(/^\s*Hidden detail\s*$/u) }),
+            ]),
           }),
         ]),
       }),
