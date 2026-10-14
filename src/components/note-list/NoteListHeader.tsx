@@ -196,6 +196,7 @@ function HeaderActions(options: Pick<
   } = options
   const createNoteRef = useRef(onCreateNote)
   const deferCreateRef = useRef(false)
+  const createdFromMenuRef = useRef(false)
   useLayoutEffect(() => {
     createNoteRef.current = onCreateNote
   }, [onCreateNote])
@@ -205,6 +206,7 @@ function HeaderActions(options: Pick<
       && activeElement.closest('.raw-editor-codemirror') !== null
   }, [])
   const handleCreateNote = useCallback((createOptions?: ImmediateCreateOptions) => {
+    createdFromMenuRef.current = true
     if (!deferCreateRef.current) {
       createNoteRef.current(createOptions)
       return
@@ -232,7 +234,11 @@ function HeaderActions(options: Pick<
             <Plus size={16} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" onCloseAutoFocus={(event) => {
+          if (!createdFromMenuRef.current) return
+          createdFromMenuRef.current = false
+          event.preventDefault()
+        }}>
           <DropdownMenuItem onSelect={() => handleCreateNote({ creationPath: 'note_list_plus' })}>
             <FileText aria-hidden="true" />
             {translate(locale, 'noteList.createDocument')}

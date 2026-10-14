@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { APP_COMMAND_EVENT_NAME, APP_COMMAND_IDS } from '../../hooks/appCommandDispatcher'
 import { trackEvent } from '../../lib/telemetry'
@@ -71,6 +71,34 @@ describe('NoteListHeader expand sidebar button', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Outline' }))
 
     expect(onCreateNote).toHaveBeenCalledWith({ creationPath: 'note_list_plus', format: 'outline' })
+  })
+
+  it('keeps focus in the new editor when the format menu closes', async () => {
+    const editorInput = document.createElement('textarea')
+    document.body.append(editorInput)
+    try {
+      renderHeader({ onCreateNote: () => queueMicrotask(() => editorInput.focus()) })
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Create new note' }), {
+        button: 0,
+        ctrlKey: false,
+        pointerType: 'mouse',
+      })
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Document' }))
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+
+      expect(editorInput).toHaveFocus()
+    } finally {
+      editorInput.remove()
+    }
+  })
+
+  it('returns focus to the trigger when the format menu is canceled', async () => {
+    renderHeader()
+    const trigger = screen.getByRole('button', { name: 'Create new note' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' })
+    fireEvent.keyDown(await screen.findByRole('menu'), { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it('uses the latest create callback after focus-driven state updates settle', async () => {
