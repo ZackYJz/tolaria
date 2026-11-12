@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { QuickOpenPalette } from './QuickOpenPalette'
 import type { VaultEntry } from '../types'
 
@@ -34,6 +35,18 @@ const entries: VaultEntry[] = [
   makeEntry({ path: '/vault/note/beta.md', title: 'Beta Notes', isA: 'Note', modifiedAt: 1700000002 }),
   makeEntry({ path: '/vault/note/gamma.md', title: 'Gamma Experiment', isA: 'Experiment', modifiedAt: 1700000001 }),
 ]
+
+function CommitKeyPalette({ current, commitKey, onSelect, onClose }: {
+  current: VaultEntry[]
+  commitKey?: string
+  onSelect: (entry: VaultEntry) => void
+  onClose: () => void
+}) {
+  useLayoutEffect(() => {
+    if (commitKey) window.dispatchEvent(new KeyboardEvent('keydown', { key: commitKey }))
+  }, [current, commitKey])
+  return <QuickOpenPalette open entries={current} onSelect={onSelect} onClose={onClose} />
+}
 
 // jsdom doesn't implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn()
@@ -72,6 +85,15 @@ describe('QuickOpenPalette', () => {
 
     expect(screen.getByText('Alpha Project')).toBeInTheDocument()
     expect(screen.queryByText('Beta Notes')).not.toBeInTheDocument()
+  })
+
+  it('selects the committed results before passive keyboard subscriptions update', () => {
+    const { rerender } = render(
+      <CommitKeyPalette current={[entries[0]]} onSelect={onSelect} onClose={onClose} />,
+    )
+    rerender(<CommitKeyPalette current={[entries[1]]} commitKey="Enter" onSelect={onSelect} onClose={onClose} />)
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(entries[1])
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('shows "No matching notes" when query has no results', () => {
@@ -252,9 +274,7 @@ describe('QuickOpenPalette', () => {
   it('calls onClose when clicking the backdrop', () => {
     render(<QuickOpenPalette open={true} entries={entries} onSelect={onSelect} onClose={onClose} />)
 
-    // Click the backdrop (outermost div)
-    const backdrop = screen.getByPlaceholderText('Search notes...').closest('.fixed')!
-    fireEvent.click(backdrop)
+    fireEvent.click(screen.getByRole('button', { name: 'Close quick open' }))
 
     expect(onClose).toHaveBeenCalled()
   })

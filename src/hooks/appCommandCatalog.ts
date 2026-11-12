@@ -1,6 +1,8 @@
 import appCommandManifest from '../shared/appCommandManifest.json' with { type: 'json' }
 import type { SidebarFilter } from '../types'
 import { isMac } from '../utils/platform'
+import { isWebBuild } from '../utils/webBuild'
+import { findWebShortcutCommand, webSafeDesktopCommand, webShortcutDisplay } from './webShortcuts'
 import type { ViewMode } from './useViewMode'
 
 type AppCommandKey = keyof typeof appCommandManifest.commands
@@ -518,7 +520,7 @@ export function findShortcutCommandId(
   return null
 }
 
-export function findShortcutCommandIdForEvent(event: ShortcutEventLike): AppCommandId | null {
+function findDesktopShortcutCommandIdForEvent(event: ShortcutEventLike): AppCommandId | null {
   if (isPlatformRedoAlternate(event)) return APP_COMMAND_IDS.editRedo
 
   if (isMac()) {
@@ -531,6 +533,17 @@ export function findShortcutCommandIdForEvent(event: ShortcutEventLike): AppComm
     if (commandId) return commandId
   }
   return null
+}
+
+/** The web build leaves browser-owned shortcuts to the browser and adds ⌥⌘ ones (TOL-194). */
+function findWebShortcutCommandIdForEvent(event: ShortcutEventLike): AppCommandId | null {
+  const webCommand = findWebShortcutCommand(event, isMac())
+  if (webCommand !== null && isAppCommandId(webCommand)) return webCommand
+  return webSafeDesktopCommand(findDesktopShortcutCommandIdForEvent(event))
+}
+
+export function findShortcutCommandIdForEvent(event: ShortcutEventLike): AppCommandId | null {
+  return isWebBuild() ? findWebShortcutCommandIdForEvent(event) : findDesktopShortcutCommandIdForEvent(event)
 }
 
 export function formatShortcutDisplay(
@@ -550,5 +563,6 @@ export function formatShortcutDisplay(
 
 export function getAppCommandShortcutDisplay(id: AppCommandId): string | undefined {
   const shortcut = (Reflect.get(APP_COMMAND_DEFINITIONS, id) as AppCommandDefinition).shortcut
-  return shortcut ? formatShortcutDisplay(shortcut) : undefined
+  const display = shortcut ? formatShortcutDisplay(shortcut) : undefined
+  return isWebBuild() ? webShortcutDisplay(id, display, isMac()) : display
 }

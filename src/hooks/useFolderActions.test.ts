@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { renderHook, act } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SidebarSelection, VaultEntry } from '../types'
 import { useFolderActions } from './useFolderActions'
 
@@ -145,5 +145,84 @@ describe('useFolderActions', () => {
     expect(result.current.tabs).toEqual([])
     expect(result.current.activeTabPath).toBeNull()
     expect(setToastMessage).toHaveBeenCalledWith('Deleted folder "projects"')
+  })
+  describe('on a Tolaria remote (TOL-233)', () => {
+    const remoteEntry = { ...folderEntry, path: 'projects/note.md' }
+    let sent: Array<{ url: string; body: unknown }>
+    let answer: () => Response
+
+    beforeEach(() => {
+      sent = []
+      answer = () => Response.json({ path: 'projects', commit: 'c', pushed: true, deleted: ['projects/note.md'] })
+      Object.assign(window, { TOLARIA_REMOTE_URL: 'https://vault.test', TOLARIA_REMOTE_TOKEN: 'token' })
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+        sent.push({ url, body: JSON.parse(String(init?.body)) })
+        return answer()
+      }))
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      Object.assign(window, { TOLARIA_REMOTE_URL: undefined, TOLARIA_REMOTE_TOKEN: undefined })
+    })
+
+    function renderRemote(initialSelection: SidebarSelection) {
+      return renderFolderActions({
+        initialSelection,
+        initialTabs: [{ entry: remoteEntry, content: '# Note' }],
+        reloadVault: reloadVault.mockResolvedValue([]),
+        reloadFolders,
+        setToastMessage,
+      })
+    }
+
+    it('deletes the folder on the server and closes its vault-relative notes', async () => {
+      const otherTab = new BroadcastChannel('tolaria:remote-folders:https://vault.test')
+      const told = new Promise((resolve) => { otherTab.onmessage = ({ data }) => resolve(data) })
+      const { result } = renderRemote({ kind: 'entity', entry: remoteEntry })
+
+      act(() => result.current.actions.requestDeleteFolder('projects'))
+      await act(async () => {
+        await result.current.actions.confirmDeleteSelectedFolder()
+      })
+
+      expect(sent).toEqual([{ url: 'https://vault.test/v1/folders/delete', body: { path: 'projects' } }])
+      expect(mockInvokeFn).not.toHaveBeenCalled()
+      expect(result.current.tabs).toEqual([])
+      expect(result.current.selection).toEqual({ kind: 'filter', filter: 'all' })
+      await expect(told).resolves.toEqual({ kind: 'deleted', path: 'projects' })
+      otherTab.close()
+    })
+
+    it('shows the server refusal with the desktop message', async () => {
+      answer = () => Response.json({ error: { code: 'not_found' } }, { status: 404 })
+      const { result } = renderRemote({ kind: 'folder', path: 'projects' })
+
+      act(() => result.current.actions.requestDeleteFolder('projects'))
+      await act(async () => {
+        await result.current.actions.confirmDeleteSelectedFolder()
+      })
+
+      expect(setToastMessage).toHaveBeenCalledWith('Failed to delete folder: Folder does not exist: projects')
+      expect(result.current.tabs).toHaveLength(1)
+    })
+
+    it('follows a folder another tab deleted or created, without a reload, and ignores anything else', async () => {
+      const otherTab = new BroadcastChannel('tolaria:remote-folders:https://vault.test')
+      const { result } = renderRemote({ kind: 'folder', path: 'projects' })
+
+      otherTab.postMessage({ kind: 'deleted', path: 'projects' })
+      await vi.waitFor(() => expect(result.current.tabs).toEqual([]))
+      expect(result.current.selection).toEqual({ kind: 'filter', filter: 'all' })
+      expect(reloadVault).toHaveBeenCalled()
+
+      reloadFolders.mockClear()
+      for (const path of ['', '/etc', '../outside', 'a//b', 'a\\b', 'trailing./b', 'LPT1', 'a/CON.txt', 'quarterly:plan', 7]) otherTab.postMessage({ kind: 'deleted', path })
+      otherTab.postMessage({ kind: 'renamed', path: 'ignored' })
+      otherTab.postMessage({ kind: 'created', path: 'ideas' })
+      await vi.waitFor(() => expect(reloadFolders).toHaveBeenCalledTimes(1))
+      expect(sent).toEqual([])
+      otherTab.close()
+    })
   })
 })

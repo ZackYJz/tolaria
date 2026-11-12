@@ -128,7 +128,7 @@ pub async fn reload_vault(
 ) -> Result<Vec<crate::vault::VaultEntry>, String> {
     let path = expand_tilde(&path).into_owned();
     crate::sync_vault_asset_scope(&app_handle, Path::new(&path))?;
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         let vault_path = Path::new(&path);
         let entries = vault::refresh_vault_cache(vault_path)?;
         Ok(vault::filter_gitignored_entries(
@@ -137,8 +137,7 @@ pub async fn reload_vault(
             crate::settings::hide_gitignored_files_enabled(),
         ))
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[tauri::command]
@@ -151,7 +150,7 @@ pub async fn search_vault(
     let vault_path = expand_tilde(&vault_path).into_owned();
     let limit = limit.unwrap_or(20);
     let exclude_frontmatter = exclude_frontmatter.unwrap_or(false);
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking_labeled("Search task failed", move || {
         search::search_vault_with_options(search::SearchOptions {
             vault_path,
             query,
@@ -161,8 +160,7 @@ pub async fn search_vault(
             exclude_frontmatter,
         })
     })
-    .await
-    .map_err(|e| format!("Search task failed: {}", e))?
+    .await?
 }
 
 #[cfg(test)]

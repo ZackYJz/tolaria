@@ -23,9 +23,16 @@ export interface Sender {
   readOnly: boolean
   /**
    * Decides whether a change may be applied. Given the update before it touches the document;
-   * returning false makes `receive` throw `RejectedChange`. Absent: every change is applied.
+   * returning false makes `receive` throw `RejectedChange`, and `'later'` leaves the change out
+   * without blaming the sender, for a change that cannot be judged yet. Absent: every change is
+   * applied.
    */
-  accept?(update: Uint8Array): boolean
+  accept?(update: Uint8Array): boolean | 'later'
+  /**
+   * Whether the sender may publish the presence of an awareness client id. Entries of an
+   * awareness update for other ids are dropped before it is applied. Absent: all are applied.
+   */
+  ownsClient?(clientId: number): boolean
 }
 
 /** Thrown by `receive` for a change the receiver's `accept` turned down. Nothing was applied. */
@@ -72,8 +79,9 @@ const SYNC_CHANGES = new Map<number, 'sync-step2' | 'update'>([
 ])
 
 function applyChange(update: Uint8Array, doc: Y.Doc, { origin, accept }: Sender): void {
-  if (accept && !accept(update)) throw new RejectedChange()
-  Y.applyUpdate(doc, update, origin)
+  const verdict = accept ? accept(update) : true
+  if (verdict === false) throw new RejectedChange()
+  if (verdict === true) Y.applyUpdate(doc, update, origin)
 }
 
 function readSync(decoder: decoding.Decoder, { doc }: Shared, sender: Sender): Received {
@@ -90,9 +98,30 @@ function readSync(decoder: decoding.Decoder, { doc }: Shared, sender: Sender): R
   return { kind }
 }
 
-function readAwareness(decoder: decoding.Decoder, { awareness }: Shared, { origin }: Sender): Received {
-  awarenessProtocol.applyAwarenessUpdate(awareness, decoding.readVarUint8Array(decoder), origin)
+function readAwareness(decoder: decoding.Decoder, { awareness }: Shared, { origin, ownsClient }: Sender): Received {
+  const update = decoding.readVarUint8Array(decoder)
+  awarenessProtocol.applyAwarenessUpdate(awareness, ownsClient ? ownEntries(update, ownsClient) : update, origin)
   return { kind: 'awareness' }
+}
+
+type AwarenessEntry = [clientId: number, clock: number, state: string]
+
+/** The awareness update with only the entries of the client ids `owns` accepts, encoded as y-protocols does. */
+function ownEntries(update: Uint8Array, owns: (clientId: number) => boolean): Uint8Array {
+  const decoder = decoding.createDecoder(update)
+  const kept: AwarenessEntry[] = []
+  for (let left = decoding.readVarUint(decoder); left > 0; left--) {
+    const entry: AwarenessEntry = [decoding.readVarUint(decoder), decoding.readVarUint(decoder), decoding.readVarString(decoder)]
+    if (owns(entry[0])) kept.push(entry)
+  }
+  const encoder = encoding.createEncoder()
+  encoding.writeVarUint(encoder, kept.length)
+  for (const [clientId, clock, state] of kept) {
+    encoding.writeVarUint(encoder, clientId)
+    encoding.writeVarUint(encoder, clock)
+    encoding.writeVarString(encoder, state)
+  }
+  return encoding.toUint8Array(encoder)
 }
 
 function readAwarenessQuery(_decoder: decoding.Decoder, { awareness }: Shared): Received {

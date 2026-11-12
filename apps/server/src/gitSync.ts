@@ -1,10 +1,13 @@
 import { rm } from 'node:fs/promises'
+import { CO_AUTHOR_LOG_FORMAT, type CoAuthor, CoAuthors, parseCoAuthor } from './coAuthors.ts'
 import { GitError, type GitResult } from './git.ts'
 import { type GitRepo, REMOTE } from './gitRepo.ts'
 import type { VaultPath } from './paths.ts'
+import type { LinkRewrites } from './renameLinks.ts'
 
 export type VaultChange =
-  | { kind: 'upsert'; path: VaultPath }
+  /** `links` is set when a rename rewrote the wikilinks in the file, and nothing else. */
+  | { kind: 'upsert'; path: VaultPath; links?: LinkRewrites }
   | { kind: 'delete'; path: VaultPath }
   | { kind: 'rename'; from: VaultPath; to: VaultPath }
 
@@ -122,18 +125,26 @@ export class GitSync {
     const theirs = await repo.run(['diff', '--name-only', '--no-renames', '-z', base, repo.upstream])
     const contested = new Set(fields(theirs))
     const pending = await this.localChanges(base, contested)
+    const coAuthors = await this.localCoAuthors(base)
     const unpushed = await repo.head()
     try {
       await repo.run(['reset', '-q', '--hard', repo.upstream])
       this.relocated.clear()
       for (const change of pending) await this.reapply(change, contested)
       await repo.run(['add', '-A', '-f'])
-      await repo.commitStaged(`Replay ${pending.length} local change(s) onto upstream`)
+      await repo.commitStaged(`Replay ${pending.length} local change(s) onto upstream`, coAuthors)
     } catch (error) {
       // The unpushed commits exist nowhere else: put them back before reporting the failure.
       await repo.run(['reset', '-q', '--hard', unpushed])
       throw error
     }
+  }
+
+  /** Who the unpushed local commits name: the replay that replaces them keeps naming them. */
+  private async localCoAuthors(base: string): Promise<CoAuthor[]> {
+    const log = await this.repo.run(['log', CO_AUTHOR_LOG_FORMAT, `${base}..HEAD`])
+    const named = log.stdout.split('\n').map(parseCoAuthor)
+    return new CoAuthors(named.filter((author) => author !== null)).list()
   }
 
   /** What the unpushed local commits changed. A deletion of a contested file is dropped. */

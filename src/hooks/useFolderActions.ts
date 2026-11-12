@@ -1,3 +1,5 @@
+import { useCallback } from 'react'
+import { type RemoteFolderChange, useRemoteFolderChanges } from '../lib/remoteFolderChanges'
 import type { FolderNode, SidebarSelection, VaultEntry } from '../types'
 import type { FolderTab } from './folder-actions/folderActionUtils'
 import { useFolderDelete } from './folder-actions/useFolderDelete'
@@ -53,8 +55,15 @@ export function useFolderActions(options: UseFolderActionsInput) {
     vaultPath,
   })
 
+  const { followFolderDelete, ...deleteCommands } = deleteActions
+  const followRemoteFolderChange = useCallback((change: RemoteFolderChange) => {
+    const followed = change.kind === 'deleted' ? followFolderDelete(change.path) : reloadFolders()
+    followed.catch((error: unknown) => console.warn('Failed to follow a folder change from another tab:', error))
+  }, [followFolderDelete, reloadFolders])
+  useRemoteFolderChanges(followRemoteFolderChange)
+
   return {
     ...renameActions,
-    ...deleteActions,
+    ...deleteCommands,
   }
 }

@@ -58,9 +58,10 @@ pub struct ResolveSheetExternalFormulaInputsResponse {
 pub async fn resolve_sheet_external_formula_inputs(
     request: ResolveSheetExternalFormulaInputsRequest,
 ) -> Result<ResolveSheetExternalFormulaInputsResponse, String> {
-    tokio::task::spawn_blocking(move || resolve_sheet_external_formula_inputs_sync(request))
-        .await
-        .map_err(|e| format!("Task panicked: {e}"))?
+    crate::commands::blocking::run_blocking(move || {
+        resolve_sheet_external_formula_inputs_sync(request)
+    })
+    .await?
 }
 
 fn resolve_sheet_external_formula_inputs_sync(

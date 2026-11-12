@@ -34,6 +34,7 @@ async function start(maxBodyBytes = 1024 * 1024): Promise<void> {
     maxBodyBytes,
     // The file API on its own; the collaboration channel is covered in collabServer.test.ts.
     collab: false,
+    changes: new (await import('../src/changeEmitter.ts')).ChangeEmitter(),
     log: (message) => logs.push(message),
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -301,16 +302,94 @@ describe('POST /v1/rename', () => {
     expect((await api('/v1/files/welcome.md')).status).toBe(404)
   })
 
+  it('rewrites the links to the note in the same commit when asked (since 1.4)', async () => {
+    const response = await rename({ from: 'welcome.md', to: 'hello.md', rewriteLinks: true, title: 'Hello', oldTitle: 'Welcome' })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ path: 'hello.md', rewritten: ['projects/alpha.md'] })
+    expect(await fixture.desktop.read('projects/alpha.md')).toBe('# Alpha\n\nLinks to [[hello]] and mentions the Heron.\n')
+    expect(await fixture.desktop.read('hello.md')).toContain('title: Hello')
+    expect((await fixture.desktop.log())[0]).toBe('Rename welcome.md to hello.md')
+  })
+
   it.each([
     ['not json', 400, 'invalid_request'],
     [[], 400, 'invalid_request'],
     [{ from: 'welcome.md' }, 400, 'invalid_path'],
     [{ from: 'welcome.md', to: '../escape.md' }, 400, 'invalid_path'],
     [{ from: 'welcome.md', to: 'x.md', ifMatch: 7 }, 400, 'invalid_request'],
+    [{ from: 'welcome.md', to: 'x.md', rewriteLinks: 'yes' }, 400, 'invalid_request'],
+    [{ from: 'welcome.md', to: 'x.md', title: 3 }, 400, 'invalid_request'],
     [{ from: 'welcome.md', to: 'projects/alpha.md' }, 409, 'destination_exists'],
     [{ from: 'welcome.md', to: 'x.md', ifMatch: 'stale' }, 412, 'precondition_failed'],
   ])('answers %j with %i %s', async (body, status, code) => {
     const response = await rename(body)
+    expect(response.status).toBe(status)
+    expect(await errorCode(response)).toBe(code)
+  })
+})
+
+describe('POST /v1/folders/rename (since 1.7)', () => {
+  function renameFolder(body: unknown): Promise<Response> {
+    const payload = typeof body === 'string' ? body : JSON.stringify(body)
+    return api('/v1/folders/rename', { method: 'POST', body: payload })
+  }
+
+  it('moves the folder in one commit and keeps the doc ids of its notes', async () => {
+    const before = (await api('/v1/files/projects/alpha.md')).headers.get(DOC_ID_HEADER)
+    const response = await renameFolder({ from: 'projects', to: 'work', rewriteLinks: true })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      from: 'projects',
+      path: 'work',
+      moved: [{ from: 'projects/alpha.md', to: 'work/alpha.md' }],
+      rewritten: [],
+    })
+    expect((await api('/v1/files/work/alpha.md')).headers.get(DOC_ID_HEADER)).toBe(before)
+    expect((await fixture.desktop.log())[0]).toBe('Rename folder projects to work')
+  })
+
+  it.each([
+    ['not json', 400, 'invalid_request'],
+    [{ from: 'projects' }, 400, 'invalid_path'],
+    [{ from: 'projects', to: '../escape' }, 400, 'invalid_path'],
+    [{ from: 'projects', to: 'work', rewriteLinks: 'yes' }, 400, 'invalid_request'],
+    [{ from: 'nowhere', to: 'work' }, 404, 'not_found'],
+    [{ from: 'projects', to: 'attachments' }, 409, 'destination_exists'],
+  ])('answers %j with %i %s', async (body, status, code) => {
+    const response = await renameFolder(body)
+    expect(response.status).toBe(status)
+    expect(await errorCode(response)).toBe(code)
+  })
+})
+
+describe('POST /v1/folders and POST /v1/folders/delete (since 1.8)', () => {
+  function post(route: string, body: unknown): Promise<Response> {
+    const payload = typeof body === 'string' ? body : JSON.stringify(body)
+    return api(route, { method: 'POST', body: payload })
+  }
+
+  it('creates a folder in one commit and deletes it in another', async () => {
+    const created = await post('/v1/folders', { path: 'ideas' })
+    expect(created.status).toBe(201)
+    expect(await created.json()).toMatchObject({ path: 'ideas', pushed: true })
+    expect((await fixture.desktop.log())[0]).toBe('Create folder ideas')
+    expect((await api('/v1/files/ideas/.keep')).status).toBe(200)
+
+    const deleted = await post('/v1/folders/delete', { path: 'ideas' })
+    expect(deleted.status).toBe(200)
+    expect(await deleted.json()).toMatchObject({ path: 'ideas', pushed: true, deleted: ['ideas/.keep'] })
+    expect((await fixture.desktop.log())[0]).toBe('Delete folder ideas')
+  })
+
+  it.each([
+    ['/v1/folders', 'not json', 400, 'invalid_request'],
+    ['/v1/folders', {}, 400, 'invalid_path'],
+    ['/v1/folders', { path: '../escape' }, 400, 'invalid_path'],
+    ['/v1/folders', { path: 'projects' }, 409, 'destination_exists'],
+    ['/v1/folders/delete', { path: '.git' }, 400, 'invalid_path'],
+    ['/v1/folders/delete', { path: 'nowhere' }, 404, 'not_found'],
+  ])('answers %s %j with %i %s', async (route, body, status, code) => {
+    const response = await post(route, body)
     expect(response.status).toBe(status)
     expect(await errorCode(response)).toBe(code)
   })
@@ -355,5 +434,62 @@ describe('POST /v1/sync', () => {
     expect(await response.json()).toMatchObject({ pulled: true, pushed: true })
     expect((await api('/v1/files/hello.md')).headers.get(DOC_ID_HEADER)).toBe(before)
     expect((await api('/v1/files/projects/beta.md')).headers.get(DOC_ID_HEADER)).toMatch(UUID)
+  })
+})
+
+describe('GET /v1/entries', () => {
+  it('returns all vault entries with etag and supports If-None-Match 304', async () => {
+    const response = await api('/v1/entries')
+    expect(response.status).toBe(200)
+    const etag = response.headers.get('etag')
+    expect(etag).toMatch(/^"[0-9a-f]{40}"$/)
+    
+    const body = await response.json()
+    expect(body).toHaveProperty('head')
+    expect(body).toHaveProperty('entries')
+    expect(Array.isArray(body.entries)).toBe(true)
+    expect(body.entries.length).toBeGreaterThan(0)
+    
+    const welcomeEntry = body.entries.find((e: { path: string }) => e.path === 'welcome.md')
+    expect(welcomeEntry).toMatchObject({
+      path: 'welcome.md',
+      filename: 'welcome.md',
+      title: expect.any(String),
+      fileKind: 'markdown',
+      fileSize: expect.any(Number),
+      snippet: expect.any(String),
+      wordCount: expect.any(Number),
+      hasH1: expect.any(Boolean),
+    })
+
+    if (etag) {
+      const cached = await api('/v1/entries', { headers: { 'if-none-match': etag } })
+      expect(cached.status).toBe(304)
+    }
+  })
+
+  it('returns delta with since parameter showing only changed and deleted entries', async () => {
+    const initial = await api('/v1/entries')
+    const initialEtag = initial.headers.get('etag')?.slice(1, -1)
+    expect(initialEtag).toBeTruthy()
+
+    await put('new-note.md', '# New Note\n', { 'if-none-match': '*' })
+
+    const delta = await api(`/v1/entries?since=${initialEtag}`)
+    expect(delta.status).toBe(200)
+    const deltaBody = await delta.json()
+    
+    expect(deltaBody).toHaveProperty('head')
+    expect(deltaBody).toHaveProperty('changed')
+    expect(deltaBody).toHaveProperty('deleted')
+    expect(Array.isArray(deltaBody.changed)).toBe(true)
+    expect(Array.isArray(deltaBody.deleted)).toBe(true)
+    
+    const newEntry = deltaBody.changed.find((e: { path: string }) => e.path === 'new-note.md')
+    expect(newEntry).toMatchObject({
+      path: 'new-note.md',
+      title: 'New Note',
+      fileKind: 'markdown',
+    })
   })
 })

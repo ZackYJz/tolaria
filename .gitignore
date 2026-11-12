@@ -10,8 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.expo/
 site/.vitepress/cache/
 site/.vitepress/dist/
+site/landing/dist/
 _site/
 *.local
 
@@ -103,3 +105,15 @@ CODE-HEALTH-REPORT.md
 # it puts generated notes in every diff and pull request.
 .verity/*
 !.verity/standard.yaml
+# Expo native projects are generated locally by `expo prebuild`.
+apps/mobile/ios/
+apps/mobile/android/
+
+# Videos package (Remotion promo generation, isolated from main build)
+videos/node_modules/
+videos/output/
+videos/dist/
+videos/.remotion/
+
+# Hidden source maps of the web build, uploaded to Sentry by the deploy (TOL-232)
+apps/web/sourcemaps/

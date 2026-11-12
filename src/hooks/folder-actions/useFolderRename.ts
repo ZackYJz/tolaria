@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import type { SidebarSelection, VaultEntry } from '../../types'
 import {
+  entryVaultPath,
+  folderActionError,
   folderLabel,
   invokeRenameFolder,
   type FolderTab,
@@ -50,19 +52,19 @@ export function useFolderRename(options: UseFolderRenameInput) {
         refreshedEntries,
         renameResult,
         setTabs,
-        vaultPath,
+        vaultPath: entryVaultPath(vaultPath),
       })
       updateSelectionAfterFolderRename({
         refreshedEntries,
         renameResult,
         selection,
         setSelection,
-        vaultPath,
+        vaultPath: entryVaultPath(vaultPath),
       })
       setToastMessage(`Renamed folder to "${trimmedName}"`)
       return true
     } catch (error) {
-      setToastMessage(`Failed to rename folder: ${error}`)
+      setToastMessage(`Failed to rename folder: ${folderActionError(error)}`)
       return false
     }
     },

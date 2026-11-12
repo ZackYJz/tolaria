@@ -6,6 +6,7 @@ import {
 } from './telemetryConfig'
 
 function resolveConfig(overrides: {
+  VITE_TOLARIA_WEB_BUILD?: string
   VITE_SENTRY_DSN?: string
   VITE_SENTRY_RELEASE?: string
   VITE_POSTHOG_KEY?: string
@@ -47,6 +48,7 @@ describe('resolveFrontendTelemetryConfig', () => {
         VITE_POSTHOG_HOST: ' https://eu.i.posthog.com ',
       },
       expected: {
+        platform: 'desktop',
         sentryDsn: 'https://public@example.ingest.sentry.io/123456',
         sentryBuildVersion: '2026.4.23',
         sentryRelease: '2026.4.23',
@@ -62,6 +64,7 @@ describe('resolveFrontendTelemetryConfig', () => {
         VITE_POSTHOG_HOST: 'eu.i.posthog.com',
       },
       expected: {
+        platform: 'desktop',
         sentryDsn: 'https://public@example.ingest.sentry.io/123456',
         sentryBuildVersion: '2026.4.23',
         sentryRelease: '2026.4.23',
@@ -112,6 +115,7 @@ describe('resolveFrontendTelemetryConfig', () => {
       VITE_SENTRY_DSN: 'https://public@false/123456',
       VITE_POSTHOG_HOST: 'false',
     })).toEqual({
+      platform: 'desktop',
       sentryDsn: '',
       sentryBuildVersion: '2026.4.23',
       sentryRelease: '2026.4.23',
@@ -125,6 +129,7 @@ describe('resolveFrontendTelemetryConfig', () => {
       VITE_SENTRY_DSN: 'https://public@le/123456',
       VITE_POSTHOG_HOST: 'https://le',
     })).toEqual({
+      platform: 'desktop',
       sentryDsn: '',
       sentryBuildVersion: '2026.4.23',
       sentryRelease: '2026.4.23',
@@ -136,11 +141,42 @@ describe('resolveFrontendTelemetryConfig', () => {
       VITE_SENTRY_DSN: 'http://public@localhost:9000/123456',
       VITE_POSTHOG_HOST: 'http://localhost:8010',
     })).toEqual({
+      platform: 'desktop',
       sentryDsn: 'http://public@localhost:9000/123456',
       sentryBuildVersion: '2026.4.23',
       sentryRelease: '2026.4.23',
       posthogKey: 'phc_test_key',
       posthogHost: 'http://localhost:8010',
     })
+  })
+
+  it('marks the web build and keeps its commit release (TOL-232)', () => {
+    expect(resolveConfig({
+      VITE_TOLARIA_WEB_BUILD: 'true',
+      VITE_SENTRY_DSN: 'http://public@127.0.0.1:48230/1',
+      VITE_SENTRY_RELEASE: 'tolaria-web@0123456789abcdef0123456789abcdef01234567',
+    })).toMatchObject({
+      platform: 'web',
+      sentryDsn: 'http://public@127.0.0.1:48230/1',
+      sentryRelease: 'tolaria-web@0123456789abcdef0123456789abcdef01234567',
+    })
+  })
+
+  it.each(['2026.4.23', 'tolaria-web@not-a-commit', ''])('gives the web build no release for %j', (release) => {
+    expect(resolveConfig({ VITE_TOLARIA_WEB_BUILD: 'true', VITE_SENTRY_RELEASE: release })).toMatchObject({
+      platform: 'web',
+      sentryRelease: '',
+    })
+  })
+
+  it('keeps the desktop date releases and ignores web commit releases there', () => {
+    expect(resolveConfig({ VITE_SENTRY_RELEASE: 'tolaria-web@0123456' })).toMatchObject({
+      platform: 'desktop',
+      sentryRelease: '',
+    })
+  })
+
+  it('turns telemetry off when the web build has no DSN', () => {
+    expect(resolveConfig({ VITE_TOLARIA_WEB_BUILD: 'true', VITE_SENTRY_DSN: '' }).sentryDsn).toBe('')
   })
 })

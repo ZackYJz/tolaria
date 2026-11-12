@@ -11,7 +11,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -294,8 +294,11 @@ function listExtractedLibraries(tempDir) {
   if (result.status !== 0) {
     throw new Error(`Failed to list extracted AppImage libraries: ${result.stderr.trim()}`)
   }
-  return result.stdout.split('\n').filter(Boolean)
-    .map((libraryPath) => relative('squashfs-root/usr/lib', libraryPath))
+
+  return result.stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((path) => path.replace(/^squashfs-root\/usr\/lib\//, ''))
 }
 
 async function validateBundledLibraries(appImage, tempDir) {

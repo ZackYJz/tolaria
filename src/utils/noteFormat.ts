@@ -14,6 +14,10 @@ export const NOTE_FORMAT_OUTLINE = NOTE_DISPLAY_OUTLINE
 
 export type NoteFormat = typeof NOTE_DISPLAY_TEXT | typeof NOTE_DISPLAY_SHEET | typeof NOTE_DISPLAY_OUTLINE
 
+export function defaultNoteWidthForFormat(format: NoteFormat) {
+  return format === NOTE_FORMAT_OUTLINE ? 'wide' as const : null
+}
+
 export function normalizeNoteFormat(value: unknown): NoteFormat {
   if (typeof value !== 'string') return NOTE_DISPLAY_TEXT
   const normalized = value.trim().toLowerCase()

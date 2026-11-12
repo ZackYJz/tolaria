@@ -79,28 +79,6 @@
   cursor: default;
 }
 
-.collab-status {
-  gap: 6px;
-  max-width: 100%;
-  white-space: normal;
-}
-
-.collab-status__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--muted-foreground);
-}
-
-.collab-status[data-status='synced'] .collab-status__dot {
-  background: #2f9e44;
-}
-
-.collab-status[data-status='offline'] .collab-status__dot {
-  background: currentcolor;
-}
-
 .collab-conflict {
   margin: 0;
   padding: 8px 12px;

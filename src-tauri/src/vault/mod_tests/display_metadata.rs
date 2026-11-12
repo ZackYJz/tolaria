@@ -204,3 +204,19 @@ Priority: High
         assert_string_property(&entry, key, value);
     }
 }
+
+#[test]
+fn test_type_status_is_available_as_an_instance_default() {
+    let dir = TempDir::new().unwrap();
+    for key in ["Status", "status"] {
+        let content = format!(
+            "---\ntype: Type\n{key}: Active\ncolor: red\nsidebar label: Projects\n_icon: rocket\n_order: 2\ntemplate: Body\nview: all\nvisible: true\n---\n# Project\n"
+        );
+        let entry = parse_test_entry(&dir, "project.md", &content);
+        assert_eq!(entry.status.as_deref(), Some("Active"));
+        assert_eq!(
+            entry.properties,
+            HashMap::from([(key.to_string(), serde_json::json!("Active"))])
+        );
+    }
+}

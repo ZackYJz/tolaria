@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { ActionTooltip, type ActionTooltipCopy } from '@/components/ui/action-tooltip'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { WorkspaceInitialsBadge } from './WorkspaceInitialsBadge'
+import { NotePresence } from './NotePresence'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,6 +98,36 @@ interface BreadcrumbBarProps {
 
 const BREADCRUMB_ICON_CLASS = 'size-[16px]'
 const TITLE_ACTION_GAP_PX = 24
+
+const TOGGLE_ACTION_CONFIGS = {
+  raw: {
+    activeClassName: 'text-foreground',
+    activeLabelKey: 'editor.toolbar.rawReturn',
+    inactiveLabelKey: 'editor.toolbar.rawOpen',
+    shortcut: '⌘\\',
+    renderIcon: () => <Code size={16} className={BREADCRUMB_ICON_CLASS} />,
+  },
+  favorite: {
+    activeClassName: 'text-[var(--accent-yellow)]',
+    activeLabelKey: 'editor.toolbar.removeFavorite',
+    inactiveLabelKey: 'editor.toolbar.addFavorite',
+    shortcut: '⌘D',
+    renderIcon: (active: boolean) => <Star size={16} weight={active ? 'fill' : 'regular'} className={BREADCRUMB_ICON_CLASS} />,
+  },
+  organized: {
+    activeClassName: 'text-[var(--accent-green)]',
+    activeLabelKey: 'editor.toolbar.markUnorganized',
+    inactiveLabelKey: 'editor.toolbar.markOrganized',
+    shortcut: '⌘E',
+    renderIcon: (active: boolean) => <CheckCircle size={16} weight={active ? 'fill' : 'regular'} className={BREADCRUMB_ICON_CLASS} />,
+  },
+} satisfies Record<string, {
+  activeClassName: string
+  activeLabelKey: Parameters<typeof translate>[1]
+  inactiveLabelKey: Parameters<typeof translate>[1]
+  shortcut: string
+  renderIcon: (active: boolean) => ReactNode
+}>
 
 interface BreadcrumbTooltipController {
   activeTooltipLabel: string | null
@@ -294,36 +325,6 @@ function TranslatedToggleIconAction({
     />
   )
 }
-
-const TOGGLE_ACTION_CONFIGS = {
-  raw: {
-    activeClassName: 'text-foreground',
-    activeLabelKey: 'editor.toolbar.rawReturn',
-    inactiveLabelKey: 'editor.toolbar.rawOpen',
-    shortcut: '⌘\\',
-    renderIcon: () => <Code size={16} className={BREADCRUMB_ICON_CLASS} />,
-  },
-  favorite: {
-    activeClassName: 'text-[var(--accent-yellow)]',
-    activeLabelKey: 'editor.toolbar.removeFavorite',
-    inactiveLabelKey: 'editor.toolbar.addFavorite',
-    shortcut: '⌘D',
-    renderIcon: (active: boolean) => <Star size={16} weight={active ? 'fill' : 'regular'} className={BREADCRUMB_ICON_CLASS} />,
-  },
-  organized: {
-    activeClassName: 'text-[var(--accent-green)]',
-    activeLabelKey: 'editor.toolbar.markUnorganized',
-    inactiveLabelKey: 'editor.toolbar.markOrganized',
-    shortcut: '⌘E',
-    renderIcon: (active: boolean) => <CheckCircle size={16} weight={active ? 'fill' : 'regular'} className={BREADCRUMB_ICON_CLASS} />,
-  },
-} satisfies Record<string, {
-  activeClassName: string
-  activeLabelKey: Parameters<typeof translate>[1]
-  inactiveLabelKey: Parameters<typeof translate>[1]
-  shortcut: string
-  renderIcon: (active: boolean) => ReactNode
-}>
 
 function ConfiguredToggleAction({
   active,
@@ -954,6 +955,7 @@ function BreadcrumbActions(options: Omit<BreadcrumbBarProps, 'wordCount' | 'barR
       data-overflow-collapsed={overflowCollapsed}
       style={{ gap: 8 }}
     >
+      <NotePresence locale={locale} />
       <FavoriteAction favorite={entry.favorite} locale={locale} onToggleFavorite={favoriteAction} />
       <OrganizedAction organized={entry.organized} locale={locale} onToggleOrganized={organizedAction} />
       <OverflowToolbarAction>

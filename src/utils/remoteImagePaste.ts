@@ -95,15 +95,30 @@ async function invokeRemoteImageDownload({ url, vaultPath }: RemoteImageDownload
   return invoke<string>('download_remote_image_to_vault', { url, vaultPath })
 }
 
+/** Resolves with the portable `attachments/...` path the image was stored at, or null. */
+export type ImportRemoteImage = (image: RemotePasteImage) => Promise<string | null>
+
 function importedReplacement(
-  download: DownloadRemoteImage,
+  importImage: ImportRemoteImage,
   image: RemotePasteImage,
-  vaultPath: string,
 ): Promise<[string, string] | null> {
-  return download({ url: image.url, vaultPath }).then((path) => {
-    const portablePath = portableAttachmentPathFromCurrentVaultPath({ path, vaultPath })
-    return portablePath ? [image.url, portablePath] as [string, string] : null
-  }).catch(() => null)
+  return importImage(image).then((portablePath) => (
+    portablePath ? [image.url, portablePath] as [string, string] : null
+  )).catch(() => null)
+}
+
+/** Imports every image with `importImage`; a failed one stays remote and is counted. */
+export async function importRemoteImagesWith(
+  images: RemotePasteImage[],
+  importImage: ImportRemoteImage,
+): Promise<RemoteImageImportResult> {
+  const imported = await Promise.all(images.map(image => importedReplacement(importImage, image)))
+  const replacements = new Map(imported.filter((entry): entry is [string, string] => entry !== null))
+  return {
+    failedCount: images.length - replacements.size,
+    replacements,
+    totalCount: images.length,
+  }
 }
 
 export function clipboardRemoteImages(data: DataTransfer): RemotePasteImage[] {
@@ -130,15 +145,9 @@ export async function importRemoteImages({
   images: RemotePasteImage[]
   vaultPath: string
 }): Promise<RemoteImageImportResult> {
-  const imported = await Promise.all(
-    images.map(image => importedReplacement(download, image, vaultPath)),
-  )
-  const replacements = new Map(imported.filter((entry): entry is [string, string] => entry !== null))
-  return {
-    failedCount: images.length - replacements.size,
-    replacements,
-    totalCount: images.length,
-  }
+  return importRemoteImagesWith(images, image => download({ url: image.url, vaultPath }).then(path => (
+    portableAttachmentPathFromCurrentVaultPath({ path, vaultPath })
+  )))
 }
 
 export function replaceImportedRemoteImages(

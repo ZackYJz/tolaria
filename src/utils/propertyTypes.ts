@@ -44,6 +44,11 @@ function isDateKey(key: PropertyKey): boolean {
   return keyMatchesPatterns(key, DATE_KEY_PATTERNS)
 }
 
+function isSemanticDateKey(key: PropertyKey): boolean {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/)
+  return DATE_KEY_PATTERNS.some(pattern => words.includes(pattern))
+}
+
 function isStatusString(key: PropertyKey, value: PropertyValueText): boolean {
   if (isStatusKey(key)) return true
   if (isDateKey(key)) return false
@@ -62,13 +67,22 @@ function detectStringType(key: PropertyKey, strValue: PropertyValueText): Proper
   return 'text'
 }
 
+function detectEmptyValueType(key: PropertyKey): PropertyDisplayMode {
+  return isSemanticDateKey(key) ? 'date' : 'text'
+}
+
+function isEmptyString(value: FrontmatterValue): value is string {
+  return typeof value === 'string' && value.trim() === ''
+}
+
 export function detectPropertyType(key: PropertyKey, value: FrontmatterValue): PropertyDisplayMode {
-  if (value === null) return 'text'
+  if (value === null) return detectEmptyValueType(key)
   if (typeof value === 'number') return 'number'
   if (typeof value === 'boolean') return 'boolean'
   if (isIconKey(key)) return 'text'
   if (keyMatchesPatterns(key, TAGS_KEY_PATTERNS)) return 'tags'
   if (Array.isArray(value)) return 'text'
+  if (isEmptyString(value)) return detectEmptyValueType(key)
   return detectStringType(key, String(value))
 }
 

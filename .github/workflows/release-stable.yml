@@ -122,7 +122,7 @@ jobs:
         run: |
           NOTES_FILE="release-notes/${{ needs.version.outputs.tag }}.md"
           if [ -f "$NOTES_FILE" ]; then
-            cat "$NOTES_FILE" > release_notes.md
+            awk 'NR==1&&/^---$/{f=1;next} f&&/^---$/{f=0;next} !f' "$NOTES_FILE" > release_notes.md
           else
             PREV_TAG=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags/v20* refs/tags/stable-v* | grep -vx "${{ needs.version.outputs.tag }}" | head -n 1 || echo "")
             if [ -z "$PREV_TAG" ]; then

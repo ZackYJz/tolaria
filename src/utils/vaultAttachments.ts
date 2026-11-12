@@ -43,6 +43,13 @@ export type VaultAttachmentPathRequest = UrlRequest & {
 
 export type VaultAttachmentUrlRequest = UrlRequest
 
+/** Turns a vault-relative attachment path into a URL the page can display. */
+export type LoadWebAttachmentUrl = (attachmentPath: AttachmentPath) => Promise<string>
+
+export type WebAttachmentUrlRequest = UrlRequest & {
+  loadAttachmentUrl: LoadWebAttachmentUrl
+}
+
 function safeDecode(value: string): string {
   try {
     return decodeURIComponent(value)
@@ -237,6 +244,28 @@ export function isVaultAttachmentUrl({ url }: VaultAttachmentUrlRequest): boolea
   const trimmedUrl = url.trim()
   return isPortableAttachmentPath({ path: trimmedUrl })
     || isTauriAssetUrl({ url: trimmedUrl })
+}
+
+/**
+ * The vault-relative attachment a note's image URL names on the web (TOL-204), or null.
+ * Only portable `attachments/...` paths qualify; nothing may climb out of the vault.
+ */
+export function webAttachmentPath({ url }: UrlRequest): AttachmentPath | null {
+  const trimmedUrl = url.trim()
+  if (!isPortableAttachmentPath({ path: trimmedUrl })) return null
+
+  const attachmentPath = normalizePortableAttachmentPath(safeDecode(trimmedUrl))
+  const climbsOrUsesBackslashes = /\\/u.test(attachmentPath) || hasUnsafeRelativeSegment({ path: attachmentPath })
+  return climbsOrUsesBackslashes ? null : attachmentPath
+}
+
+/** The web resolver: attachments load through the remote; every other URL is shown as it is. */
+export async function resolveWebAttachmentUrl({
+  url,
+  loadAttachmentUrl,
+}: WebAttachmentUrlRequest): Promise<string> {
+  const attachmentPath = webAttachmentPath({ url })
+  return attachmentPath ? loadAttachmentUrl(attachmentPath) : url
 }
 
 export function resolveVaultAttachmentPath({

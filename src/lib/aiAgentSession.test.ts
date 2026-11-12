@@ -330,7 +330,7 @@ describe('aiAgentSession', () => {
     })
 
     expectStreamingRuntimeState(session)
-    expect(hydrateNoteReferencesMock).toHaveBeenCalledWith([{ path: '/vault/ref.md', title: 'Ref' }])
+    expect(hydrateNoteReferencesMock).toHaveBeenCalledWith([{ path: '/vault/ref.md', title: 'Ref' }], '/vault')
     expectFormattedHistoryUsed()
     expect(buildAgentSystemPromptMock).toHaveBeenCalledWith({
       agent: 'codex',

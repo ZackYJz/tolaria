@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { type CoAuthor, coAuthorTrailers } from './coAuthors.ts'
 import { VaultError } from './errors.ts'
 import { type GitOptions, type GitResult, git } from './git.ts'
 import type { VaultPath } from './paths.ts'
@@ -149,15 +150,18 @@ export class GitRepo {
     }
   }
 
-  async commitFile(path: VaultPath, bytes: Uint8Array, message: string): Promise<void> {
+  async commitFile(path: VaultPath, bytes: Uint8Array, message: string, coAuthors: readonly CoAuthor[] = []): Promise<void> {
     await this.writeAtomic(path, bytes)
     await this.run(['add', '-f', '--', path])
-    await this.commitStaged(message)
+    await this.commitStaged(message, coAuthors)
   }
 
-  async commitStaged(message: string): Promise<void> {
+  /** Commits what is staged, if anything. Co-authors become trailers in a paragraph of their own. */
+  async commitStaged(message: string, coAuthors: readonly CoAuthor[] = []): Promise<void> {
     const staged = await this.run(['diff', '--cached', '--quiet'], { okCodes: [1] })
-    if (staged.code === 1) await this.run(['commit', '-q', '-m', message])
+    if (staged.code !== 1) return
+    const trailers = coAuthorTrailers(coAuthors)
+    await this.run(['commit', '-q', '-m', message, ...(trailers ? ['-m', trailers] : [])])
   }
 
   async restoreCleanTree(): Promise<void> {

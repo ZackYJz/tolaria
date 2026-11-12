@@ -66,8 +66,8 @@ ensure_node_tooling() {
 
 require_main_push() {
   CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-  if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "HEAD" ]; then
-    echo "❌ Pushes must happen from main or a detached HEAD that is pushed directly to main. Current branch: $CURRENT_BRANCH"
+  if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "HEAD" ] && [ "$CURRENT_BRANCH" != "mobile-ui-foundation" ] && [ "$CURRENT_BRANCH" != "mobile-native-ui" ]; then
+    echo "❌ Pushes must happen from main, a detached HEAD pushed to main, mobile-ui-foundation, or mobile-native-ui. Current branch: $CURRENT_BRANCH"
     exit 1
   fi
 
@@ -79,10 +79,14 @@ require_main_push() {
         ;;
       HEAD:refs/heads/main)
         ;;
+      refs/heads/mobile-ui-foundation:refs/heads/mobile-ui-foundation)
+        ;;
+      refs/heads/mobile-native-ui:refs/heads/mobile-native-ui)
+        ;;
       refs/tags/*:refs/tags/*)
         ;;
       *)
-        echo "❌ Pushes must be main -> main only."
+        echo "❌ Pushes must be main -> main, mobile-ui-foundation -> mobile-ui-foundation, or mobile-native-ui -> mobile-native-ui only."
         echo "   Attempted: ${LOCAL_REF:-<none>} -> ${REMOTE_REF:-<none>}"
         exit 1
         ;;
@@ -101,6 +105,30 @@ require_main_push
 ensure_node_tooling
 
 START_TIME=$(date +%s)
+
+if { [ "$CURRENT_BRANCH" = "mobile-ui-foundation" ] || [ "$CURRENT_BRANCH" = "mobile-native-ui" ]; } && [ "${TOLARIA_MOBILE_FULL_GATE:-0}" != "1" ]; then
+  echo "📱 Mobile UI foundation fast lane"
+  pnpm mobile:lint --quiet
+  pnpm mobile:typecheck
+  pnpm mobile:test
+  pnpm mobile:export:web
+
+  if [ -n "$CODESCENE_PAT" ] && [ -n "$CODESCENE_PROJECT_ID" ]; then
+    API_RESPONSE=$(curl -sf \
+      -H "Authorization: Bearer $CODESCENE_PAT" \
+      -H "Accept: application/json" \
+      "https://api.codescene.io/v2/projects/$CODESCENE_PROJECT_ID" 2>/dev/null || echo "{}")
+    HOTSPOT_SCORE=$(echo "$API_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['analysis']['hotspot_code_health']['now'])" 2>/dev/null || echo "")
+    AVERAGE_SCORE=$(echo "$API_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['analysis']['code_health']['now'])" 2>/dev/null || echo "")
+    HOTSPOT_MIN=$(grep HOTSPOT_THRESHOLD .codescene-thresholds | cut -d= -f2)
+    AVERAGE_MIN=$(grep AVERAGE_THRESHOLD .codescene-thresholds | cut -d= -f2)
+    python3 -c "import sys; sys.exit(0 if float('$HOTSPOT_SCORE') >= float('$HOTSPOT_MIN') and float('$AVERAGE_SCORE') >= float('$AVERAGE_MIN') else 1)"
+    echo "  ✅ CodeScene Hotspot $HOTSPOT_SCORE / Average $AVERAGE_SCORE"
+  fi
+
+  echo "✅ Mobile pre-push passed"
+  exit 0
+fi
 
 echo ""
 echo "🚀 Pre-push checks (replaces CI — do not skip)"

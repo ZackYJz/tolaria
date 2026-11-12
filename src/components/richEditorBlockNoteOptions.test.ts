@@ -1,5 +1,5 @@
 import { BlockNoteEditor } from '@blocknote/core'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { schema } from './editorSchema'
 import {
   RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS,
@@ -31,5 +31,22 @@ describe('rich editor BlockNote performance options', () => {
     } finally {
       editor._tiptapEditor.destroy()
     }
+  })
+})
+
+describe('rich editor file URLs (TOL-204)', () => {
+  const target = window as { TOLARIA_REMOTE_URL?: string; TOLARIA_REMOTE_TOKEN?: string }
+
+  afterEach(() => {
+    delete target.TOLARIA_REMOTE_URL
+    delete target.TOLARIA_REMOTE_TOKEN
+  })
+
+  it('leaves BlockNote without a resolver unless a remote serves the vault', () => {
+    expect({ ...RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS }.resolveFileUrl).toBeUndefined()
+
+    target.TOLARIA_REMOTE_URL = 'https://vault.example'
+    target.TOLARIA_REMOTE_TOKEN = 'token-for-tests'
+    expect({ ...RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS }.resolveFileUrl).toEqual(expect.any(Function))
   })
 })

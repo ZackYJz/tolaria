@@ -57,6 +57,7 @@ import {
 import { SettingsFooter } from './SettingsFooter'
 import { VaultContentSettingsSection } from './VaultContentSettingsSection'
 import { WorkspaceSettingsSection } from './WorkspaceSettingsSection'
+import type { PlatformCapabilities } from '../lib/platformCapabilities'
 import {
   resolveAllNotesFileVisibility,
   settingsWithAllNotesFileVisibility,
@@ -92,6 +93,7 @@ interface SettingsPanelProps {
   vaultPath?: string
   explicitOrganizationEnabled?: boolean
   onSaveExplicitOrganization?: (enabled: boolean) => void
+  platformCapabilities?: PlatformCapabilities
   onClose: () => void
 }
 
@@ -196,6 +198,7 @@ interface SettingsBodyProps {
   setCrashReporting: (value: boolean) => void
   analytics: boolean
   setAnalytics: (value: boolean) => void
+  platformCapabilities?: PlatformCapabilities
 }
 
 const PULL_INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30] as const
@@ -315,7 +318,7 @@ function applyThemeModeSelection(value: ThemeMode): void {
 }
 
 export function SettingsPanel(options: SettingsPanelProps) {
-  const { open, settings, aiAgentsStatus = createMissingAiAgentsStatus(), initialSectionId = null, locale = 'en', systemLocale = locale, onSave, onCopyMcpConfig, vaults = [], defaultWorkspacePath = null, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, isGitVault = true, vaultPath = '', explicitOrganizationEnabled = true, onSaveExplicitOrganization, onClose } = options
+  const { open, settings, aiAgentsStatus = createMissingAiAgentsStatus(), initialSectionId = null, locale = 'en', systemLocale = locale, onSave, onCopyMcpConfig, vaults = [], defaultWorkspacePath = null, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, isGitVault = true, vaultPath = '', explicitOrganizationEnabled = true, onSaveExplicitOrganization, platformCapabilities, onClose } = options
   const initialDraft = useMemo(
     () => createSettingsDraft(settings, explicitOrganizationEnabled),
     [explicitOrganizationEnabled, settings],
@@ -344,6 +347,7 @@ export function SettingsPanel(options: SettingsPanelProps) {
       vaultPath={vaultPath}
       explicitOrganizationEnabled={explicitOrganizationEnabled}
       onSaveExplicitOrganization={onSaveExplicitOrganization}
+      platformCapabilities={platformCapabilities}
       onClose={onClose}
     />
   )
@@ -351,7 +355,7 @@ export function SettingsPanel(options: SettingsPanelProps) {
 
 type SettingsPanelInnerProps = Omit<
   SettingsPanelProps,
-  'open' | 'explicitOrganizationEnabled' | 'aiAgentsStatus' | 'isGitVault' | 'vaultPath'
+  'open' | 'explicitOrganizationEnabled' | 'aiAgentsStatus' | 'isGitVault' | 'vaultPath' | 'platformCapabilities'
 > & {
   aiAgentsStatus: AiAgentsStatus
   initialDraft: SettingsDraft
@@ -361,6 +365,7 @@ type SettingsPanelInnerProps = Omit<
   isGitVault: boolean
   vaultPath: string
   explicitOrganizationEnabled: boolean
+  platformCapabilities?: PlatformCapabilities
 }
 
 function mergeSettingsDraft(
@@ -456,7 +461,7 @@ function useSettingsPanelInteractions(options: {
 }
 
 function SettingsPanelInner(options: SettingsPanelInnerProps) {
-  const { settings, aiAgentsStatus, initialDraft, initialSectionId, systemLocale, onSave, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, isGitVault, vaultPath, onSaveExplicitOrganization, onClose } = options
+  const { settings, aiAgentsStatus, initialDraft, initialSectionId, systemLocale, onSave, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, isGitVault, vaultPath, onSaveExplicitOrganization, platformCapabilities, onClose } = options
   const backdropRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const { draft, updateDraft, handleGitignoredVisibilityChange, handleAllNotesFileVisibilityChange, handleThemeModeChange, handleThemePaletteChange, handleSave } = useSettingsDraftActions({ initialDraft, onClose, onSave, onSaveExplicitOrganization, settings })
@@ -488,6 +493,7 @@ function SettingsPanelInner(options: SettingsPanelInnerProps) {
         setThemePalette={handleThemePaletteChange}
         setHideGitignoredFiles={handleGitignoredVisibilityChange}
         setAllNotesFileVisibility={handleAllNotesFileVisibilityChange}
+        platformCapabilities={platformCapabilities}
       />
     </SettingsPanelFrame>
   )
@@ -584,10 +590,11 @@ interface SettingsBodyFromDraftProps {
   setThemePalette: (value: ThemePalette) => void
   setHideGitignoredFiles: (value: boolean) => void
   setAllNotesFileVisibility: (value: AllNotesFileVisibility) => void
+  platformCapabilities?: PlatformCapabilities
 }
 
 function SettingsBodyFromDraft(options: SettingsBodyFromDraftProps) {
-  const { t, draft, locale, systemLocale, updateDraft, isGitVault, vaultPath, aiAgentsStatus, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, setThemeMode, setThemePalette, setHideGitignoredFiles, setAllNotesFileVisibility } = options
+  const { t, draft, locale, systemLocale, updateDraft, isGitVault, vaultPath, aiAgentsStatus, onCopyMcpConfig, vaults, defaultWorkspacePath, onRemoveVault, onReorderVaults, onSetDefaultWorkspace, onUpdateWorkspaceIdentity, setThemeMode, setThemePalette, setHideGitignoredFiles, setAllNotesFileVisibility, platformCapabilities } = options
   return (
     <SettingsBody
       t={t}
@@ -661,6 +668,7 @@ function SettingsBodyFromDraft(options: SettingsBodyFromDraftProps) {
       setCrashReporting={(value) => updateDraft('crashReporting', value)}
       analytics={draft.analytics}
       setAnalytics={(value) => updateDraft('analytics', value)}
+      platformCapabilities={platformCapabilities}
     />
   )
 }
@@ -701,9 +709,11 @@ function SettingsSyncAndAppearanceSections(options: SettingsBodyProps) {
           vaults={vaults}
         />
       </SettingsSection>
-      <SettingsSection id={SETTINGS_SECTION_IDS.autogit}>
-        <GitSettingsSection {...options} />
-      </SettingsSection>
+      {options.platformCapabilities?.git !== false && (
+        <SettingsSection id={SETTINGS_SECTION_IDS.autogit}>
+          <GitSettingsSection {...options} />
+        </SettingsSection>
+      )}
 
       <SettingsSection id={SETTINGS_SECTION_IDS.appearance}>
         <SectionHeading title={t('settings.appearance.title')} />
@@ -806,9 +816,10 @@ type SyncAndUpdatesSectionProps = Pick<
   | 'setReleaseChannel'
   | 'automaticUpdateChecksEnabled'
   | 'setAutomaticUpdateChecksEnabled'
+  | 'platformCapabilities'
 >
 
-function SyncAndUpdatesSection({ t, pullInterval, setPullInterval, releaseChannel, setReleaseChannel, automaticUpdateChecksEnabled, setAutomaticUpdateChecksEnabled }: SyncAndUpdatesSectionProps) {
+function SyncAndUpdatesSection({ t, pullInterval, setPullInterval, releaseChannel, setReleaseChannel, automaticUpdateChecksEnabled, setAutomaticUpdateChecksEnabled, platformCapabilities }: SyncAndUpdatesSectionProps) {
   return (
     <>
       <SectionHeading title={t('settings.sync.title')} />
@@ -828,26 +839,30 @@ function SyncAndUpdatesSection({ t, pullInterval, setPullInterval, releaseChanne
           />
         </SettingsRow>
 
-        <SettingsRow label={t('settings.releaseChannel')} description={t('settings.releaseChannelDescription')}>
-          <SelectControl
-            ariaLabel={t('settings.releaseChannel')}
-            value={releaseChannel}
-            onValueChange={(value) => setReleaseChannel(value as ReleaseChannel)}
-            options={[
-              { value: 'stable', label: t('settings.releaseStable') },
-              { value: 'alpha', label: t('settings.releaseAlpha') },
-            ]}
-            testId="settings-release-channel"
-          />
-        </SettingsRow>
+        {platformCapabilities?.updater !== false && (
+          <>
+            <SettingsRow label={t('settings.releaseChannel')} description={t('settings.releaseChannelDescription')}>
+              <SelectControl
+                ariaLabel={t('settings.releaseChannel')}
+                value={releaseChannel}
+                onValueChange={(value) => setReleaseChannel(value as ReleaseChannel)}
+                options={[
+                  { value: 'stable', label: t('settings.releaseStable') },
+                  { value: 'alpha', label: t('settings.releaseAlpha') },
+                ]}
+                testId="settings-release-channel"
+              />
+            </SettingsRow>
 
-        <SettingsSwitchRow
-          label={t('settings.automaticUpdateChecks')}
-          description={t('settings.automaticUpdateChecksDescription')}
-          checked={automaticUpdateChecksEnabled}
-          onChange={setAutomaticUpdateChecksEnabled}
-          testId="settings-automatic-update-checks"
-        />
+            <SettingsSwitchRow
+              label={t('settings.automaticUpdateChecks')}
+              description={t('settings.automaticUpdateChecksDescription')}
+              checked={automaticUpdateChecksEnabled}
+              onChange={setAutomaticUpdateChecksEnabled}
+              testId="settings-automatic-update-checks"
+            />
+          </>
+        )}
       </SettingsGroup>
     </>
   )
@@ -881,12 +896,9 @@ function ThemeModeControl({
       aria-label={t('settings.theme.label')}
       data-testid="settings-theme-mode"
     >
-      <ThemeModeButton label={t('settings.theme.light')} selected={value === 'light'} value="light" onSelect={onChange}>
-        <Sun size={14} />
-      </ThemeModeButton>
-      <ThemeModeButton label={t('settings.theme.dark')} selected={value === 'dark'} value="dark" onSelect={onChange}>
-        <Moon size={14} />
-      </ThemeModeButton>
+      <ThemeModeButton label={t('settings.theme.light')} selected={value === 'light'} value="light" onSelect={onChange}><Sun size={14} /></ThemeModeButton>
+      <ThemeModeButton label={t('settings.theme.dark')} selected={value === 'dark'} value="dark" onSelect={onChange}><Moon size={14} /></ThemeModeButton>
+      <ThemeModeButton label={t('settings.theme.hybrid')} selected={value === 'hybrid'} value="hybrid" onSelect={onChange}><Moon size={14} /></ThemeModeButton>
       <ThemeModeButton
         label={t('settings.theme.system')}
         selected={value === 'system'}
@@ -1009,6 +1021,7 @@ function AiAgentSettingsSection(
   | 'aiModelProviders'
   | 'setAiModelProviders'
   | 'onCopyMcpConfig'
+  | 'platformCapabilities'
   >,
 ) {
   const {
@@ -1074,6 +1087,7 @@ function AiAgentSettingsSection(
             aiModelProviders={aiModelProviders}
             setAiModelProviders={setAiModelProviders}
             onCopyMcpConfig={onCopyMcpConfig}
+            platformCapabilities={functionOptions.platformCapabilities}
           />
         </>
       ) : null}
@@ -1087,12 +1101,14 @@ function AiTargetManagementTabs({
   aiModelProviders,
   setAiModelProviders,
   onCopyMcpConfig,
+  platformCapabilities,
 }: {
   t: Translate
   aiAgentsStatus: AiAgentsStatus
   aiModelProviders: AiModelProvider[]
   setAiModelProviders: (value: AiModelProvider[]) => void
   onCopyMcpConfig?: () => void
+  platformCapabilities?: PlatformCapabilities
 }) {
   return (
     <Tabs defaultValue="agents" className="gap-3">
@@ -1103,7 +1119,7 @@ function AiTargetManagementTabs({
       </TabsList>
       <TabsContent value="agents" className="space-y-3">
         <AiAgentsInstalledSection t={t} aiAgentsStatus={aiAgentsStatus} />
-        {onCopyMcpConfig ? <CopyMcpConfigButton t={t} onCopyMcpConfig={onCopyMcpConfig} /> : null}
+        {onCopyMcpConfig && platformCapabilities?.mcp !== false ? <CopyMcpConfigButton t={t} onCopyMcpConfig={onCopyMcpConfig} /> : null}
       </TabsContent>
       <TabsContent value="local">
         <AiProviderSettings t={t} mode="local" providers={aiModelProviders} onChange={setAiModelProviders} />

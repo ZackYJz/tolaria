@@ -14,6 +14,9 @@ vi.mock('../mock-tauri', () => ({
   isTauri: () => tauriMode,
 }))
 
+const uploadRemoteImage = vi.hoisted(() => vi.fn())
+vi.mock('../lib/remoteAttachments', () => ({ uploadRemoteImage }))
+
 type NativeDropPayload = { type: string; paths: string[]; position: { x: number; y: number } }
 type DragDropEvent = { payload: unknown }
 type DragDropCallback = (event: DragDropEvent) => void
@@ -79,6 +82,22 @@ function createDragEvent(type: string, files: File[], opts?: { relatedTarget?: E
 }
 
 describe('uploadImageFile', () => {
+  it('stores the image on the Tolaria remote and returns its attachment path (TOL-204)', async () => {
+    const target = window as { TOLARIA_REMOTE_URL?: string; TOLARIA_REMOTE_TOKEN?: string }
+    target.TOLARIA_REMOTE_URL = 'https://vault.example'
+    target.TOLARIA_REMOTE_TOKEN = 'token-for-tests'
+    uploadRemoteImage.mockResolvedValue('attachments/123-test.png')
+    const file = new File([new Uint8Array([0x89])], 'test.png', { type: 'image/png' })
+
+    try {
+      await expect(uploadImageFile(file, '')).resolves.toBe('attachments/123-test.png')
+    } finally {
+      delete target.TOLARIA_REMOTE_URL
+      delete target.TOLARIA_REMOTE_TOKEN
+    }
+    expect(uploadRemoteImage).toHaveBeenCalledWith(file)
+  })
+
   it('returns a data URL in browser mode', async () => {
     const blob = new Blob(['fake-image-data'], { type: 'image/png' })
     const file = new File([blob], 'test.png', { type: 'image/png' })

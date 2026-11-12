@@ -6,9 +6,8 @@ pub async fn clone_git_repo(url: String, local_path: String) -> Result<String, S
     let url = crate::git::validate_user_remote_url(&url)?.to_string();
     let local_path = expand_tilde(&local_path).into_owned();
 
-    tokio::task::spawn_blocking(move || crate::git::clone_repo(&url, &local_path))
-        .await
-        .map_err(|e| format!("Task panicked: {e}"))?
+    crate::commands::blocking::run_blocking(move || crate::git::clone_repo(&url, &local_path))
+        .await?
 }
 
 #[cfg(mobile)]

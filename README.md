@@ -2,7 +2,7 @@
 
 # 💧 Tolaria
 
-Tolaria is a desktop app for macOS, Windows, and Linux for managing **markdown knowledge bases**. People use it for a variety of use cases:
+Tolaria is an app for managing **markdown knowledge bases**, available on desktop (macOS, Windows, Linux) and mobile (iPhone, iPad). People use it for a variety of use cases:
 
 * Operate second brains and personal knowledge
 * Organize company docs as context for AI
@@ -85,6 +85,16 @@ brew install --cask tolaria
 ### Download from releases
 
 Download the [latest release here](https://refactoringhq.github.io/tolaria/download/) for macOS, Windows, or Linux. Windows installers are Authenticode-signed; company-managed devices may still require IT approval of the Tolaria publisher before first install.
+
+## Mobile (iPhone and iPad)
+
+Tolaria for iOS is currently in **beta** via TestFlight. The mobile app brings Tolaria's core features to iPhone and iPad:
+
+- **WYSIWYG Markdown editor** — Fast, native rich-text editing powered by TenTap/Tiptap
+- **Real git integration** — Auto-commit on save, with merge support for multi-device workflows
+- **Sync with desktop** — Your vaults sync seamlessly through iCloud or Files, and share the same git repository as the desktop app
+
+The mobile app is still early and under active development. To join the beta, open the [public TestFlight invite](https://testflight.apple.com/join/7aPD4GAB) on your iPhone or iPad, and join the [Tolaria Discord community](https://discord.gg/tRBC2u428B) to stay updated on mobile development.
 
 ## Getting started
 

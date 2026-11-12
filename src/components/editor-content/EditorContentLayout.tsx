@@ -148,6 +148,7 @@ function RawModeEditorSection(
     | 'onSave'
     | 'rawLatestContentRef'
     | 'rawModeContent'
+    | 'readOnly'
     | 'vaultPath'
   > & {
     rawMode: boolean
@@ -164,6 +165,7 @@ function RawModeEditorSection(
     onImageImportError,
     onSave,
     rawLatestContentRef,
+    readOnly,
     vaultPath,
     locale,
   } = options
@@ -180,6 +182,7 @@ function RawModeEditorSection(
       onSave={onSave}
       rawLatestContentRef={rawLatestContentRef}
       rawModeContent={rawModeContent}
+      readOnly={readOnly}
       vaultPath={vaultPath}
     />
   )
@@ -199,6 +202,7 @@ function ActiveRawModeEditorSection(
     onImageImportError,
     onSave,
     rawLatestContentRef,
+    readOnly,
     vaultPath,
     locale,
   } = options
@@ -216,6 +220,7 @@ function ActiveRawModeEditorSection(
         onImageImportResult={(result) => reportRawImageImportFailure(result, onImageImportError)}
         onSave={onSave ?? (() => {})}
         latestContentRef={rawLatestContentRef}
+        readOnly={readOnly}
         vaultPath={vaultPath}
         locale={locale}
       />
@@ -451,6 +456,7 @@ type EditorCanvasProps = Pick<
   | 'onUpdateJournalTaskStatus'
   | 'sheetFlushRef'
   | 'isDeletedPreview'
+  | 'readOnly'
   | 'vaultPath'
   | 'locale'
   | 'onImageImportError'
@@ -489,6 +495,7 @@ function StandardEditorCanvas(options: EditorCanvasProps) {
     onRawContentChange,
     sheetFlushRef,
     isDeletedPreview,
+    readOnly,
     vaultPath,
     locale,
     onImageImportError,
@@ -529,7 +536,7 @@ function StandardEditorCanvas(options: EditorCanvasProps) {
           onRecoveryFallback={onToggleRaw}
           sourceEntry={activeTab?.entry ?? null}
           vaultPath={vaultPath}
-          editable={!isDeletedPreview}
+          editable={!isDeletedPreview && !readOnly}
           locale={locale}
           outline={isOutline}
         />
@@ -595,48 +602,44 @@ function EditorFindScope({
   )
 }
 
+function ActiveEditorChrome(model: EditorContentModel) {
+  return (
+    <EditorChrome
+      isArchived={model.isArchived}
+      onUnarchiveNote={model.onUnarchiveNote}
+      path={model.path}
+      isConflicted={model.isConflicted}
+      onKeepMine={model.onKeepMine}
+      onKeepTheirs={model.onKeepTheirs}
+      diffMode={model.diffMode}
+      diffContent={model.diffContent}
+      onToggleDiff={model.onToggleDiff}
+      locale={model.locale}
+    />
+  )
+}
+
+function ActiveRawModeEditor(model: EditorContentModel & { activeTab: NonNullable<EditorContentModel['activeTab']> }) {
+  return (
+    <RawModeEditorSection
+      activeTab={model.activeTab}
+      entries={model.entries}
+      findRequest={model.findRequest}
+      rawMode={model.effectiveRawMode}
+      rawModeContent={model.rawModeContent}
+      onRawContentChange={model.onRawContentChange}
+      onImageImportError={model.onImageImportError}
+      onSave={model.onSave}
+      rawLatestContentRef={model.rawLatestContentRef}
+      readOnly={model.readOnly}
+      vaultPath={model.vaultPath}
+      locale={model.locale}
+    />
+  )
+}
+
 export function EditorContentLayout(model: EditorContentModel) {
-  const {
-    activeTab,
-    openTabs,
-    loadingTab,
-    entries,
-    editor,
-    diffMode,
-    diffContent,
-    onToggleDiff,
-    effectiveRawMode,
-    onRawContentChange,
-    onSave,
-    showEditor,
-    isArchived,
-    onUnarchiveNote,
-    path,
-    isConflicted,
-    onKeepMine,
-    onKeepTheirs,
-    breadcrumbBarRef,
-    wordCount,
-    vaultPath,
-    cssVars,
-    onNavigateWikilink,
-    onOpenJournalDate,
-    onUpdateJournalTaskStatus,
-    onEditorChange,
-    isDeletedPreview,
-    rawLatestContentRef,
-    rawModeContent,
-    sheetFlushRef,
-    noteWidth,
-    isHtmlPreview,
-    isSheet,
-    isOutline,
-    richEditorContentReady,
-    findRequest,
-    locale,
-    onImageImportError,
-    isVaultLoading,
-  } = model
+  const { activeTab, loadingTab, path, breadcrumbBarRef, wordCount, locale, isVaultLoading, isHtmlPreview, isSheet, noteWidth } = model
   const rootClassName = cn(
     'flex flex-1 flex-col min-w-0 min-h-0',
     isHtmlPreview || isSheet || noteWidth === 'wide'
@@ -644,79 +647,26 @@ export function EditorContentLayout(model: EditorContentModel) {
       : 'editor-content-width--normal',
   )
   const chromeTab = activeTab ?? loadingTab
-  const chromePath = chromeTab?.entry.path ?? path
-  const chromeWordCount = activeTab ? wordCount : 0
-  const showActiveContent = activeTab && !isVaultLoading
-  const breadcrumbActions = buildBreadcrumbActions(model)
 
   return (
     <div className={rootClassName}>
       <EditorBreadcrumbArea
-        actions={breadcrumbActions}
+        actions={buildBreadcrumbActions(model)}
         barRef={breadcrumbBarRef}
-        chromePath={chromePath}
+        chromePath={chromeTab?.entry.path ?? path}
         chromeTab={chromeTab}
-        chromeWordCount={chromeWordCount}
+        chromeWordCount={activeTab ? wordCount : 0}
         isVaultLoading={isVaultLoading}
         locale={locale}
       />
       {activeTab && model.onOpenJournalDate ? (
-        <JournalDateNavigator
-          entry={activeTab.entry}
-          locale={locale}
-          onOpenDate={model.onOpenJournalDate}
-        />
+        <JournalDateNavigator entry={activeTab.entry} locale={locale} onOpenDate={model.onOpenJournalDate} />
       ) : null}
-      {showActiveContent && (
+      {activeTab && !isVaultLoading && (
         <>
-          <EditorChrome
-            isArchived={isArchived}
-            onUnarchiveNote={onUnarchiveNote}
-            path={path}
-            isConflicted={isConflicted}
-            onKeepMine={onKeepMine}
-            onKeepTheirs={onKeepTheirs}
-            diffMode={diffMode}
-            diffContent={diffContent}
-            onToggleDiff={onToggleDiff}
-            locale={locale}
-          />
-          <RawModeEditorSection
-            activeTab={activeTab}
-            entries={entries}
-            findRequest={findRequest}
-            rawMode={effectiveRawMode}
-            rawModeContent={rawModeContent}
-            onRawContentChange={onRawContentChange}
-            onImageImportError={onImageImportError}
-            onSave={onSave}
-            rawLatestContentRef={rawLatestContentRef}
-            vaultPath={vaultPath}
-            locale={locale}
-          />
-          <EditorCanvas
-            showEditor={showEditor}
-            isHtmlPreview={isHtmlPreview}
-            richEditorContentReady={richEditorContentReady}
-            cssVars={cssVars}
-            activeTab={activeTab}
-            openTabs={openTabs}
-            vaultPath={vaultPath}
-            editor={editor}
-            entries={entries}
-            onNavigateWikilink={onNavigateWikilink}
-            onOpenJournalDate={onOpenJournalDate}
-            onUpdateJournalTaskStatus={onUpdateJournalTaskStatus}
-            onEditorChange={onEditorChange}
-            onToggleRaw={model.onToggleRaw}
-            onRawContentChange={onRawContentChange}
-            onImageImportError={onImageImportError}
-            sheetFlushRef={sheetFlushRef}
-            isDeletedPreview={isDeletedPreview}
-            isSheet={isSheet}
-            isOutline={isOutline}
-            locale={locale}
-          />
+          <ActiveEditorChrome {...model} />
+          <ActiveRawModeEditor {...model} activeTab={activeTab} />
+          <EditorCanvas {...model} activeTab={activeTab} />
         </>
       )}
     </div>

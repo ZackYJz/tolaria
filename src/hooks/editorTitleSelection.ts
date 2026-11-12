@@ -3,7 +3,7 @@ import type { FocusableEditor, TiptapEditor } from './editorFocusUtils'
 import {
   reportRecoveredEditorTransformError,
   richEditorTransformRecoveryErrorReason,
-} from '../components/richEditorTransformErrorRecoveryExtension'
+} from '../components/richEditorTransformRecoveryReporting'
 
 interface HeadingRange {
   from: number

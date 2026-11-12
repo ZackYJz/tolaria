@@ -1,3 +1,8 @@
+---
+type: Note
+_organized: true
+---
+
 ## New Features
 
 - 📋 **Paste Without Formatting** — Paste copied text as plain content without bringing unwanted styling into a note.

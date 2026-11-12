@@ -7,6 +7,8 @@ import { useEditorTheme } from '../../hooks/useTheme'
 import { updateVaultConfigField } from '../../utils/vaultConfigStore'
 import type { BlockNoteRenderRecoveryReason } from '../blockNoteRenderRecovery'
 import { deriveEditorContentState } from './editorContentState'
+import { useOfflineReadOnly } from '../../hooks/useOfflineReadOnly'
+import { useSharedReadOnly } from '../../hooks/useVaultAccess'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
 import type { ImageImportError } from '../../hooks/useImageDrop'
 import type { JournalOpenSource } from '../../utils/journals'
@@ -115,6 +117,8 @@ export function useEditorContentModel(props: EditorContentProps) {
   }, [toggleRaw])
 
   const breadcrumbBarRef = useRef<HTMLDivElement | null>(null)
+  const offlineReadOnly = useOfflineReadOnly()
+  const sharedReadOnly = useSharedReadOnly(path ?? null)
 
   return {
     ...props,
@@ -132,5 +136,6 @@ export function useEditorContentModel(props: EditorContentProps) {
     path,
     breadcrumbBarRef,
     wordCount,
+    readOnly: offlineReadOnly || sharedReadOnly,
   }
 }

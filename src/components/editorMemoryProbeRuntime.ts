@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../mock-tauri'
+import { createVaultBackend } from '../lib/vaultBackend'
 import type { VaultEntry } from '../types'
 import type {
   ProbeResult,
@@ -65,8 +66,9 @@ export async function readMemorySnapshot(): Promise<ProcessMemorySnapshot | null
   return invoke<ProcessMemorySnapshot>('get_process_memory_snapshot')
 }
 
-export async function loadProbeTarget(entry: VaultEntry): Promise<ProbeTarget> {
-  const content = await invoke<string>('get_note_content', { path: entry.path })
+export async function loadProbeTarget(entry: VaultEntry, vaultPath: string): Promise<ProbeTarget> {
+  const backend = createVaultBackend(vaultPath)
+  const { content } = await backend.files.read(entry.path)
   return { entry, content }
 }
 

@@ -51,7 +51,8 @@ async function openApp(page: Page): Promise<string[]> {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
   await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByTestId('sidebar-top-nav')).toBeVisible({ timeout: 20_000 })
+  // The note list shows on every layout; the phone hides the sidebar (TOL-193).
+  await expect(page.getByTestId('note-list-container')).toBeVisible({ timeout: 20_000 })
   return pageErrors
 }
 

@@ -65,3 +65,50 @@ to investigate variance and tighten the scenario before raising or adding a budg
 5. Run at least one warmup and five measured samples, then intentionally add the initial
    threshold with `pnpm perf:update`.
 6. Verify the normal `pnpm perf` command passes without changing the threshold file.
+
+## Big-vault web bench (TOL-225)
+
+`pnpm bench:web` (after `pnpm build:web`) measures the web app against a generated
+6,000-note vault: `apps/server/scripts/seed-test-remote.ts` writes 5,996 filler notes plus
+its four hand-written notes into a throwaway git remote under the system temp directory,
+a Tolaria server serves it on loopback, and one headless Chromium session drives the static
+bundle. It never reads a real vault. CircleCI runs it in the single-container `web-bench`
+job, in parallel with `web-gates`; the job fails when any measurement is over its budget.
+Every run prints the table in the job log and stores `big-vault.json` and `big-vault.md`
+as the `web-bench` artifact (`test-results/web-bench/` locally).
+
+The run, in order: a cold open with no cache, three warm opens from the IndexedDB snapshot
+the cold open wrote (TOL-173), five seconds for the background reload, a note opened from
+the list, 44 keystrokes typed into it, and a global search for a token that matches one note.
+Each budget is a single sample except warm open (median of three) and typing (median and p95).
+
+| Metric | What is measured | Budget |
+|---|---|---|
+| Cold open | `tolaria:note_list_painted` mark, empty cache | 2,500 ms |
+| Cold open: longest task | Longest `longtask` from navigation until the snapshot is cached | 600 ms |
+| Warm open | `tolaria:note_list_painted` mark from the cache, median of 3 | 1,000 ms |
+| Warm open: longest task | Longest `longtask` of the last warm open and its background reload | 400 ms |
+| Warm open: total blocking time | Sum of `longtask` time over 50 ms in the same window | 600 ms |
+| Note open | Click on a list row to the note body visible in the editor | 2,000 ms |
+| Typing, median / p95 | `keydown` to the task after the next animation frame | 50 / 100 ms |
+| Typing: longest task | Longest `longtask` while typing | 200 ms |
+| Search | Query entered to the matching result row visible, 300 ms debounce included | 1,500 ms |
+| Memory | JS heap after a forced GC, warm, before opening a note | 80 MB |
+
+Warm open keeps the 1 s cache-first paint budget of `apps/web/tests/cache-startup.spec.ts`.
+The other budgets were calibrated on the 8-vCPU agent box (load average 4–9, with the whole
+stack also pinned to two cores) and leave roughly 2.5–5× headroom over the slowest local run,
+so CircleCI's 4-vCPU Docker `large` runners stay green without hiding a real regression:
+
+| Metric | Local runs (10) |
+|---|---|
+| Cold open | 545–885 ms |
+| Warm open | 267–469 ms |
+| Warm open: longest task / blocking | 87–151 ms / 37–154 ms |
+| Note open | 560–700 ms |
+| Typing median / p95 | 9–13 ms / 17–20 ms |
+| Search | 401–481 ms |
+| Memory | 27 MB |
+
+Budgets live in `apps/web/bigVaultBudgets.ts`. Change a budget only with a reason recorded
+in the commit, and update this table with it.

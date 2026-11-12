@@ -1,11 +1,14 @@
 import * as Y from 'yjs'
 import { type NoteCodec, type NoteVersion, reconcile, setRevision } from '../../../../packages/markdown-yjs/src/index.ts'
 import { DOC_FORMAT, DOC_META, DOC_META_MAP } from '../../../../packages/protocol/src/index.ts'
+import { type CoAuthor, CoAuthors } from '../coAuthors.ts'
 import type { DocId } from '../docIndex.ts'
 import { blobEtag, type VaultPath } from '../paths.ts'
+import { type LinkRewrites, rewriteLinks } from '../renameLinks.ts'
 import type { StoredFile, Vault } from '../vault.ts'
 import { type FlushPolicy, FlushScheduler, type Timers } from './flush.ts'
-import { Room } from './room.ts'
+import { patchLiveLinks } from './liveLinks.ts'
+import { type Peer, Room } from './room.ts'
 import type { SnapshotStore } from './snapshots.ts'
 
 /** Origin of the changes the server itself makes to a document; they are not user edits. */
@@ -53,6 +56,8 @@ export class NoteSession {
   private writing: string | null = null
   /** Path of the conflict copy of the last fork, as announced in `meta`. */
   private conflictCopy: string | null = null
+  /** Who edited the document since it was last written: the next commit names them. */
+  private readonly editors = new CoAuthors()
   private work: Promise<unknown> = Promise.resolve()
 
   private constructor({ docId, path }: SessionTarget, services: SessionServices) {
@@ -100,10 +105,23 @@ export class NoteSession {
   async flush(): Promise<FlushOutcome> {
     this.scheduler.reset()
     const plan: { written: Base | null } = { written: null }
-    const result = await this.services.vault.update(this.path, async (current) => {
-      plan.written = await this.fileContent(current)
-      return plan.written ? Buffer.from(plan.written.markdown) : null
-    })
+    // Filled once the document is read, so whoever edits after that is named by the next write.
+    const coAuthors: CoAuthor[] = []
+    const result = await this.services.vault
+      .update(
+        this.path,
+        async (current) => {
+          plan.written = await this.fileContent(current)
+          // With the file there, the document is either written now or says what the file says.
+          if (current) coAuthors.push(...this.editors.take())
+          return plan.written ? Buffer.from(plan.written.markdown) : null
+        },
+        coAuthors,
+      )
+      .catch((error: unknown) => {
+        this.editors.add(coAuthors)
+        throw error
+      })
     this.writing = null
     if (!result || !plan.written) return 'skipped'
     // A commit that landed mid-write took the path; the file change it caused was reconciled.
@@ -122,6 +140,31 @@ export class NoteSession {
   }
 
   /**
+   * A rename rewrote the note's wikilinks in its file. Called with the vault lock held. The
+   * document gets the same rewrite as a targeted patch (see `patchLiveLinks`), so it keeps
+   * any edit not written yet, and moves on to the new file revision. When the patch and the
+   * file rewrite do not line up exactly, the file is reconciled like any other change.
+   */
+  async relink(rewrite: LinkRewrites): Promise<void> {
+    const { codec, vault } = this.services
+    const file = await vault.read(this.path)
+    const markdown = utf8(file.bytes)
+    const canonical = await codec.canonical(markdown)
+    // From here to the rebase only microtasks run: no edit can arrive in between.
+    const live = codec.read(this.doc)
+    this.doc.transact(() => patchLiveLinks(this.doc, rewrite), SERVER_ORIGIN)
+    const exact = codec.read(this.doc) === rewriteLinks(live, rewrite)
+    if (exact && this.rewritesBaseTo({ markdown, canonical }, rewrite)) this.rebaseTo({ markdown, canonical, revision: file.etag })
+    else await this.takeIn(file)
+  }
+
+  /** True when `next` is the file the document was in step with, after the rewrite. */
+  private rewritesBaseTo(next: Omit<Base, 'revision'>, rewrite: LinkRewrites): boolean {
+    const { markdown, canonical } = this.base
+    return rewriteLinks(markdown, rewrite) === next.markdown && rewriteLinks(canonical, rewrite) === next.canonical
+  }
+
+  /**
    * The file is gone. Returns the document's unwritten edits as file content, if it has any,
    * based on the revision that was deleted: written back, the edit wins and the note returns.
    */
@@ -131,6 +174,11 @@ export class NoteSession {
     if (canonical === this.base.canonical) return null
     const versions = { source: this.base.markdown, canonicalSource: this.base.canonical, canonical }
     return { markdown: (await codec.fileContent(versions)).markdown, revision: this.base.revision }
+  }
+
+  /** Who edited the document since it was last written, forgotten here: for writing it elsewhere. */
+  takeCoAuthors(): CoAuthor[] {
+    return this.editors.take()
   }
 
   /** Resolves when background work (scheduled flushes, conflict copies) has finished. */
@@ -174,8 +222,11 @@ export class NoteSession {
     }, SERVER_ORIGIN)
   }
 
+  /** Changes come from the server itself or from a peer, which is then their origin. */
   private edited(origin: unknown): void {
-    if (origin !== SERVER_ORIGIN) this.scheduler.touch()
+    if (origin === SERVER_ORIGIN) return
+    this.scheduler.touch()
+    this.editors.add((origin as Peer | null)?.coAuthors ?? [])
   }
 
   /** Computed after the pull, with nothing but microtasks between reading the document and returning. */
@@ -203,7 +254,7 @@ export class NoteSession {
     const canonical = await codec.canonical(incoming.markdown)
     // From here to the end of each branch only microtasks run: no edit can arrive in between.
     const outcome = reconcile({ base: this.base.canonical, live: codec.read(this.doc), incoming: canonical })
-    if (outcome.kind === 'conflict') return this.fork(incoming)
+    if (outcome.kind === 'conflict') return this.fork({ ...incoming, canonical })
     if (outcome.kind === 'adopt') return this.adopt(incoming)
     if (outcome.kind === 'merged') await codec.write(this.doc, { ...incoming, markdown: outcome.markdown }, SERVER_ORIGIN)
     this.rebaseTo({ ...incoming, canonical })
@@ -217,22 +268,25 @@ export class NoteSession {
   }
 
   /**
-   * The file and the document changed the same lines. The file keeps the path, as for any
-   * stale write; the document's version is saved next to it as a conflict copy, and the
-   * document takes the file's content. Nothing is dropped.
+   * The file and the document changed the same lines. The document keeps its edits: the
+   * people typing in it lose nothing under their cursor. It moves on to the incoming file as
+   * its base and is written over it, and the incoming version is then committed next to it
+   * as a conflict copy, named in `meta` so editors are told. Nothing is dropped.
    */
-  private async fork(incoming: NoteVersion): Promise<void> {
-    const { codec, vault, log } = this.services
-    const stale = this.base
-    const versions = { source: stale.markdown, canonicalSource: stale.canonical, canonical: codec.read(this.doc) }
-    const { markdown } = await codec.fileContent(versions)
-    await this.adopt(incoming)
-    this.background(async () => {
-      const copy = await vault.write(this.path, Buffer.from(markdown), { kind: 'match', etag: stale.revision })
-      log(`collab: ${this.path} changed on both sides; live edits saved as ${copy.path}`)
-      this.conflictCopy = copy.path
-      this.doc.transact(() => this.meta.set(DOC_META.conflictCopy, copy.path), SERVER_ORIGIN)
-    })
+  private fork(incoming: Base): void {
+    this.rebaseTo(incoming)
+    this.background(() => this.keepIncomingAsCopy(incoming))
+  }
+
+  /** Runs once the vault lock is free: the document takes the path, the incoming version a copy. */
+  private async keepIncomingAsCopy(incoming: NoteVersion): Promise<void> {
+    const { vault, log } = this.services
+    await this.flush()
+    const copy = await vault.write(this.path, Buffer.from(incoming.markdown), { kind: 'match', etag: incoming.revision })
+    if (copy.outcome !== 'conflict') return
+    log(`collab: ${this.path} changed on both sides; the incoming version is saved as ${copy.path}`)
+    this.conflictCopy = copy.path
+    this.doc.transact(() => this.meta.set(DOC_META.conflictCopy, copy.path), SERVER_ORIGIN)
   }
 
   private async rebase(version: NoteVersion): Promise<void> {

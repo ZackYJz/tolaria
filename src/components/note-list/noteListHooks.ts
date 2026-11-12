@@ -573,13 +573,16 @@ export function useVisibleNotesSync({
   searched,
   searchedGroups,
 }: VisibleNotesSyncParams) {
+  const visibleEntries = useMemo(
+    () => isEntityView ? flattenNeighborhoodEntries(entityEntry, searchedGroups) : searched,
+    [entityEntry, isEntityView, searched, searchedGroups],
+  )
   useEffect(() => {
-    if (!visibleNotesRef) return
-
-    visibleNotesRef.current = isEntityView
-      ? flattenNeighborhoodEntries(entityEntry, searchedGroups).filter((entry) => !isDeletedNoteEntry(entry))
-      : searched.filter((entry) => !isDeletedNoteEntry(entry))
-  }, [visibleNotesRef, entityEntry, isEntityView, searched, searchedGroups])
+    if (visibleNotesRef) {
+      visibleNotesRef.current = visibleEntries.filter((entry) => !isDeletedNoteEntry(entry))
+    }
+  }, [visibleNotesRef, visibleEntries])
+  return visibleEntries
 }
 
 // --- useListPropertyPicker ---
@@ -603,18 +606,7 @@ function collectTypeAvailableProperties(entries: VaultEntry[], typeName: string)
 }
 
 function deriveDefaultDisplay(entries: VaultEntry[], typeEntryMap: Record<string, VaultEntry>): string[] {
-  const ordered: string[] = []
-  const seen = new Set<string>()
-
-  for (const entry of entries) {
-    for (const key of typeEntryMap[entry.isA ?? '']?.listPropertiesDisplay ?? []) {
-      if (seen.has(key)) continue
-      seen.add(key)
-      ordered.push(key)
-    }
-  }
-
-  return ordered
+  return [...new Set(entries.flatMap((entry) => typeEntryMap[entry.isA ?? '']?.listPropertiesDisplay ?? []))]
 }
 
 interface ScopedPropertyPickerState {
@@ -978,12 +970,11 @@ function canPrefetchEntryContent(entry: VaultEntry): boolean {
 
 interface UseNoteListInteractionsParams {
   searched: VaultEntry[]
-  searchedGroups: Array<{ entries: VaultEntry[] }>
+  visibleEntries: VaultEntry[]
   selectedNotePath: string | null
   selection: SidebarSelection
   noteListFilter: NoteListFilter
   isChangesView: boolean
-  entityEntry: VaultEntry | null
   searchVisible: boolean
   toggleSearch: () => void
   onReplaceActiveTab: (entry: VaultEntry) => void
@@ -1052,20 +1043,10 @@ function openHighlightedChangesContextMenu(
   })
 }
 
-function resolveKeyboardEntries(
-  searched: VaultEntry[],
-  searchedGroups: Array<{ entries: VaultEntry[] }>,
-  entityEntry: VaultEntry | null,
-): VaultEntry[] {
-  return entityEntry ? flattenNeighborhoodEntries(entityEntry, searchedGroups) : searched
-}
-
 function useKeyboardInteractionState(
   options: Pick<
   UseNoteListInteractionsParams,
-  | 'searched'
-  | 'searchedGroups'
-  | 'entityEntry'
+  | 'visibleEntries'
   | 'selectedNotePath'
   | 'searchVisible'
   | 'toggleSearch'
@@ -1074,11 +1055,7 @@ function useKeyboardInteractionState(
   | 'onOpenDeletedNote'
   >,
 ) {
-  const { searched, searchedGroups, entityEntry, selectedNotePath, searchVisible, toggleSearch, onReplaceActiveTab, onEnterNeighborhood, onOpenDeletedNote } = options
-  const keyboardEntries = useMemo(
-    () => resolveKeyboardEntries(searched, searchedGroups, entityEntry),
-    [entityEntry, searched, searchedGroups],
-  )
+  const { visibleEntries, selectedNotePath, searchVisible, toggleSearch, onReplaceActiveTab, onEnterNeighborhood, onOpenDeletedNote } = options
 
   const handleKeyboardOpen = useCallback(
     (entry: VaultEntry) => {
@@ -1105,7 +1082,7 @@ function useKeyboardInteractionState(
   )
 
   const noteListKeyboard = useNoteListKeyboard({
-    items: keyboardEntries,
+    items: visibleEntries,
     selectedNotePath,
     onOpen: handleKeyboardOpen,
     onEnterNeighborhood: handleNeighborhoodOpen,
@@ -1114,7 +1091,7 @@ function useKeyboardInteractionState(
     toggleSearch,
     enabled: true,
   })
-  const multiSelect = useMultiSelect(keyboardEntries, selectedNotePath)
+  const multiSelect = useMultiSelect(visibleEntries, selectedNotePath)
 
   return { handleNeighborhoodOpen, multiSelect, noteListKeyboard }
 }
@@ -1202,12 +1179,10 @@ function useListKeyDownHandler({
 }
 
 export function useNoteListInteractions(options: UseNoteListInteractionsParams) {
-  const { searched, searchedGroups, selectedNotePath, selection, noteListFilter, isChangesView, entityEntry, searchVisible, toggleSearch, onReplaceActiveTab, onEnterNeighborhood, onOpenDeletedNote, onOpenInNewWindow, onAutoTriggerDiff, onDiscardFile, openContextMenuForEntry, onCreateNote } = options
+  const { searched, visibleEntries, selectedNotePath, selection, noteListFilter, isChangesView, searchVisible, toggleSearch, onReplaceActiveTab, onEnterNeighborhood, onOpenDeletedNote, onOpenInNewWindow, onAutoTriggerDiff, onDiscardFile, openContextMenuForEntry, onCreateNote } = options
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const { handleNeighborhoodOpen, multiSelect, noteListKeyboard } = useKeyboardInteractionState({
-    searched,
-    searchedGroups,
-    entityEntry,
+    visibleEntries,
     selectedNotePath,
     searchVisible,
     toggleSearch,

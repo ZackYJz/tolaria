@@ -6,6 +6,10 @@ import {
   isComposingKeyboardEvent,
   type RichEditorView,
 } from './richEditorKeyboard'
+import {
+  collapsedSectionEndBlock,
+  keepBlockVisibleOutsideCollapsedSection,
+} from './tolariaCollapsedSections'
 
 const EMPTY_LIST_TYPES = new Set([
   'bulletListItem',
@@ -23,6 +27,10 @@ type BlockLike = {
   content?: unknown
   id?: string
   type: string
+}
+type CollapsedEnterEditor = EmptyListNavigationEditor & {
+  document: BlockLike[]
+  insertBlocks: (blocks: Array<{ type: 'paragraph' }>, referenceId: string, placement: 'after') => BlockLike[]
 }
 type Navigation = {
   adjacentBlock: (position: CursorPosition) => BlockLike | null | undefined
@@ -164,13 +172,41 @@ function handleArrowKey(
   consumeKeyboardEvent(event)
 }
 
+function isEligibleCollapsedEnter(event: ArrowEvent, editor: CollapsedEnterEditor, view: RichEditorView) {
+  return event.key === 'Enter' && !hasModifier(event) && editor.isEditable !== false
+    && !isComposingKeyboardEvent(event, view) && isAtTextblockEnd(view)
+}
+
+function isAtTextblockEnd(view: RichEditorView) {
+  const { selection } = view.state
+  return selection.empty && selection.$head.parentOffset === selection.$head.parent.content.size
+}
+
+function insertAfterCollapsedSection(event: ArrowEvent, editor: CollapsedEnterEditor, view: RichEditorView): boolean {
+  if (!isEligibleCollapsedEnter(event, editor, view)) return false
+
+  const { block } = editor.getTextCursorPosition()
+  if (block.type !== 'heading' || !block.id) return false
+  const sectionEnd = collapsedSectionEndBlock(editor as never, block.id)
+  if (!sectionEnd?.id) return false
+
+  const [paragraph] = editor.insertBlocks([{ type: 'paragraph' }], sectionEnd.id, 'after')
+  if (!paragraph?.id) return false
+  keepBlockVisibleOutsideCollapsedSection(editor as never, paragraph.id)
+  editor.setTextCursorPosition(paragraph, 'start')
+  consumeKeyboardEvent(event)
+  return true
+}
+
 export const createRichEditorEmptyListNavigationExtension = createExtension(({ editor }) => {
   const richEditor = editor as EmptyListNavigationEditor
+  const collapsedEnterEditor = editor as CollapsedEnterEditor
 
   return {
     key: 'richEditorEmptyListNavigation',
     mount: createCaptureKeydownMount(richEditor, (event, view) => {
       if (!view || promoteNestedEmptyParagraph(event, richEditor, view)) return
+      if (insertAfterCollapsedSection(event, collapsedEnterEditor, view)) return
       handleArrowKey(event, richEditor, view)
     }),
   } as const

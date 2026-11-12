@@ -4,7 +4,7 @@ import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { isTauri } from '../mock-tauri'
 import { isMac } from '../utils/platform'
-import { activeRichEditorView } from './richEditorKeyboard'
+import { activeRichEditorView, isComposingKeyboardEvent } from './richEditorKeyboard'
 
 const COMPOSITION_SETTLE_WINDOW_MS = 500
 const SAFARI_IME_DOM_PRESERVER_ATTRIBUTE = 'data-tolaria-ime-dom-preserver'
@@ -27,6 +27,15 @@ function isMacosTauriRuntime(): boolean {
   return isTauri() && isMac()
 }
 
+function isTabKey(event: KeyboardEvent): boolean {
+  return event.key === 'Tab'
+    || event.code === 'Tab'
+    || event.keyCode === 9
+}
+
+// Tab/Shift+Tab nest or outdent list items; an IME (Chinese, Korean, Japanese)
+// can use them to move between candidates, so they must not reach the editor
+// while a composition is still open.
 function runEditorEnterCommand(view: EditorView, event: KeyboardEvent): boolean {
   const handled = view.someProp('handleKeyDown', (handler) => handler(view, event)) === true
   if (handled) event.preventDefault()
@@ -207,5 +216,15 @@ export const createImeCompositionCompatibilityExtension = createExtension(({ edi
       createMacosTauriImmediateEnterPlugin(),
       createComposedSlashCommandRecoveryPlugin(reopenComposedSlashCommand),
     ],
+    mount: ({ dom, signal }) => {
+      let compositionActive = false
+      dom.addEventListener('compositionstart', () => { compositionActive = true }, { capture: true, signal })
+      dom.addEventListener('compositionend', () => { compositionActive = false }, { capture: true, signal })
+      dom.addEventListener('keydown', (event) => {
+        if (isTabKey(event) && (compositionActive || isComposingKeyboardEvent(event, readView()))) {
+          event.stopImmediatePropagation()
+        }
+      }, { capture: true, signal })
+    },
   } as const
 })

@@ -128,7 +128,27 @@ describe('createMacosTauriImmediateEnterPlugin', () => {
 })
 
 describe('createImeCompositionCompatibilityExtension', () => {
-  it('recovers a slash command through ProseMirror composition events without DOM capture guards', () => {
+  it('guards IME candidate Tab without taking Enter or Space away from ProseMirror', () => {
+    const dom = document.createElement('div')
+    const controller = new AbortController()
+    const editor = { getExtension: vi.fn() }
+    const extension = createImeCompositionCompatibilityExtension()({ editor: editor as never })
+    extension.mount?.({ dom, signal: controller.signal })
+    const onKeyDown = vi.fn()
+    dom.addEventListener('keydown', onKeyDown)
+    dom.dispatchEvent(new CompositionEvent('compositionstart'))
+    dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab' }))
+    expect(onKeyDown).not.toHaveBeenCalled()
+    dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter' }))
+    dom.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }))
+    expect(onKeyDown).toHaveBeenCalledTimes(2)
+    dom.dispatchEvent(new CompositionEvent('compositionend'))
+    dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab' }))
+    expect(onKeyDown).toHaveBeenCalledTimes(3)
+    controller.abort()
+  })
+
+  it('recovers a slash command through ProseMirror composition events', () => {
     vi.useFakeTimers()
     const transaction = {
       delete: vi.fn(),
@@ -158,7 +178,6 @@ describe('createImeCompositionCompatibilityExtension', () => {
       plugin.key.startsWith('tolariaComposedSlashCommandRecovery')
     ))
 
-    expect(extension.mount).toBeUndefined()
     expect(recoveryPlugin).toBeDefined()
     recoveryPlugin?.props.handleDOMEvents?.compositionend?.(
       view as never,

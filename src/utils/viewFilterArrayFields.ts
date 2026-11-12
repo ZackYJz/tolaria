@@ -1,12 +1,18 @@
-import type { FilterCondition } from '../types'
 import { evaluatePropertyArrayCondition } from './viewFilterArrayProperties'
 
 export type ViewFilterArrayKind = 'property' | 'relationship'
+export type ArrayFilterOp = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'any_of' | 'none_of' | 'is_empty' | 'is_not_empty' | 'before' | 'after'
+export interface ArrayFilterCondition {
+  field: string
+  op: ArrayFilterOp
+  value?: unknown
+  regex?: boolean
+}
 type ConditionText = string
 type RelationshipValue = string
 
 interface ArrayFieldCondition {
-  cond: FilterCondition
+  cond: ArrayFilterCondition
   values: RelationshipValue[]
   arrayKind: ViewFilterArrayKind
   condVal: ConditionText
@@ -98,18 +104,18 @@ class RelationshipArrayField {
   }
 }
 
-function textMatchResult(op: FilterCondition['op'], matched: boolean): boolean {
+function textMatchResult(op: ArrayFilterCondition['op'], matched: boolean): boolean {
   if (op === 'contains' || op === 'equals') return matched
   if (op === 'not_contains' || op === 'not_equals') return !matched
   return false
 }
 
-function relationshipArrayMatch(field: RelationshipArrayField, cond: FilterCondition, condVal: ConditionText): boolean {
+function relationshipArrayMatch(field: RelationshipArrayField, cond: ArrayFilterCondition, condVal: ConditionText): boolean {
   const contains = field.contains(condVal)
   const equals = field.equals(condVal)
   const matchesAny = field.matchesAny(conditionList(cond.value))
   const isEmpty = field.isEmpty()
-  return new Map<FilterCondition['op'], boolean>([
+  return new Map<ArrayFilterCondition['op'], boolean>([
     ['contains', contains],
     ['not_contains', !contains],
     ['equals', equals],
@@ -121,7 +127,7 @@ function relationshipArrayMatch(field: RelationshipArrayField, cond: FilterCondi
   ]).get(cond.op) ?? false
 }
 
-function evaluateRelationshipArrayCondition(cond: FilterCondition, values: RelationshipValue[], condVal: ConditionText, regex: RegExp | null): boolean {
+function evaluateRelationshipArrayCondition(cond: ArrayFilterCondition, values: RelationshipValue[], condVal: ConditionText, regex: RegExp | null): boolean {
   const { op } = cond
   const field = new RelationshipArrayField(values)
   if (regex) return textMatchResult(op, field.matchesRegex(regex))

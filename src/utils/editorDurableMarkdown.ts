@@ -36,12 +36,12 @@ const EDITOR_DURABLE_MARKDOWN_CODECS = [
   tldrawMarkdownCodec,
 ] as const
 
-export function preProcessDurableEditorMarkdown({ markdown }: { markdown: string }): string {
+export function preProcessDurableEditorMarkdown({ markdown, vaultPath }: { markdown: string; vaultPath?: string }): string {
   const withDurableBlocks = preProcessDurableMarkdownBlocks({
     markdown,
     codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
   })
-  const withFileAttachments = preProcessFileAttachmentMarkdown({ markdown: withDurableBlocks })
+  const withFileAttachments = preProcessFileAttachmentMarkdown({ markdown: withDurableBlocks, vaultPath })
   return preProcessToggleMarkdown(withFileAttachments)
 }
 

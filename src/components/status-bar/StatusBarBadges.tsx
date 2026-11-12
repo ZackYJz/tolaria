@@ -19,6 +19,7 @@ import type { AiAgentStatus } from '../../lib/aiAgents'
 import { translate, type AppLocale, type TranslationKey } from '../../lib/i18n'
 import type { GitRemoteStatus, LastCommitInfo, SyncStatus } from '../../types'
 import { openExternalUrl } from '../../utils/url'
+import { hasOfflineRead } from '../../lib/offline/offlineMode'
 import type { GitRepositoryOption } from '../../utils/gitRepositories'
 import { useDismissibleLayer } from './useDismissibleLayer'
 import { ICON_STYLE, SEP_STYLE } from './styles'
@@ -617,18 +618,28 @@ export function CommitBadge({ info, locale = 'en' }: { info: LastCommitInfo; loc
   )
 }
 
+/** Web (TOL-198): offline, the vault is read-only, and the pill says so. */
+function offlineBadgeCopy(readOnly: boolean): { title: TranslationKey; label: TranslationKey } {
+  return readOnly
+    ? { title: 'status.offline.readOnlyTitle', label: 'status.offline.readOnlyLabel' }
+    : { title: 'status.offline.title', label: 'status.offline.label' }
+}
+
 export function OfflineBadge({
   isOffline,
   showSeparator = true,
   compact = false,
   locale = 'en',
+  readOnly = hasOfflineRead(),
 }: {
   isOffline?: boolean
   showSeparator?: boolean
   compact?: boolean
   locale?: AppLocale
+  readOnly?: boolean
 }) {
   if (!isOffline) return null
+  const copy = offlineBadgeCopy(readOnly)
 
   return (
     <>
@@ -642,13 +653,14 @@ export function OfflineBadge({
           padding: '2px 6px',
           fontWeight: 600,
         }}
-        title={translate(locale, 'status.offline.title')}
+        title={translate(locale, copy.title)}
         data-testid="status-offline"
+        data-read-only={readOnly ? 'true' : undefined}
       >
         <span aria-hidden="true" style={{ fontSize: 10, lineHeight: 1 }}>
           ●
         </span>
-        {compact ? null : translate(locale, 'status.offline.label')}
+        {compact ? null : translate(locale, copy.label)}
       </span>
     </>
   )

@@ -211,7 +211,7 @@ async fn blocking_git_operation_reports_worker_panics() {
     let error = run_vault_git_operation("/unused".to_string(), |_| panic!("worker failure"))
         .await
         .unwrap_err();
-    assert!(error.starts_with("Task panicked:"));
+    assert!(error.contains("worker failure"));
 }
 
 #[test]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
-import { awarenessMessage, receive, syncStep1 } from '../../../packages/protocol/src/collabWire.ts'
+import { awarenessMessage, RejectedChange, receive, syncStep1, updateMessage } from '../../../packages/protocol/src/collabWire.ts'
 import { COLLAB_MAX_MESSAGE_BYTES, COLLAB_MESSAGE } from '../../../packages/protocol/src/index.ts'
 import { DEFAULT_FLUSH_POLICY, FlushScheduler, flushDue, simulateFlushes, type Timers } from '../src/collab/flush.ts'
 import { TICKET_LIFETIME_MS, TicketBook } from '../src/collab/tickets.ts'
@@ -86,7 +86,7 @@ describe('tickets', () => {
     const book = new TicketBook()
     const { ticket } = book.issue(grant)
 
-    expect([book.redeem(ticket, 'doc-1'), book.redeem(ticket, 'doc-1')]).toEqual(['write', null])
+    expect([book.redeem(ticket, 'doc-1')?.access, book.redeem(ticket, 'doc-1')]).toEqual(['write', null])
   })
 
   it('does not open another document, and is spent by the attempt', () => {
@@ -105,7 +105,7 @@ describe('tickets', () => {
     now += TICKET_LIFETIME_MS
     const second = book.issue({ docId: 'doc-1', access: 'read' })
 
-    expect([book.redeem(first.ticket, 'doc-1'), book.redeem(second.ticket, 'doc-1')]).toEqual([null, 'read'])
+    expect([book.redeem(first.ticket, 'doc-1'), book.redeem(second.ticket, 'doc-1')?.access]).toEqual([null, 'read'])
   })
 
   it('issues tickets that cannot be guessed from one another', () => {
@@ -159,6 +159,20 @@ describe('wire messages', () => {
 
     expect(receive(frame, target, { origin: {}, readOnly: false })).toEqual({ kind: 'unknown' })
     expect(target.doc.getText('t').toString()).toBe('')
+  })
+
+  it('applies a change its receiver accepts, throws for one it turns down, and leaves one it judges later out', () => {
+    const [source, target] = [shared(), shared()]
+    source.doc.getText('t').insert(0, 'change')
+    const frame = updateMessage(Y.encodeStateAsUpdate(source.doc))
+    const judged = (verdict: boolean | 'later') => ({ origin: {}, readOnly: false, accept: () => verdict })
+
+    expect(receive(frame, target, judged('later'))).toEqual({ kind: 'update' })
+    expect(target.doc.getText('t').toString()).toBe('')
+    expect(() => receive(frame, target, judged(false))).toThrow(RejectedChange)
+    expect(target.doc.getText('t').toString()).toBe('')
+    receive(frame, target, judged(true))
+    expect(target.doc.getText('t').toString()).toBe('change')
   })
 
   it('refuses a message above the size limit before reading it', () => {

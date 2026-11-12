@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { APP_COMMAND_EVENT_NAME, APP_COMMAND_IDS } from '../../hooks/appCommandDispatcher'
 import { trackEvent } from '../../lib/telemetry'
+import { TOUCH_TARGET_CLASSNAME } from '../../lib/touchInput'
 import { useDragRegion } from '../../hooks/useDragRegion'
 import { SortDropdown } from '../SortDropdown'
 import { ListPropertiesPopover, type ListPropertiesPopoverProps } from './ListPropertiesPopover'
@@ -21,8 +22,8 @@ import type { GitRepositoryOption } from '../../utils/gitRepositories'
 import { isMac, MACOS_TRAFFIC_LIGHT_SAFE_PADDING } from '../../utils/platform'
 import type { ImmediateCreateOptions } from '../../hooks/useNoteCreation'
 
-const NOTE_LIST_ACTION_BUTTON_CLASSNAME = '!h-auto !w-auto !min-w-0 !rounded-none !p-0 !text-muted-foreground hover:!bg-transparent hover:!text-foreground focus-visible:!bg-transparent data-[state=open]:!bg-transparent data-[state=open]:!text-foreground [&_svg]:!size-4'
-const NOTE_LIST_EXPAND_BUTTON_CLASSNAME = '!h-6 !w-6 !min-w-0 !rounded !p-0 !text-muted-foreground hover:!bg-accent hover:!text-foreground focus-visible:!bg-accent [&_svg]:!size-4'
+const NOTE_LIST_ACTION_BUTTON_CLASSNAME = `${TOUCH_TARGET_CLASSNAME} !h-auto !w-auto !min-w-0 !rounded-none !p-0 !text-muted-foreground hover:!bg-transparent hover:!text-foreground focus-visible:!bg-transparent data-[state=open]:!bg-transparent data-[state=open]:!text-foreground [&_svg]:!size-4`
+const NOTE_LIST_EXPAND_BUTTON_CLASSNAME = `${TOUCH_TARGET_CLASSNAME} !h-6 !w-6 !min-w-0 !rounded !p-0 !text-muted-foreground hover:!bg-accent hover:!text-foreground focus-visible:!bg-accent [&_svg]:!size-4`
 const NOTE_LIST_SEARCH_DEBOUNCE_MS = 180
 const PROPERTY_TRIGGER_TITLE_KEYS: Record<string, TranslationKey> = {
   'Customize columns': 'noteList.properties.customizeColumns',

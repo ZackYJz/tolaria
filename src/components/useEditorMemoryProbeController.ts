@@ -83,7 +83,7 @@ function useProbeReadiness() {
   return { clearReadiness, handleReady, waitForReadyPaths }
 }
 
-export function useEditorMemoryProbeController(entries: VaultEntry[]) {
+export function useEditorMemoryProbeController(entries: VaultEntry[], vaultPath: string) {
   const [targets, setTargets] = useState<ProbeTarget[]>([])
   const { clearReadiness, handleReady, waitForReadyPaths } = useProbeReadiness()
 
@@ -98,7 +98,7 @@ export function useEditorMemoryProbeController(entries: VaultEntry[]) {
       await settleAfterMount(options.settleMs ?? DEFAULT_PROBE_SETTLE_MS)
       const baseline = await readMemorySnapshot()
       const selectedEntries = selectProbeEntries(entries, options)
-      const loadedTargets = await Promise.all(selectedEntries.map(loadProbeTarget))
+      const loadedTargets = await Promise.all(selectedEntries.map(entry => loadProbeTarget(entry, vaultPath)))
       const afterContentLoad = await readMemorySnapshot()
       const batchSize = Math.max(1, options.batchSize ?? DEFAULT_PROBE_BATCH_SIZE)
       const settleMs = options.settleMs ?? DEFAULT_PROBE_SETTLE_MS
@@ -122,7 +122,7 @@ export function useEditorMemoryProbeController(entries: VaultEntry[]) {
     } finally {
       clear()
     }
-  }, [clear, entries, waitForReadyPaths])
+  }, [clear, entries, vaultPath, waitForReadyPaths])
 
   const runAndCopy = useCallback(async (options: ProbeRunOptions = {}) => {
     const result = await run(options)

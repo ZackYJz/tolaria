@@ -1,20 +1,18 @@
-import { isTauri, mockInvoke } from '../mock-tauri'
+import { createVaultBackend } from '../lib/vaultBackend'
 import type { NoteReference } from './ai-context'
 
-function readNoteContent(path: string): Promise<string | null> {
-  const request = isTauri()
-    ? import('@tauri-apps/api/core').then(({ invoke }) => invoke<string>('get_note_content', { path }))
-    : mockInvoke<string>('get_note_content', { path })
-  return request.catch(() => null)
+function readNoteContent(path: string, vaultPath: string): Promise<string | null> {
+  const backend = createVaultBackend(vaultPath)
+  return backend.files.read(path).then(file => file.content).catch(() => null)
 }
 
-export async function hydrateNoteReferences(references?: NoteReference[]): Promise<NoteReference[] | undefined> {
-  if (!references?.length) return references
+export async function hydrateNoteReferences(references?: NoteReference[], vaultPath?: string): Promise<NoteReference[] | undefined> {
+  if (!references?.length || !vaultPath) return references
 
   return Promise.all(references.map(async (reference) => {
     if (reference.content !== undefined) return reference
 
-    const content = await readNoteContent(reference.path)
+    const content = await readNoteContent(reference.path, vaultPath)
     return content === null ? reference : { ...reference, content }
   }))
 }

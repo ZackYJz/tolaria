@@ -33,6 +33,10 @@ import {
 	rememberRichEditorSource,
 } from "./richEditorSourceState";
 import {
+	injectTableCellBreaks,
+	preProcessTableCellBreaks,
+} from "./tableCellBreakMarkdown";
+import {
 	normalizeBareImageUrls,
 	portableImageUrls,
 	resolveImageUrls,
@@ -122,9 +126,12 @@ export function preProcessRichEditorMarkdown(
 	vaultPath?: VaultPath,
 	notePath?: NotePath,
 ): PreprocessedMarkdown {
-	const withLiteralBackslashes = preserveLiteralBackslashes(markdown);
+	const withLiteralBackslashes = preserveLiteralBackslashes(
+		preProcessTableCellBreaks(markdown),
+	);
 	const withDurableBlocks = preProcessDurableEditorMarkdown({
 		markdown: withLiteralBackslashes,
+		vaultPath,
 	});
 	const withEmptyChecklists = preProcessEmptyChecklistItems(withDurableBlocks);
 	const withBlankQuotes =
@@ -143,7 +150,9 @@ export function preProcessRichEditorMarkdown(
 export function injectRichEditorMarkdownBlocks(
 	blocks: EditorBlocksSnapshot,
 ): EditorBlocksSnapshot {
-	const withLinkedCode = injectLinkedCodeInBlocks(blocks);
+	const withLinkedCode = injectLinkedCodeInBlocks(
+		injectTableCellBreaks(blocks),
+	);
 	const withWikilinks = injectWikilinks(withLinkedCode);
 	const withMath = injectMathInBlocks(withWikilinks);
 	const withHighlights = injectMarkdownHighlightsInBlocks(withMath);

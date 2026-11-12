@@ -164,7 +164,7 @@ export async function sendAgentMessage({
   runtime.setStatus('thinking')
   const promptForAgent = {
     ...normalizedPrompt,
-    references: await hydrateNoteReferences(normalizedPrompt.references),
+    references: await hydrateNoteReferences(normalizedPrompt.references, context.vaultPath),
   }
 
   const { formattedMessage, systemPrompt } = buildFormattedMessage(

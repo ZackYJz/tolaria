@@ -1,19 +1,19 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { AgentStatus, AiAgentMessage } from './aiAgentConversation'
-import { detectFileOperation, type AgentFileCallbacks } from './aiAgentFileOperations'
+import { type AgentFileCallbacks, detectFileOperation } from './aiAgentFileOperations'
 import {
   markReasoningDone,
+  type ToolInvocation,
   updateMessage,
   updateToolAction,
-  type ToolInvocation,
 } from './aiAgentMessageState'
-import { getAiAgentDefinition, type AiAgentId } from './aiAgents'
+import { type AiAgentId, getAiAgentDefinition } from './aiAgents'
+import type { AppLocale } from './i18n'
+import { localizedStreamErrorMessage } from './localizedStreamError'
 import {
   trackAiAgentResponseCompleted,
   trackAiAgentResponseFailed,
 } from './productAnalytics'
-import type { AppLocale } from './i18n'
-import { localizedStreamErrorMessage } from './localizedStreamError'
 
 const MAX_RETAINED_TOOL_OUTPUT_CHARS = 20_000
 const ASCII_WORD_RE = /^[A-Za-z0-9_]$/u
@@ -144,6 +144,24 @@ export function createStreamCallbacks(context: StreamMutationContext) {
   } = context
   let failureTracked = false
   let streamFailed = false
+  let responseFrame: number | null = null
+
+  const flushResponseUpdate = () => {
+    if (responseFrame === null) return
+    cancelAnimationFrame(responseFrame)
+    responseFrame = null
+    updateMessage(setMessages, messageId, (message) => (
+      message.isStreaming
+        ? { ...message, reasoningDone: true, response: responseAccRef.current }
+        : message
+    ))
+  }
+
+  const discardResponseUpdate = () => {
+    if (responseFrame === null) return
+    cancelAnimationFrame(responseFrame)
+    responseFrame = null
+  }
 
   return {
     onThinking: (chunk: string) => {
@@ -156,14 +174,17 @@ export function createStreamCallbacks(context: StreamMutationContext) {
 
     onText: (chunk: string) => {
       if (abortRef.current.aborted) return
-      markReasoningDone(setMessages, messageId)
       responseAccRef.current += chunk
+      if (responseFrame === null) {
+        responseFrame = requestAnimationFrame(flushResponseUpdate)
+      }
     },
 
     onToolStart: (toolName: string, toolId: string, input?: string) => {
       if (abortRef.current.aborted) return
 
-      markReasoningDone(setMessages, messageId)
+      if (responseFrame !== null) flushResponseUpdate()
+      else markReasoningDone(setMessages, messageId)
       setStatus('tool-executing')
 
       const previous = toolInputMapRef.current.get(toolId)
@@ -200,6 +221,7 @@ export function createStreamCallbacks(context: StreamMutationContext) {
     onError: (error: StreamErrorMessage) => {
       if (abortRef.current.aborted) return
 
+      discardResponseUpdate()
       setStatus('error')
       streamFailed = true
       const displayError = localizedStreamErrorMessage({ message: error, locale })
@@ -221,6 +243,7 @@ export function createStreamCallbacks(context: StreamMutationContext) {
       if (abortRef.current.aborted) return
       if (streamFailed) return
 
+      discardResponseUpdate()
       setStatus('done')
       const finalResponse = finalResponseText(responseAccRef.current, agent)
       trackAiAgentResponseCompleted(agent, responseAccRef.current, toolInputMapRef.current.size, failureTracked)

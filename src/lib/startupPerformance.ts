@@ -25,6 +25,7 @@ export type StartupPhase =
   | 'editor_module_requested'
   | 'last_active_note_restore_started'
   | 'last_active_note_restored'
+  | 'note_list_painted'
   | 'onboarding_ready'
   | 'react_shell'
   | 'renderer_module_loaded'

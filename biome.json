@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
   "files": {
     "includes": [
       "**",
@@ -16,6 +16,19 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["apps/mobile/global.css"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUnknownAtRules": {
+              "level": "error",
+              "options": { "ignore": ["tailwind"] }
+            }
+          }
+        }
+      }
+    },
     {
       "includes": ["site/**/*.vue"],
       "linter": {

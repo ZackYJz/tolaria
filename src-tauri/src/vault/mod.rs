@@ -524,6 +524,9 @@ pub fn scan_vault_folders(vault_path: &Path) -> Result<Vec<FolderNode>, String> 
 #[path = "frontmatter_regression_tests.rs"]
 mod frontmatter_regression_tests;
 #[cfg(test)]
+#[path = "golden_vault_fixtures.rs"]
+mod golden_vault_fixtures;
+#[cfg(test)]
 #[path = "modified_dates_tests.rs"]
 mod modified_dates_tests;
 #[cfg(test)]

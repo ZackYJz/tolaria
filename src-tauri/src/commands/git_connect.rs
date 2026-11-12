@@ -24,9 +24,10 @@ pub async fn git_add_remote(request: GitAddRemoteRequest) -> Result<GitAddRemote
         }
     };
 
-    tokio::task::spawn_blocking(move || crate::git::git_add_remote(&vault_path, &remote_url))
-        .await
-        .map_err(|e| format!("Task panicked: {e}"))?
+    crate::commands::blocking::run_blocking(move || {
+        crate::git::git_add_remote(&vault_path, &remote_url)
+    })
+    .await?
 }
 
 #[cfg(mobile)]

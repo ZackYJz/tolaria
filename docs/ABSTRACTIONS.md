@@ -1,6 +1,671 @@
 # Abstractions
 
+## Scripted AI Stream Hook
+
+`window.__mockAiStream.setScript(chunks)` loads a frame-controlled browser mock response. `next()` releases one chunk, while `releaseUntil(count)` advances to a one-based chunk count. It is installed only when the development browser mock handlers are present; tests and Remotion scenes can use the same subscription boundary. The stream callback adapter maps chunks to the existing AI panel callbacks.
+
+## Desktop Note Save Transport
+
+`persistContent` sends native desktop saves through `save_note_content_bytes`
+for notes over 256 Ki characters, using raw UTF-8 content and a base64 UTF-8 `x-tolaria-note-path` header. The
+command rejects malformed requests and delegates to `save_note_content`, retaining
+active-vault path validation and the existing off-thread atomic writer. This
+bounds the JSON note payload and avoids a full JSON copy of embedded image payloads; memory remains proportional
+to note length. Browser fixtures retain their JSON save API. See ADR 0278.
+
 Key abstractions and domain models in Tolaria.
+
+## Mobile Note-List Creation
+
+`MobileNoteListPanel` keeps a round create action anchored inside the list body,
+above the open/archive and bulk-action controls. The list reserves trailing space
+so the last row can scroll clear of the action. Bulk selection hides it. The
+existing create command still owns persistence, analytics and initial H1 focus;
+moving its button introduces no second creation path.
+
+## Mobile Filename Breadcrumb
+
+`MobileEditorFileIdentity` shows the literal filename and resolved type icon. A
+Markdown filename can be edited directly in the toolbar using the existing RNR
+Input and Button primitives. The inline form reuses the controller's filename
+draft and rename command, including collision/path validation and the existing
+write queue, backlink rewrites and undo history. Save/Return confirms; Cancel or
+Escape discards the draft. Changing the selected note resets the inline form.
+The note title/body is not a filename input. Non-Markdown file names remain
+read-only because the current rename command is Markdown-specific.
+
+## Mobile WYSIWYG Link Navigation
+
+Long-pressing a link in the TenTap WebView emits a typed link action over its
+existing WebView bridge. Native code routes custom wikilink URIs through the
+workspace's existing target resolver and supported external schemes through the
+existing link opener. Ordinary taps still place the caret; phone navigation
+keeps the source note available through the editor back control.
+
+## Mobile Empty-Note Back Discard
+
+`usePristineNewNoteNavigation` tracks only notes created by the current
+workspace action. On phone Back, it rechecks the selected note's editable body
+and routes an untouched blank draft through the normal `deleteNote` write path
+before returning to the list. Existing blank notes and drafts with content are
+preserved.
+
+## Mobile Read-Only Editor Interactions
+
+Markdown task blocks expose native accessible checkboxes in read-only mode. A
+toggle changes only the checkbox marker at the parsed source line and delegates
+the resulting note body to the existing editor write path, preserving all other
+bytes. Missing wikilinks use a brief, non-blocking accessible notice instead of
+a modal. Only the task-toggle state is sent to PostHog; note content and paths
+are not included. The active phone note list alone receives status-bar
+scroll-to-top ownership so hidden workspace panes do not compete for the gesture.
+
+## Mobile Native Lifecycle
+
+`apps/mobile/app.config.js` enables Expo SDK 57's supported scene lifecycle
+through `expo-build-properties`. Prebuild emits the scene manifest and Expo
+window owner; Tolaria does not maintain a parallel scene delegate. Existing Expo
+module subscribers and the keyboard root-controller handler remain responsible
+for lifecycle-dependent work and keyboard input. SDK/native dependency changes
+require a new signed binary and accepted OTA fingerprint. Sentry's JavaScript,
+core and native dependency declarations are aligned while existing consent and
+redaction boundaries remain unchanged. See ADR 0246.
+
+Editor mode changes use `useEditorModeSwitch` and the existing workspace editor
+save barrier before unmounting either editor. Failed reads retain the current
+draft; note-selection generations invalidate stale mode requests.
+
+## Mobile Installation Settings
+
+The sidebar vault chevron uses `MobileVaultPicker` and the existing RNR dropdown
+primitive to list remembered vaults, followed by Manage vaults. Quick selection
+reuses the save barrier and catalog actions without presenting a second modal.
+`MobileSettingsSheet` is the shared presentation for both Settings and vault
+operations; `MobileVaultManager` supplies its embedded vault controls, progress,
+conflict review, remembered-vault removal and GitHub account sections. Manual
+commit fields are present only when AutoGit is off. Existing vault catalog and
+sync analytics remain attached to the underlying actions, not duplicated by the
+new entry points.
+
+`apps/mobile/src/settings/` owns validated, installation-local preferences.
+`mobileSettingsController` publishes changes only after persistence succeeds and
+refuses writes after an unreadable load. Native storage retains the last valid
+backup through interrupted publication, including when the current file is
+corrupt. `MobileSettingsProvider` supplies settings and the settings sheet;
+`components/ui/switch.tsx` is a thin native RNR Switch composition (ADR 0212).
+`mobileAutoGit` is a pure debounced scheduler; `useWorkspaceAutoSync` connects it
+to lifecycle state, editor dirt and the existing vault operation/save boundary.
+`workspaceSyncLifecycle` requests a final flush on departure, joining any active
+sync, and retries on foreground return. `WorkspaceBackgroundLease` owns finite
+UIKit execution time and releases it even if JavaScript cannot respond to expiry.
+Expiry cancels Git HTTP and later phases; durable local saves remain recoverable.
+Manual mode refuses dirty syncs and exposes user-authored local commits. AutoGit
+is opt-in, with foreground scheduling and a best-effort background flush (ADR
+0219). Local commits precede authentication/network access. The footer and vault
+manager expose both paths.
+
+`useMobilePullToSync` adapts the vault controls context to a native refresh control
+for remote and linked-folder vaults. It delegates to the existing sync callback,
+so duplicate-operation guards, AutoGit checkpointing, editor save barriers, and
+failure reporting are not duplicated in list or editor UI.
+
+## Mobile Git Working Copies
+
+`useVaultNotices` owns bounded, session-local notification deduplication by vault
+and failure category. Automatic sync failures and conflicts do not open the vault
+manager or retain an editor block. A notice offers explicit access to the existing
+manager, while the per-vault sync ledger retains the actionable failure after the
+notice is dismissed. Successful synchronization or conflict resolution starts a
+new notification episode. Editing while diverged keeps that conflict state and
+its automatic-sync block until explicit resolution; it still advances the dirty
+version for subsequent synchronization. Raw errors, paths and note contents never enter notice
+copy. Catalog restore failures instead render `MobileWorkspaceLoadFailure` with
+Retry and Manage vaults; they never silently replace the catalog or show an empty
+workspace as if restore had succeeded.
+
+`managedLocalVaults.ts` validates local catalog entries and contained relative
+directories. `managedLocalStorage.native.ts` registers imports, migrates the
+legacy local copy in place, and resolves current sandbox paths on activation.
+`starterVaultStorage.native.ts` prepares a bundled starter in an owned staging
+directory and publishes the complete tree before returning a catalog record.
+Its retained revision marker supports interrupted-copy and registration retries
+without rewriting published files. Existing catalog files, orphaned vaults, and
+ambiguous preparation state prevent automatic replacement (ADR 0230).
+`initializeLocalVaultCatalog` loads `bundledStarterVault.native.ts` only after
+excluding existing local catalogs and legacy imports. This adapter resolves
+Expo-packaged images and invokes preparation before registering the local copy;
+failed preparation never publishes an empty catalog. An existing Git selection
+remains active. On subsequent launches the registered user copy is not refreshed
+from the bundle, so edits and deletions remain local user data.
+`apps/mobile/scripts/generate-starter-vault.ts` packages an immutable commit of
+the canonical Getting Started repository. Its `starterVaultBundle.ts` helper
+validates regular-file paths, types and size bounds before writing the bundle;
+text remains verbatim in a SHA-256 manifest and images are separate native assets.
+`apps/mobile/assets/starter-vault/images.ts` resolves asset modules lazily. Run
+`node apps/mobile/scripts/generate-starter-vault.ts <local-template-repo> <full-commit-sha>`
+to regenerate; existing user copies are never an output target. The bundled
+revision and original relative paths remain recorded in `manifest.json`.
+`starterVaultFiles.native.ts` copies that manifest into the preparation-owned
+staging directory sequentially, resolving binary assets through a supplied native
+file resolver. It reads back SHA-256 checksums before completion and reuses only
+verified staged files on retry. The caller never passes a published vault here.
+Local and Git records share `updateManagedGitCatalog` and its serialized atomic
+publication. Catalog reads prefer the published file, then its backup, then a
+validated pending file only when both published copies are absent. An invalid
+pending first save remains a recovery error, never a fresh-install signal.
+`useManagedVaultCatalog` is the single restoration owner;
+`useMobileVaults` saves pending editor work before add, switch, and forget.
+`mobileVaultCatalogActions` owns those catalog operations and clone activation;
+every action runs through the controller's existing saved-workspace barrier.
+Sync scheduling, editor recovery and notices remain in the controller. Forgetting
+a vault only removes its catalog entry, never its working-copy files.
+Restoration distinguishes catalog decoding failures from selected-vault recovery
+failures, retains readable catalog entries, and exposes a retry without deleting
+the catalog or working copy.
+`MobileSavedVaults` renders both kinds and confirms metadata-only removal.
+Settings shares `MobileGitHubAccount` with the manager rather than creating a
+second authorization session. Consented `mobile_vault_catalog_used` events carry
+only action and kind, never vault names, paths, URLs, or content. See ADR 0216.
+
+`apps/mobile/src/workspace/git/` separates the embedded Git engine, GitHub
+authentication, and Expo filesystem adapter from the editor. `gitVault.ts` owns
+checkpoints and commit-graph classification. Remote sync integrates immediately
+after its fresh-byte checkpoint under the workspace operation lock, avoiding a
+second clean-worktree walk; standalone integration retains its dirty-worktree
+guard. `githubClientId.ts` resolves the
+public Tolaria OAuth client ID with an optional trimmed build-time override, so
+clean release and OTA builds do not depend on a developer's local dotenv file.
+`apps/mobile/fingerprint.config.js` normalizes only release channel routing and
+Expo version metadata for native compatibility hashing (ADR 0263). Embedded
+channels remain unchanged, and all other native configuration stays hashed.
+`gitRemote.ts` performs serialized clone and sync. New clones retain the complete current tree at depth one;
+`gitHistory.ts` retrieves older shallow-boundary ancestors only when a merge
+lacks a common base. Existing full clones are unchanged. Unavailable history,
+cancellation, and unchanged boundaries fail before working-copy publication;
+remote history is never rewritten (ADR 0229).
+`gitSelectiveStaging.ts` verifies fresh regular-file bytes against staged blobs
+before individually staging a small batch. Unchanged packed objects stay packed;
+timestamps alone never exclude an edit. Unsupported adapters, conversion, file
+kinds and larger batches retain recursive serial library staging (ADR 0234).
+Its single public working-tree/index/HEAD walk visits children serially, reusing the
+walker's metadata rather than inspecting each path twice. Fresh byte reads stay
+on the filesystem adapter so read errors propagate and large-file buffers are
+not loaded concurrently by the library's default walker iteration.
+When every tracked byte hash and mode also matches HEAD, checkpoint/require-clean
+reuse that verified-clean result instead of repeating the working-tree status
+scan. Deletions, staged differences, additions and unsupported cases retain the
+library-backed status walk. This result is not cached across operations or the HTTP wait;
+both editor/save barriers and the pre-checkout dirty-tree guard remain intact.
+`gitWorkingTreeChanges.ts` keeps that integration guard and changed-checkpoint
+status reads read-only and serial via the public HEAD/WORKDIR/STAGE walkers.
+The integration guard stops at the first dirty path; checkpoints collect every
+changed path and deletion before committing. Object IDs, stat-cache decisions,
+line-ending conversion and ignored-path handling
+still belong to isomorphic-git. This avoids a whole-vault parallel stat fan-out
+and does not refresh the index just because unchanged timestamps drifted.
+`gitFileSystemSessions.ts` retains an adapter for only the most recently used root
+URI. Its bounded 16,384-entry caches hold only URI/File/Directory handles, not
+bytes, metadata, Git state or credentials. Operation caches remain independent;
+every filesystem check and read stays fresh (ADR 0240). Native Git probes use the
+same getter as managed vault connections.
+The supported isomorphic-git version must propagate filesystem permission/I/O
+errors rather than treating unreadable paths as missing. `assertGitReadFailureSafety`
+checks that failed directory walks cannot checkpoint deletions, object-read errors
+retain their identity, and corrupt-object diagnostics remain distinct from absent
+objects. The same real-filesystem proof runs in Node and the disposable native
+Git probe; HEAD, index bytes, and frontmatter/content must remain unchanged.
+Local Git contexts whitelist filesystem, directory and cache options so a
+transport's short branch ref cannot redirect a checkpoint away from HEAD.
+`fetchTrackedGitBranch.ts` uses the last-known origin tracking ref for ordinary
+same-name branch negotiation, with an explicit remote branch. An unpublished
+local checkpoint therefore does not cause the server to resend unchanged objects.
+Nonstandard remotes/upstreams retain the library's default selection. Fetch stays
+single-branch and does not alter the explicit shallow-history deepening path
+(ADR 0239).
+Type-swap preparation walks immutable before/target trees serially through the
+existing cooperative task runner. Identical object IDs and one-sided subtrees
+cannot contain type swaps, so their descendants are pruned. This never skips
+working-copy verification or the original-content guards before removing a swap.
+Recovery and push use fully-qualified branch refs, including when older working
+copies contain a stray pseudo-ref that shadows the branch's short name.
+`gitMerge.ts` builds conflict-free merge objects without changing
+HEAD or the working tree, rejects lossy binary/text conversion, and publishes
+through the existing checkout journal. Genuine conflicts preserve both histories;
+push races receive at most three fetch/integrate/push attempts (ADR 0218).
+`workspaceOperationQueue.ts` is the shared working-copy mutation boundary.
+`expoGitFileSystem.ts` maps virtual `/vault` paths to one app-owned file URI, with
+explicit path containment and unsupported symlink errors. `githubAuth.ts` uses
+device authorization and checks the resulting account identity; no client secret
+belongs in the mobile bundle. See ADR 0194 and the mobile October assessment for
+integration status and remaining native-provider work. This layer is not an
+iCloud synchronizer and must not label local disk writes as remote synchronization.
+`githubRequest.ts` bounds the complete JSON exchange, including the response
+body, and settles cancellation even if a transport ignores its abort signal.
+Device-code, token, identity, and repository requests share that boundary.
+Device authorization retries network interruptions and request timeouts with
+exponential polling backoff until the original code deadline; explicit denial
+and cancellation remain terminal. An issued token stays in memory while retrying
+identity verification, rather than exchanging the device code again. No session
+is published or persisted until identity verification succeeds.
+`githubAccountState.ts` retains the visible account until secure credential
+deletion succeeds; network and storage failures are not reported as expired
+authorization. `githubFailure.ts` maps only known error identifiers to localized
+copy, never raw responses or credentials. `useMobileVaults` distinguishes the
+save barrier from the subsequent remote operation. Failed local saves expose a
+retry through the same serialized write queue, including local-only vaults.
+`assert-native-git.mjs` exercises real smart-HTTP transport through Hermes and
+Expo's filesystem on the booted iOS simulator, using disposable repositories only.
+Standalone probes use the existing QA-only native launch arguments, without
+depending on delivery of a cold-start URL. The native capability and loopback
+endpoint checks remain required. Set `TOLARIA_GIT_QA_FILES=6000` for the opt-in
+large-vault fixture and separate clone/push/pull/unchanged-sync timings. Large
+fixtures require `--device <UDID>` to select an explicitly booted disposable
+simulator; they never target an ambiguous `booted` simulator. Routine checks
+retain the fast two-note fixture and its existing booted-device default.
+`TOLARIA_GIT_QA_HISTORY_MIB=128` additionally creates incompressible historical
+attachment revisions, removed from the current tree but retained in Git history.
+This checks that current-tree clone cost is independent of deleted attachment
+history; it does not certify memory use for large current blobs or deepening.
+`measureEventLoopDelay.ts` measures timer scheduling delay across the round trip,
+including a blocked tail, and always removes its timer. This is not an animation
+FPS measurement. `nativeStorageQaCapability.ts` accepts development mode or the
+exact native boolean exposed only by `DEBUG` / `TOLARIA_QA` builds. Optimized QA
+uses an embedded production bundle; ordinary Release cannot enable these probes
+through a URL parameter (ADR 0208). Proof delivery reuses the loopback-only
+collector with redirects rejected and credentials omitted.
+`nativeSimulatorLease.ts` is host-only QA infrastructure. The Git and write-recovery
+entry points acquire one loopback TCP port before creating fixtures or touching
+the simulator, reject overlapping runs, and release it in `finally`. Connections
+receive no data; process exit also releases the OS-owned lease. Other native QA
+entry points must still be scheduled sequentially; this is not an app data lock.
+`measureEventLoopDelay.ts` retains aggregate JavaScript timer-delay measurements
+and optionally accepts named phase transitions. `eventLoopSampler.ts` closes a
+phase synchronously before the next begins, so a blocked terminal segment is not
+misattributed to the following phase. Repeated phases remain separate and late
+callbacks are ignored after completion. The native Git proof records library
+clone progress phases and sync checkpoint/fetch/checkout/push boundaries using
+fixed diagnostic labels, never note content or paths. These samples measure
+JavaScript scheduling delay, not native animation frame rate.
+The QA-only `measureGitFileSystem.ts` wrapper adds fixed-method call/failure counts
+and cumulative awaited-operation latency to each clone proof. It records no paths,
+arguments, contents or error messages, preserves byte views and rejection identity,
+and adds no cache. Overlapping waits contribute independently; these numbers must
+not be interpreted as CPU time or summed into clone wall-clock time.
+Rejected filesystem calls include expected missing-entry probes, not just failures
+of the overall clone.
+`nativeMetroProofLog.ts` is a host-only, bounded reader for development-build
+proofs that React Native sends to Metro instead of iOS system logs. The workspace
+persistence command accepts `--metro-log` and captures its byte boundary before
+launching the app, rejects file replacement/truncation, and never falls back to
+older system logs when this source is selected. Other legacy log-based probes
+still require separate collection-path verification.
+`gitRuntime.native.ts` supplies missing digest support through Expo Crypto, while
+`gitDigest.ts` preserves existing runtime APIs and byte-view boundaries. Git uses
+one library-owned cache per sync operation, released afterwards (ADR 0200).
+The Expo adapter separately reuses bounded path handles without caching contents
+or metadata; directory enumeration returns names without allocating child handles.
+Binary reads and writes share bounded ArrayBuffer views rather than duplicating
+entire Git packs; writes still supply the plain Uint8Array required by Expo JSI.
+Standalone iOS additionally uses `WorkspaceGitMetadata` through `gitEntryInfo`
+for one fresh sandbox-relative stat lookup, including symlink rejection. The
+optional capability leaves Expo Go and Android on the existing path (ADR 0205).
+`ManagedWorkspacePath` keeps only the trusted container prefix. It validates
+decoded URI components without filesystem normalization, rejects dot/empty
+segments and file authorities with credentials or ports, and leaves symlink
+rejection to the descriptor-relative stat. No file state is cached.
+`gitTaskRunner.ts` supplies a per-instance cooperative task boundary for synchronous
+Expo metadata/mutation calls and awaited Git progress callbacks. Requests share
+one pending timer after a sixteen-millisecond budget; each synchronous operation
+runs immediately after rechecking that budget, including concurrent resumptions.
+Native byte/directory reads share that budget rather than resetting it on promise
+completion: a chain of fast native promises does not prove that input or timers
+had a turn. Only the actual shared timer resets the budget (ADR 0274).
+This is not a new mutation queue or a latency guarantee for individual
+large operations (ADR 0209).
+Transport progress deliberately keeps a separate budget from native filesystem
+IO. Renewing its budget on every native promise completion can starve input and
+timers during checkout even when total clone time looks unchanged.
+`gitCloneIoYield.test.ts` protects that independent task boundary and cancellation
+while the progress callback is waiting; do not merge the two budgets as an IO
+optimization without new native responsiveness evidence.
+Checkpoints explicitly stage content before comparing the matrix, protecting
+same-length rapid edits that the library's coarse timestamp shortcut misses.
+This requires a content scan; the measured large-vault sync cost remains a
+release blocker, not hidden behind a misleading success/performance claim.
+`workspaceWriteQueue.ts` retains failed mutations in order and drains them before
+Git. Its saved-workspace callback receives whether native text-journal recovery
+replaced files. That recovery cannot be dismissed by a later unchanged or
+cancelled task: the saved-vault boundary keeps the replacement generation and
+awaits fresh editors, including when fresh indexing fails.
+`workspaceSyncEditors.ts` collects awaitable editor preparation operations;
+`editorSaveGate.ts` prevents stale TenTap replies from overwriting pulled content.
+Automatic foreground sync defers at each local write barrier while the rich
+editor is focused, including the barrier after a Git network wait. This does not
+disable ordinary note autosave. The scheduler retains the pending sync and retries
+at its idle interval without counting focus as a transport failure. Manual sync
+and foreground departure retain the normal flush, drain and recovery barriers.
+The vault manager uses both boundaries (ADR 0196). `MobileVaultProvider` owns
+the revisioned pending-path set consumed by `MobilePendingNoteIndicator` for
+Git and linked-folder notes. `workspaceSyncEditors` passes written paths into
+the existing sync ledger; rename/move operations include both endpoints.
+Checkpoint acknowledgement clears only revisions captured under the write
+barrier, retaining later edits even on the same path. Old ledgers without paths
+remain valid. This is a presentation hint, not an authoritative Git index, and
+never removes the byte-verification checkpoint (ADR 0271). The provider owns
+vault switching and manual sync, while a separate memoized workspace context
+prevents progress updates from re-indexing the vault.
+The manager's `useGitSyncProgress` forwards real Git object counts to Settings,
+throttled to ten updates per second except phase boundaries and completion.
+Each operation owns its callbacks; finished/unmounted operations cannot publish
+late progress. Phase changes and finalization clear stale counts. The sidebar
+pill remains two lines, and counts never imply an overall sync percentage.
+`useMobileWorkspaceResolution`
+also retains the repository request and initial snapshot across equivalent parent
+renders; a new vault selection revision still invalidates that snapshot.
+`preloadNativeWorkspace` awaits the iOS background index bridge when restoring
+the catalog, serialized with working-copy operations. The bridge validates the
+managed root and completes interrupted writes before indexing under the native
+mutation lock. It does not add a persistent cache or bypass a real disk refresh.
+The native Git QA probe benchmarks this same preload and pure snapshot path on
+its owned disposable working copy, never a saved user vault. It reports native
+index/bridge time, snapshot construction, throwaway interaction timings and
+JavaScript scheduling delay separately from the Git round-trip measurements.
+`savedVaultOperation.ts`
+freezes/flushes editors, drains disk writes, invalidates old callback generations,
+and publishes a freshly prepared disk snapshot; a pre-barrier failure instead resumes the existing draft.
+`useWorkspaceSnapshotFrame` swaps revision-scoped snapshot/history stores after
+that publication without remounting the same-root workspace controller. Search,
+navigation and mounted list surfaces survive; editor documents alone receive a
+new revision key. Retired stores retain their own late persistence completions,
+while prepared actions and retries require both the current generation and exact
+frame identity. Ordinary parent renders do not reset drafts or history. Switching
+the actual native root still remounts the workspace. This does not authorize edits
+through a replacement barrier or make provisional cached previews writable (ADR 0275).
+The native Reload Vault command reselects the current managed entry silently,
+using that same save/recovery/fresh-preparation boundary instead of synchronously
+rebuilding from the consumed launch index. No selected catalog entry means no
+native reload, never a fallback filesystem scan. Fixture/host reloads retain
+their repository behavior and clear undo history after replacement.
+A confirmed no-change folder-picker cancellation or Git result without native recovery also resumes that draft without
+re-indexing or remounting. It restores the frozen editor's callback generation;
+replacement IDs are never reused, and an older cancellation cannot undo a newer
+replacement. Failures after import or Git starts still require the disk refresh.
+`gitRemote` reports both incoming checkout and checkpoint-time journal recovery
+as document replacement. Recovery requires fresh editors even when it advances
+HEAD to the fetched tip or credentials fail afterwards. Local commits and
+push-only/no-op syncs with no recovery preserve the mounted editor under ADR 0221.
+The shared Git checkpoint/require-clean result reports successful checkout
+recovery as `workspaceChanged`, separately from the count of newly committed
+files. Manual commits honor that same replacement flag; sync consumes it without
+replaying a second recovery check just to discover whether files changed.
+Relationship-picker exclusions resolve each existing reference once per search,
+then filter candidate IDs with a set. They must not resolve a vault-wide link
+inside the per-note candidate loop.
+`managedGitStorage.native.ts` keeps app-owned working copies and a credential-free
+catalog. Catalog publication renames a validated pending file and retains a
+recoverable backup. Git clone control forwards real library phases
+and object counts, coalescing progress notifications without synthesizing an
+overall percentage. Cancellation aborts transport and stops at cooperative Git
+boundaries; cleanup is limited to the newly allocated clone directory. A
+completed clone is retained if catalog publication fails, preserving recovery.
+`MobileCloneProgress` keeps phase/count progress and cancellation above the vault
+manager's scrollable content. Counts describe the current library phase, not an
+invented overall completion percentage. Cancellation stays pending through
+cleanup and is no longer offered once catalog publication starts.
+Clone phase/count snapshots use a per-clone-controller external store subscribed
+to by `MobileCloneProgress`, so progress ticks do not rerender the vault provider
+and surrounding panes. Lifecycle changes (start, cancellation, publication and
+completion) still update the provider's controls.
+`githubAccountState.ts` isolates cancellation and ordered
+SecureStore writes from React. Native Git HTTP uses Expo's streaming fetch with
+redirects disabled. Its 120-second timeout bounds connection/header waits and
+each pending body read, rather than the total pack download. The timer pauses
+while Git processes a delivered chunk; caller cancellation remains active and
+early consumer termination cancels the reader. Large progressing clones are not
+aborted solely for taking more than two minutes. The footer distinguishes local-only folders, pending sync,
+success, failure, and divergence; edits clear the previous successful sync state.
+`gitCheckoutRecovery.ts` persists checkout intent before replacing files and
+advances the branch only after checkout succeeds. Managed-vault activation and
+checkpointing finish pending intent before proceeding. `gitCheckoutGuard.ts`
+blocks native workspace reads/writes while checkout is incomplete; recovery never
+forces away unexpected edits. See ADR 0201 and the native Git recovery probe.
+
+## Native Text Save Recovery
+
+`mobileEditableNote.ts` owns conversion from persisted Markdown/frontmatter to an
+editable note's metadata and preview blocks. Workspace edit orchestration imports
+that pure conversion instead of maintaining its parsing helpers inline. Alias
+precedence, scalar-array conversion, and original raw Markdown remain unchanged.
+Both initial snapshots and edited/hydrated metadata retain the complete tag list.
+Presentation limits belong to list components, never the persisted-data model or
+the property form's editable value.
+
+`MobileEditorFileIdentity` renders the shared phone/tablet breadcrumb icon and
+literal basename, including its extension, from the note's write path. It does
+not derive a filename from the display title or modify the document heading.
+Custom note/type icons retain the existing desktop-derived colors and sizes.
+
+`mobileEditorFocus` owns one-shot, note-specific focus requests in the existing
+workspace editor registry. Successful note creation requests focus; ordinary
+navigation does not. The native editor consumes the request after initial content
+has settled, places the cursor at the empty H1, and enables its normal change
+pipeline. Unmount, timeout and workspace replacement cancel stale requests, so
+late readiness or background refresh cannot steal focus back.
+
+`mobileDefaultNoteType` completes successful writable note-creation plans with a
+missing root `note.md` Type definition, using the existing type reducer. It keeps
+the new note selected, preserves existing definitions and legacy paths, and never
+overwrites a filename collision. Read-only workspaces, unsuccessful creation and
+ordinary edits do not bootstrap definitions. The definition shares the existing
+repository write queue rather than adding a separate filesystem path.
+
+`WorkspaceTextRecovery` atomically publishes a pending text save outside the vault,
+replaces the destination, and removes the record last. Replay checks the previous
+or intended SHA-256 digest; conflicts retain both versions and prevent further
+operations. `ManagedWorkspaceText` restricts access to app-container roots and
+keys records by stable home-relative paths. `workspaceTextRecovery.ts` connects
+the asynchronous native writer and recovery checks to the existing Expo adapter,
+repository reads, and Git save barrier. A recovered save invalidates stale launch
+indexes and cached raw note content. Old standalone binaries fail closed rather
+than silently falling back to a non-atomic writer. Expo Go/Android do not yet
+provide this native guarantee. See ADR 0203.
+
+`LinkedWorkspaceSession` coordinates a bookmarked iOS folder and an app-owned
+working copy. `LinkedWorkspacePlan` performs three-way content comparison;
+`LinkedWorkspaceTree` applies checked file/directory changes without following
+symlinks or touching Git internals. `LinkedWorkspaceStore` keeps bookmarks and
+baselines outside vault content using stable container-relative identities.
+`linkedWorkspace.ts` joins the existing save queue; `useLinkedFolderSync` reuses
+the shared lifecycle scheduler for foreground write-back, refresh, explicit
+retries and a bounded departure flush. iCloud delivery remains provider-owned.
+The status reports provider persistence, not cross-device delivery (ADR 0217).
+
+`LinkedConflictPublication` marks successfully completed private resolution
+backups before retiring their journal. Best-effort cleanup retains the latest
+three and all completions within seven days. Pending, superseded, unmarked,
+malformed and symlinked data is never pruned; a corrupt active journal blocks
+cleanup. This does not delete vault/provider content or establish a total backup
+quota (ADR 0237).
+
+Asynchronous repository note reads join the per-root operation queue before
+synchronous native recovery, so they remain ordered with writes and Git. During
+the marked native linked-folder merge only, note reads bypass that queue and
+read the app-managed copy through Expo's async file API; sync has already
+flushed writes/recovery, and each changed file is atomically replaced. Recovery
+is skipped only for that window, while writes remain queued until sync ends.
+Cached bytes are still rejected after recovery or an external conflict.
+Snapshot reads remain a synchronous lifecycle boundary; this does not claim
+that every filesystem read is nonblocking (ADR 0296).
+
+`WorkspaceTextRecord` owns version-two text batches and completion fingerprints,
+including decoding of version-one single-save records. `WorkspaceTextRecovery`
+publishes the whole plan, checks every precondition, and replaces members under
+coordination before acknowledging the batch. Conflicts retain unfinished intent;
+this is roll-forward recovery, not atomic visibility across external writers.
+`workspaceTextBatch.ts` converts entirely text-based repository plans to the
+optional `saveWorkspaceTexts` capability, preserving final content for repeated
+paths. Unsupported runtimes retain individually queued writes; they never retry
+a whole JavaScript loop of already-completed writes. The `--batch` native proof
+checks cross-launch partial replacement, conflict exclusion, and the repository's
+actual two-member completion receipt (ADR 0207).
+
+`nativeWorkspaceMutation.ts` retains a native UUID across failed attempts for
+both text and entry bridges. `saveWorkspaceText` requires that ID; completed
+receipts contain only a path/content digest and are consulted before acquiring
+new file preconditions. An exact retry cannot overwrite a later edit, resurrect
+a deletion, or act on a recreated entry. Receipts are bounded under the existing
+per-root serialized queue, not a general command ledger. See ADR 0206.
+
+`assert-ios-write-recovery.mjs` terminates/relaunches the standalone simulator app
+between journal publication and recovery, then repeats with an external edit.
+Its native Debug / opt-in optimized QA probe uses only a dedicated cache fixture and the regular
+repository/read/write/sync barriers. It is separate from browser visual QA.
+
+`WorkspaceEntryRecovery` adds recoverable file/folder moves and deletions at the
+same boundary. It fingerprints the source, publishes intent, and exclusively
+renames to the destination or a private deletion quarantine. A bounded completion
+receipt identifies queue retries by native UUID; `workspaceEntryRecovery.ts`
+retains that identifier only while the operation is failed/in flight. Reads and
+Git also replay structural intent, while external changes block replay. The
+`--entries` native proof checks actual app restarts. This is not yet a transaction
+over a move and every subsequent backlink rewrite. See ADR 0204.
+
+## Native Provider File Foundation
+
+`modules/tolaria-workspace-access/ios/CoordinatedWorkspaceFile.swift` wraps scoped,
+coordinated reads and atomic revision-checked writes. `WorkspaceBookmarkStore`
+persists and restores the original directory grant; `WorkspaceFileSafety` rejects
+unsafe relative paths and symlinks. These are not yet wired to the live-folder UI.
+The Swift package's filesystem tests run without Expo. The standalone native Git
+probe additionally invokes the DEBUG-only iOS file-access proof with disposable
+files and isolated preferences. See ADR 0198 for the remaining integration gates.
+
+`WorkspaceFileIndex` rejects incomplete enumeration, invalid UTF-8 text, and
+visible symlinks instead of publishing blank editable notes. `ManagedWorkspaceImport`
+validates a staged copy before replacing the previous managed folder. Import and
+restore failures reach the vault manager; cancellation alone returns no selection.
+Expo filesystem reads likewise propagate failures instead of synthesizing empty content.
+`WorkspaceLoadBoundary` keeps vault-management controls available after a read or
+render failure; a successful vault revision resets a failed boundary without
+remounting healthy workspace children.
+
+`useMobileNoteRead` handles lazy selected-note reads independently of workspace
+loading. It exposes loading/error/retry before the editor mounts, cancels stale
+responses, and never replaces a loaded draft. `mobileNoteRead.ts` distinguishes
+unread content from valid empty files and guards mutations that require that
+content. Hydration is a read-only operation, including for read-only repositories;
+failed reads never synthesize writable blank notes.
+
+`useMobileInspectorReferenceGroups` defers inverse relationships and backlinks
+from the current note pool. Its selection input contains only reference-matching
+fields (identity, title, type, path, aliases and workspace alias), so display-only
+note copies do not restart a whole-vault calculation. Selection and pool changes
+still invalidate it; navigation and unmount cancel pending publication.
+Direct neighborhood navigation builds one local first-match note-ID index for
+its outgoing relationships instead of scanning the whole pool for each target.
+It does not retain an index between snapshots or change matching/order semantics.
+
+`mobilePreparedEdits.ts` prepares metadata-only note actions before mutation,
+including deletions whose Undo needs the original bytes. Bulk actions read all
+required notes before applying any edits; a failed read leaves the write plan
+empty. The controller's `usePreparedWorkspaceEdits` keeps loaded editor saves
+synchronous, registers pending preparations with the existing sync barrier,
+rejects obsolete vault generations, and exposes an actionable, non-modal
+`MobileWorkspaceEditNotice` for failed action preparation. Its Retry remains
+available until the action succeeds; removing the normal status footer does not
+silently discard a failed action.
+Hydration never overwrites an already loaded draft. This is action preparation,
+not a replacement for the per-root disk queue or a multi-file disk transaction.
+
+`nativeQaSink.ts` carries layout measurements and known persistence proofs to the
+simulator harness over loopback, so standalone QA does not depend on JavaScript
+console messages appearing in the iOS unified log.
+Async write-recovery runs capture an independently validated loopback sender;
+layout sink clearing or replacement cannot redirect or discard their proofs.
+Recovery also checks the native QA capability before creating disposable fixtures.
+
+## Tablet Panel Motion
+
+`tabletPanelGestureIntent.ts` decides whether a touch should move panels or yield
+to vertical content scrolling. `tabletNativePanGesture.ts` runs gesture updates
+and springs on the UI thread. `useTabletPanelGestures.ts` exposes toolbar actions
+and settled accessibility state. Offsets always use desktop panel tokens. Native
+interaction QA is mandatory; web tests cannot verify native responder arbitration.
+See ADR 0195.
+
+Tablet drag sessions are invalidated on window resize, explicit pane actions and
+unmount. Inactive UI-thread callbacks cannot move panes, and generation-tagged
+settlements cannot restore an obsolete layout after crossing the JS boundary.
+
+Editor-interior horizontal drags retain sequential panel navigation. Note-list
+rows own their touch quick actions and leave two-finger trackpad gestures to the
+list's native scrolling. The row's local `useSwipeableNoteActions` hook owns its
+imperative close-and-dispatch handler; gesture construction only registers that
+handler and reads measured width through Reanimated's shared-value accessors.
+The formatting strip uses Gesture Handler's native
+scroll view to keep horizontal tool scrolling from moving panels. Phone navigation
+uses the editor toolbar's leading/trailing slots, not a second title bar. The
+workspace has no permanent bottom status bar. `MobileSidebarSettings` anchors
+Settings and the command palette above the home indicator, using circular secondary
+controls. Their transparent, non-intercepting overlay floats over the sidebar;
+the scroll content reserves its measured height so the last row can clear every
+control without an opaque footer strip. Section-label buttons toggle Views,
+Favorites, Types and Folders independently of their sibling add/visibility actions;
+collapsing chrome does not change the active note or selected section.
+The vault-title chevron reuses the
+existing vault manager through `MobileVaultControlsContext`; it does not bypass
+the manager's save/switch barrier. Type rows retain their individual counts, but
+the Types section heading has no aggregate count. The existing
+Settings sheet exposes GitHub and vault management. The sidebar sync pill uses the
+same sync/recovery operations as the vault manager. Panes extend to the bottom edge, including their backgrounds
+and dividers. The note list keeps controls within its own bottom padding; the
+inspector adds clearance to scrollable content, not a strip outside the panel.
+Formatting strips own their home-indicator clearance through `useMobileBottomInset`,
+which removes that clearance when a software keyboard is visible. There is no
+second workspace inset below the toolbar.
+`mobileEditorBlockStyles` groups the read-only block renderer's typography,
+inline marks, lists, quotes, code and table styles into shared-token factories.
+The extraction preserves every style value in both themes at 100% and 120%.
+`mobileViewFilterStyles` and `mobileWhiteboardActionStyles` likewise separate
+layout, controls and editor-state styling without changing their existing tokens.
+Phone drawers pass `fullWidth` to the shared sidebar so its measured trailing
+edge meets the note-list preview without a desktop-width gap.
+
+The properties panel's `MobileRelationshipRows` helper owns the shared typed icon
+and colored label; the relationship row retains navigation and removal actions.
+
+`MobileWysiwygWikilinkBridgeModel` keeps its existing public insertion API while
+delegating read-only matching to `mobileNativeInlineAutocomplete`. Shared
+document-node positioning lives in `mobileNativeDocumentTree`, and payload/selection
+contracts in `mobileNativeWikilink.types`. Autocomplete preserves lazy wikilink,
+nonempty person-mention, then emoji precedence; its cursor contexts distinguish
+document coordinates from projected text offsets.
+
+Phone drag responders retain their gesture identity while reading the latest
+callbacks. A completed native animation commits navigation in a microtask, after
+React Native synchronizes its final animated value, so that synchronization cannot
+overwrite the zero-offset destination. Interrupted drags never commit navigation.
+Phone edge hit zones translate window touch coordinates into the horizontally
+safe-area-inset workspace, keeping both editor edges reachable in landscape.
+They retain the original touch-down position rather than reconstructing it from
+movement samples, which can start after the finger has already left the edge.
+The raw editor permits responder handoff for these edge gestures; interior text
+selection and vertical scrolling remain outside the panel drag hit zone.
+Retained phone screens remain full-height independently of the active screen.
+Opening the sidebar therefore cannot resize the hidden list and clamp away its
+saved scroll offset. Bottom clearance belongs to each screen's controls/content.
+
+When the adaptive iPad window cannot fit both left panes plus the 520-point
+editor minimum, the animated left strip is clipped to the 340-point list slot.
+Revealing the 260-point sidebar leaves an 80-point list preview rather than
+compressing the editor. Selecting a scope or note restores the full list; the
+sidebar header can also dismiss it. The same UI-thread offsets drive buttons
+and drags, and wide/compact layouts retain their existing dimensions.
+
+`apps/mobile/native-ui-tests/` adds an independent XCUITest runner for actual
+native panel drags and toolbar actions. `test-ios-panel-gestures.mjs` generates
+the project outside the repository, reinstalls only the disposable runner to avoid
+stale unsigned test bundles, and retains an `.xcresult` artifact. See ADR 0199.
 
 ## Design Philosophy
 
@@ -62,11 +727,11 @@ All data lives in markdown files with YAML frontmatter. There is no database —
 
 ### Rich-Editor Markdown Serialization
 
-`src/utils/richEditorMarkdown.ts` is the canonical owner for rich-editor Markdown import/export boundaries. It installs the app-facing serializer on real BlockNote editors, preprocesses Markdown before parsing, injects Tolaria schema blocks after parsing, and turns BlockNote documents back into vault Markdown. It restores Tolaria's durable Markdown syntax for wikilinks, linked inline-code labels, math, highlights, attachments, Mermaid, tldraw, sandboxed HTML blocks, blockquote callouts, and native toggle-list blocks before the save path writes bytes to disk. Toggle blocks use portable `<details>` and `<summary>` HTML inside Markdown so compatible renderers keep the disclosure behavior, while `toggleMarkdown.ts` maps that syntax back to BlockNote's editable `toggleListItem` document shape. Linked inline code and literal path-template backslashes use Markdown-inert placeholders during BlockNote import, then restore their editable representations before serialization. Hot save paths should pass an already-read block snapshot when they have one; a debounced rich-editor flush should not ask BlockNote for `editor.document` twice.
+`src/utils/richEditorMarkdown.ts` is the canonical owner for rich-editor Markdown import/export boundaries. It installs the app-facing serializer on real BlockNote editors, preprocesses Markdown before parsing, injects Tolaria schema blocks after parsing, and turns BlockNote documents back into vault Markdown. It restores Tolaria's durable Markdown syntax for wikilinks, linked inline-code labels, math, highlights, attachments, Mermaid, tldraw, sandboxed HTML blocks, blockquote callouts, and native toggle-list blocks before the save path writes bytes to disk. Toggle blocks use portable `<details>` and `<summary>` HTML inside Markdown so compatible renderers keep the disclosure behavior, while `toggleMarkdown.ts` maps that syntax back to BlockNote's editable `toggleListItem` document shape. Linked inline code and literal path-template backslashes use Markdown-inert placeholders during BlockNote import, then restore their editable representations before serialization. `markdownTables.ts` owns escape-aware row splitting and table start/separator/body boundaries for both the fast parser and table-break preprocessing. Both consumers use `markdownFences.ts` for fence scanning. Table cell line breaks use `<br>` on disk; `tableCellBreakMarkdown.ts` protects those tags during import and restores editable newlines after either parser, leaving fenced code and inline code untouched. Hot save paths should pass an already-read block snapshot when they have one; a debounced rich-editor flush should not ask BlockNote for `editor.document` twice.
 
 Loaded notes retain their original Markdown and an import-time serialization baseline in editor-scoped source snapshots. Rich saves apply the changes between that baseline and the edited serialization to the original bytes, preserving untouched entities, inline HTML, comments, table alignment, line endings and EOF. `markdownSourceLines.ts` shares the source-line splitter used by import preprocessing. Each bounded editor-scoped snapshot caches its source-to-rendered span map. Alignment compares line bodies separately from line endings when line counts match, and falls back to whole-document alignment when they differ. Saves shift unaffected spans and realign only regions touched by rich edits; prior snapshots remain immutable for undo and tab reuse. The resolver captures snapshots for every load strategy, including cache hits. Frontmatter-only property changes reuse the unchanged body baseline with the current frontmatter. Entering raw mode uses this same source-preserving save boundary so pending rich edits are included; raw CodeMirror transactions then apply to the original source offsets, preserving mixed line endings. Wikilink import skips inline code spans as well as fenced code. Comments remain invisible in rich mode; this does not add comment editing or warning UI.
 
-The experimental direct serializer remains a lower-level implementation in `src/utils/blockNoteDirectMarkdown.ts`. App/editor flows should go through `richEditorMarkdown.ts` entry points instead of installing the direct serializer, invoking `blocksToMarkdownLossy()`, or composing durable Markdown codecs locally. The direct helper uses cached direct serialization when every block shape is supported and falls back to BlockNote's exporter when a custom or unknown block appears. Plain identifiers keep safe in-word underscores, Windows-style separators stay literal when Markdown does not require escaping, and style delimiters stay adjacent to their non-whitespace content instead of crossing line endings.
+The experimental direct serializer remains a lower-level implementation in `src/utils/blockNoteDirectMarkdown.ts`, with inline text, style, link, and code-span serialization in `src/utils/blockNoteDirectInline.ts`. App/editor flows should go through `richEditorMarkdown.ts` entry points instead of installing the direct serializer, invoking `blocksToMarkdownLossy()`, or composing durable Markdown codecs locally. The direct helper uses cached direct serialization when every block shape is supported and falls back to BlockNote's exporter when a custom or unknown block appears. Plain identifiers keep safe in-word underscores, Windows-style separators stay literal when Markdown does not require escaping, and style delimiters stay adjacent to their non-whitespace content instead of crossing line endings.
 
 The direct serializer cache is derived state, scoped to the editor instance, and disposable. Bridge helpers that transform blocks for Markdown restoration should preserve object identity when a block, its children, and table cells are unchanged; that lets frequent debounced saves reuse cached Markdown for stable subtrees without treating the cache as the source of truth. Before an unsupported block set reaches BlockNote's fallback serializer, `blockNoteTableCardinality.ts` normalizes malformed table header and span cardinalities so WebKit cannot turn corrupt metadata into an unsafe array allocation.
 
@@ -85,6 +750,353 @@ Block-selection behavior keeps UI/plugin wiring separate from block operations. 
 Rich-editor keyboard extensions share their capture-phase wiring through `src/components/richEditorKeyboard.ts`. That helper owns active ProseMirror-view resolution, browser and ProseMirror composition detection, listener mounting, and consistent handled-event consumption. Individual extensions retain their feature-specific key matching and editor mutations; the helper is not a general keyboard controller.
 
 Focused block type changes share the same block-type catalog in `src/utils/richEditorBlockTypes.ts` across the formatting toolbar, command palette, and block handle menu. UI surfaces call the helpers in `src/components/richEditorBlockTypeCommands.ts` instead of manually constructing BlockNote updates so conversion preserves current block content, re-resolves captured block ids, runs inside one editor transaction, restores focus only after the mutation, and emits the shared `editor_block_type_changed` analytics event.
+
+## Mobile UI Foundation
+
+The React Native app in `apps/mobile` has its own UI abstraction layer. Mobile screens should compose Tolaria-native primitives from `apps/mobile/src/ui` instead of directly styling raw React Native controls in feature screens.
+
+`MobileAnalyticsProvider` applies persisted, default-off consent to a typed
+allowlist of swipe, settings and Git-request events. The PostHog capture transport
+uses ephemeral session identifiers, no document/repository metadata, bounded
+requests and immediate opt-out cancellation. It is inert without a configured
+public project key; see ADR 0214. Shared successful actions use desktop event
+names and carry explicit mobile OS/device/build attribution. `mobileSuccessfulEdit`
+emits creation/deletion only after persistence; requests remain separate events.
+`mobileTelemetryContext` constrains build metadata to safe categorical values.
+
+Crash reporting has independent default-off consent. `mobileCrashReporting`
+serializes SDK lifecycle changes; `mobileSentryDriver` lazily loads the official
+React Native SDK and uses a revocable, bounded SDK transport. `mobileCrashPrivacy`
+rebuilds reports from stack coordinates and safe exception types, excluding raw
+messages, vault data, attachments and automatic UI/network context. A small
+`mobileCrashChannel` allows domain error boundaries to report without importing
+the SDK. `mobileCombinedCrashDriver` coordinates that driver with the local
+`tolaria-crash-reporting` Expo module on iOS. The module owns native allowlist
+redaction, a cancellable URL session and generation-isolated crash caches. Only
+loaded, explicit consent starts either SDK; revocation cancels both immediately.
+Expo/Metro source-map upload requires private CI credentials. See ADRs 0225 and
+0226 for attribution, privacy policy and native crash-recovery boundaries.
+
+`MobileThemeProvider` resolves installation appearance preferences and publishes
+desktop-derived palettes to both NativeWind/RNR and explicit native styles.
+`useMobileColors` supplies semantic roles; `useMobileStyles` memoizes a component's
+palette-dependent style factory. `useEditorAppearance` changes WebView CSS without
+resynchronizing the document. The generated palette is checked against desktop
+CSS in the scoped mobile unit suite; see ADR 0213.
+
+`mobileMetrics` derives the fixed 120% mobile baseline from desktop parity
+tokens, retaining 100% metrics for canonical parity tests. Valid legacy density
+preferences normalize to 120%; Settings no longer exposes a scale switch. The
+appearance context publishes the metrics; style
+factories receive colors and metrics, while `useMobileMetrics` serves geometry
+and icon consumers. Fonts, spacing and controls scale together without changing
+panel widths, strokes, radii or document state. Rich-editor CSS shares this
+recipe. Native measured density checks complement canonical token tests; see
+ADR 0228. System accessibility text scaling remains enabled.
+
+The Markdown source editor keeps its RNR input as the editable surface and uses
+Reanimated native scroll events to move a non-interactive syntax layer on the UI
+thread. The layer lays out the complete document before viewport clipping. Raw
+Markdown and plain-text editors share `MobileKeyboardAvoidingView` with the rich
+editor so keyboard and rotation changes resize the real input, not just its
+visual overlay.
+
+`useMobileSourceEditorDraft` owns the shared Markdown/plain-text edit buffer,
+idle and unmount saves, and sync preparation. Foreground automatic sync defers
+before flushing or disabling a focused native input; manual/background sync
+still flushes and pauses it. New-note focus requests are consumed once at the
+document body (after frontmatter and the initial H1 marker), cancelled on
+unmount, and never replayed by save acknowledgements or later editor modes.
+`MobileSourceEditorInput` retains the RNR input and native syntax-scroll layer.
+
+Current primitives:
+
+| Primitive | Purpose |
+|---|---|
+| `MobileButton` | Text or icon+text actions with Tolaria variants |
+| `MobileIconButton` | Toolbar and compact icon actions |
+| `MobileTextInput` | Tolaria-styled text entry over the local RNR-style input primitive |
+| `MobilePanel` / `MobileToolbar` | Sidebar, note-list, editor, and properties structure |
+| `MobileKeyboardAvoidingView` | Keyboard avoidance for nested surfaces, using measured screen coordinates rather than guessed safe-area/header offsets. On iOS, public keyboard metrics and frame/show/hide events drive bounded inner padding, covering a keyboard already visible or appearing during mount without double-applying React Native avoidance. Other platforms keep native sizing. |
+| `MobileListRow` | Dense note-list rows with selected state, metadata, and chips |
+| `MobileChip` | Type, tag, and relationship labels |
+| `MobilePropertyRow` | Properties panel label/value rows |
+
+Workspace surfaces now sit one level above those primitives:
+
+| Surface | Purpose |
+|---|---|
+| `MobileWorkspaceSnapshot` | Production-shaped data contract for mobile workspace UI |
+| `mobileWorkspaceEditing.ts` | Pure in-process reducer for note creation, full raw markdown/frontmatter edits, title edits, frontmatter scalar properties, favorite/archive flags, relationship add/remove, folder edits, saved View edits, Type definition metadata/schema edits, exact restore edits for undo/redo, and write planning |
+| `mobileWorkspaceHydration.ts` | Lazy body-hydration metadata guard that preserves file-derived timestamps while enriching metadata-only notes |
+| `mobileWorkspaceTypeTone.ts` | Shared Type-definition color lookup with legacy mobile fallbacks for derived note metadata |
+| `mobileWorkspaceFolders.ts` | Shared mobile folder path normalization, portable folder-name validation, subtree matching, and sidebar tree derivation |
+| `mobileWorkspaceTypeEditing.ts` | Type document create/delete/update/reorder write planning for the mobile reducer |
+| `mobileTypeDefinitionSchema.ts` | Mobile form conversion for Type document instance schema/default fields |
+| `tabletWorkspaceTypeDefinitionSave.ts` | Validates Type rename/save edits and preserves custom labels; default section-label detection uses desktop `src/shared/typeLabels.ts` rather than a mobile pluralizer |
+| `mobileVaultConfig.ts` | Mobile vault-path-local config normalization for primary All Notes/Inbox display properties |
+| `mobileWikilinkAutocomplete.ts` | Cursor-aware mobile wikilink query detection, canonical target insertion, and desktop-style suggestion matching across title, aliases, filename, type, tags, and path |
+| `mobileEditorCommands.ts` | Active editor command registry for tablet/phone selection-sensitive actions and overlay focus handoff; stable forwarders call the latest registered editor without importing its internals |
+| `mobileInlineMath.ts` | Shared desktop-compatible inline math parser for mobile hydration, input transforms, and save serialization |
+| `src/utils/externalUrl.ts` | Shared dependency-free external URL normalizer used by desktop link opening and mobile WYSIWYG link editing |
+| `MobileWysiwygMathHtml.ts` | Mobile KaTeX MathML rendering helper for native TenTap inline math nodes |
+| `MobileWysiwygTentapWebEditor.tsx` | Tolaria TenTap WebView entrypoint that bundles custom mobile Tiptap extensions |
+| `MobileWysiwygLinkBridge.web.ts` | Configures the production/test TenTap link schema to preserve internal wikilink addresses through HTML hydration, while retaining external-link validation |
+| `MobileWysiwygContentBridge.ts` | Silent programmatic-content bridge that prevents initial hydration from being persisted as a user edit |
+| `MobileWysiwygTentapEditorHtml.ts` | Generated custom TenTap WebView HTML used by the native WYSIWYG editor |
+| `build-wysiwyg-editor-html.mjs` | Builds TenTap from its shipped web source against the installed dependency graph; the in-memory build exposes provenance metadata without rewriting generated HTML during imports/tests |
+| `updates.config.js` | SDK-native OTA launch configuration, explicit channel/profile matching and EAS project identity; validation uses a separate application container |
+| `publish-mobile-update.mjs` | Main CI automatically publishes compatible alpha iOS OTA after the current validation graph; desktop-only ranges skip native-target and credential checks. Uses the last successful Alpha check (full-history fallback), verifies ancestry, accepted native runtime/build, and strict Sentry source-map processing. SDK 57 publishing explicitly selects the EAS environment (ADR 0269) |
+| `promote-mobile-update.mjs` | Explicit, approval-gated stable promotion of a selected alpha update group; validates the stable native runtime and republishes the original iOS artifact without bundling again or moving alpha/stable branch pointers (ADR 0247) |
+
+OTA publishing disables dotenv for preflight, export and upload, matching EAS's
+explicit-environment behavior. Public Sentry/PostHog ingestion configuration must
+be supplied explicitly and match the accepted binary: it is part of Expo's native
+configuration fingerprint. The publisher checks the returned EAS platform,
+branch, runtime and source commit before reporting success; a successful upload
+alone does not establish compatibility or native delivery.
+| `mobileUpdateMetadata.ts` | Projects update UUID, native fingerprint, channel and launch source into consent-governed build metadata without copying manifests or recovery messages |
+| `mobileUpdateChannel.ts` / `MobileUpdateSettings.tsx` | Stable-default saved channel selection, distinct running-version metadata, compatible OTA download and explicit restart; native runtime adapter overrides only the embedded channel header (ADR 0272) |
+| `mobileUpdateDiagnostics.ts` | Settings exposes the actual native app/build, full running OTA UUID, runtime and selected-channel check state; successful-check time is session-local and invalidated on channel changes. Native channel and compiled Alpha metadata are not treated as the running update's channel. A negative check reports no newer compatible offer, not a global latest-version guarantee. |
+| `mobileForegroundUpdates.ts` | Reuses the same update controller on non-active-to-active transitions, with a 60-second cooldown after launch/check, no overlapping or already-ready downloads, and no automatic restart while editing |
+| `prepareMobileUpdateRestart.ts` | Freezes and flushes active editors, drains pending workspace writes and restores the prior editing barrier on failure; update preparation never commits, syncs or changes vault formats |
+| `nativeWysiwyg*Probe.ts` | Native Expo simulator proof models for mobile editor behavior that must be verified outside React Native Web |
+| `TabletWorkspace` | Tablet shell that owns selected-note state, panel layout, action-sheet forms, and editable snapshot state. `TabletWorkspacePanels` composes the existing sidebar/list/editor/inspector without owning persistence; `TabletWorkspaceActionSheetHost` maps existing form values and commands for both phone and tablet. `TabletWorkspaceStyles` keeps their shared numeric layout contract. |
+| `tabletPanelResize` | Reconciles current pane visibility with a resized window and the existing readable-editor minimum; preserves hidden panes when widening |
+| `PhoneWorkspace` | Phone shell that reuses the tablet controller/repository boundary while adapting navigation to list, sidebar, editor, and properties screens; new-note commands share a create-and-open transition without changing the no-vault/read-only picker path |
+| `MobileWorkspaceSidebar` | Sidebar groups, counts, and folder tree; internal `SectionTitleActions` keeps count/visibility/create controls together and wraps them below the label at enlarged system text sizes, preserving the default desktop-derived row geometry |
+| `MobileNoteListPanel` | Note-list toolbar, rows, chips, and empty state |
+| `MobileCommandPalette` / `mobileCommandPalette.ts` | Desktop-ID-preserving mobile command search over existing workspace callbacks, including selected-note file utilities and retargeting; uses the shared keyboard-aware viewport with a constrained results scroller |
+
+The mobile command catalog separates shared types, command construction/search,
+sidebar navigation, and selected-note predicates into `mobileCommandPalette.types`,
+`mobileCommandPaletteCore`, `mobileCommandPaletteNavigation`, and
+`mobileCommandPaletteSelectedNote`. The original entry point retains its public
+exports and command order; handlers remain owned by the workspace controller.
+
+`mobileDocumentContent` retains the public document/frontmatter conversion API.
+`mobileMarkdownHtmlBlocks` and `mobileMarkdownHtmlInline` render Markdown for
+TenTap; `mobileTiptapMarkdown` serializes editor nodes back to Markdown.
+`mobileMarkdownSourceLines` contains shared line/indentation semantics, and
+`mobileDocumentContent.types` contains their type contracts. Rendering and
+serialization share those helpers without a runtime import cycle.
+
+`useNativeEditorRecovery` handles iOS WebContent termination and Android renderer
+loss without remounting the workspace or reloading the vault. It retires dead
+document requests before an editor-only session replacement; confirmed Markdown
+remains authoritative, never the empty dead WebView. `nativeEditorRecovery` queues
+replacement until foreground activity and the existing working-copy barrier allow
+it, rejects stale session callbacks, and does nothing on healthy foreground
+transitions. Opt-in recovery analytics contain only a fixed reason enum; local
+queue timing logs contain no note content, filenames or vault identifiers.
+`useNativeEditorSurfaceSession` keeps picker/link state and bridge event bindings
+outside JSX rendering; the surface retains its existing commands and overlays.
+
+`mobileWorkspaceEditing` retains edit dispatch and the public write-result API.
+Its type contracts live in `mobileWorkspaceEditing.types`; note creation,
+note mutations, snapshot projection, saved-view edits, and raw-content/frontmatter
+helpers live in their corresponding `mobileWorkspaceNoteCreation`,
+`mobileWorkspaceNoteMutations`, `mobileWorkspaceSnapshotEdits`,
+`mobileWorkspaceViewEdits`, and `mobileWorkspaceNoteContent` modules. The helpers
+do not import the dispatcher at runtime; serialized write ordering stays with the
+existing repository pipeline.
+| `MobileQuickOpenSheet` | Ephemeral all-notes quick-open query, keyboard result selection, and direct title-less note creation without mutating the current note-list filter |
+| `MobileWorkspaceMoreActionsContent` | Keeps Note/Edit/File category controls fixed above scrollable action groups; reuses controller callbacks without duplicating mutation state. Markdown defaults to Note, other files to File; binary entries do not expose editing actions |
+| `MobileWorkspaceActionSheet` | Search, create and more-action shell. `MobileWorkspaceTextFieldForms` owns view/filename/folder forms; `MobileWorkspacePropertyForms` owns property/relationship fields and focused-input scrolling; `MobileWorkspaceSheetChrome` owns shared action rows/footers. The type-only contract stays re-exported from the shell. `mobileWorkspaceSheetPresentation` holds existing titles/phone presentation, and theme values remain in `mobileWorkspaceActionSheetStyles`. Phone-landscape forms keep actions in one header; phone portrait relationship actions remain outside scrolling fields; tablet footers are unchanged. |
+| `TabletEditorPanel` | Editor rendering plus full raw markdown/frontmatter editing with wikilink suggestions |
+| `MobileWysiwygMarkdownEditor` | Native TenTap UI and command registration. `useMobileNativeEditorRuntime` owns bridge setup, refs, hydration and save scheduling; `mobileNativeEditorOperations` owns selection-aware document mutations; `useMobileNativeEditorProbes` composes existing opt-in QA probes. Shared type-only contracts live in `MobileNativeEditor.types`; no runtime import from these helpers back to the UI wrapper. |
+| `mobileMarkdownLinkParser` / `mobileMarkdownLinkHtml` / `mobileHtmlEncoding` | Markdown link parsing and escaped HTML generation, with a protocol allowlist before emitting links; relative attachment targets and Tolaria wikilinks remain supported. |
+| `MobileWysiwygDocumentReads.native` | Per-editor public CoreBridge adapter for bounded JSON/HTML/text request lifetimes; preserves the existing WebView wire protocol and final-save drain (ADR 0235) |
+| `nativeInitialContentSync` | Waits for the explicit native editor-ready message (not the later SDK state update), acknowledges its silent content write with a bounded document read, and cancels stale handoffs; new-note focus also waits for WebView load and never moves an already placed caret |
+| `prepareNativeWorkspace` / `cooperativeWorkspaceSnapshot` | Prepare the fresh launch index through the existing task budget before publishing a restored/selected vault; synchronous and cooperative parsing drain the same iterator (ADR 0236) |
+| `usePreparedVaultRefresh` | After changed or uncertain Git/folder operations, discard consumed indexes and await native indexing plus cooperative preparation before publishing a replacement. Save/editor barriers remain held through preparation, outside the disk-operation lock. Confirmed unchanged operations resume the same editor without indexing. Preparation failures keep the stale workspace unmounted behind Retry/Manage recovery until a fresh handoff succeeds; automatic sync stays blocked during recovery. |
+| `mobileUiWorkspaceSourceRequest` | Maps the active native selection, explicit launch query and environment defaults to the workspace request; owns persistence-probe repository/request selection outside the rendering shell |
+| `preparedWorkspaceSnapshot` | Weak, single-use handoff keyed by the exact index/array identities and vault/config identity; a repaired or mismatched index cannot reuse it, and later reads do not retain a cached snapshot |
+| `workspaceSnapshotCache` / `workspaceSnapshotStorage.native` | Disposable, size-bounded snapshot reuse only after a fresh native text-digest/index identity match, payload integrity and editable-source checks; date labels refresh without rebuilding metadata (ADR 0238) |
+| `workspaceSnapshotEnvelope` / `workspaceSnapshotPreview` | Shared version/build/root-bound envelope integrity and a distinct provisional metadata reader; config changes preserve source-free startup navigation with current presentation settings (ADR 0279), while editable cache hits still require exact config and fresh index/source validation (ADR 0241). Preview results exclude document sources/blocks and sync authority. Cancelled envelope reads stop before IO and discard late IO/checksum results before JSON decoding. The native read-only benchmark reports preview time separately from fresh indexing, not as a screen-paint measurement |
+| `nativeWorkspaceStartupPreview` / `MobileWorkspaceStartup` | Managed-root/recovery-checked cached presentation. Startup prioritizes cache IO before indexing so existing binaries cannot starve cache reads on Expo's shared async queue; this ordered path does not discard valid slow cache IO at the optional preview's 250 ms deadline. Failure and retry retain browsable metadata; cancellation keeps loads isolated. An active workspace never receives a blocking restoration flag; progress stays in the existing sync pill and cached-load failures use the existing notice. Metadata supports scrolling, sidebar filtering and queued note selection, but never editor/write/sync authority. Fresh-source and checkout barriers remain unchanged. Late cache results cannot replace an active workspace (ADRs 0242, 0273) |
+| `MobilePanelSafeArea` | Applies the existing safe-area context's top inset in the initial panel layout, avoiding a second native measurement and a zero-inset flash during panel remount; backgrounds/dividers remain edge-to-edge, with no bottom footer inset |
+| `localVaultFileKinds` / `localVaultPresentation` | Shared file classification and date/count presentation used by fresh parsing and validated cached snapshots |
+| `MobileFilePreview` / `mobileFilePreviewSource` | Desktop extension rules and validated vault-local paths feed native image previews and iOS WebKit PDF rendering without reading binary files into JavaScript. Image load errors and unsupported platform formats retain the existing fallback; each selected URI owns its loading/error state. PDF navigation is file-scoped with JavaScript disabled. Android PDF rendering remains unsupported. |
+| `mobileSpreadsheetNeedsFallback` | Desktop `_display: sheet` / legacy `_format` routing for mobile: a disabled rich preview never mounts a Markdown editor, while raw mode retains the original CSV and frontmatter. |
+| `mobileEditorFileSource.native` | Per-editor disposable shell/image cache with scoped WebView reads, portable image URLs, serialized preparation, and cleanup outside user vaults (ADR 0232) |
+| `MobileWysiwygDiagramBridge` / `mobileDiagramNodeView.web` | Atomic Mermaid/tldraw nodes preserve original fences and snapshot JSON. Visible Mermaid nodes lazily request offline SVG previews from a source-checked opaque iframe. Whiteboards and failed previews retain source; raw mode remains editable (ADR 0233). |
+| `MobileDiagramRenderer.web` / `mobileDiagramRendererAsset.native` | Separately bundled desktop Mermaid engine, staged only in diagram-containing editor caches. Strict CSP, serialized rendering, bounded messages, Blob-backed images, and explicit cleanup keep preview output outside authoritative vault content. |
+| `MobileWysiwygFormattingToolbar.native` | Small TenTap cursor-state subscriber feeding the shared tablet command strip or compact phone toolbar; state changes do not own document rendering |
+| `MobileCompactFormattingToolbar` / `mobileFormattingToolbarModel` | Existing command registry grouped into primary actions and contextual menus, with 24-point glyphs inside unchanged 44-point native touch targets. Source and rich editors share the phone layout; its fixed keyboard-dismiss action stays outside the horizontally scrolling commands. |
+| `MobileSwipeableNoteRow` / `MobileNoteSwipeActions` | Gesture Handler trailing Star/Delete/Archive actions routed to existing callbacks; full swipe archives and never deletes. Rightward phone drags remain available to reveal the sidebar, two-finger trackpad input stays with scrolling, and bulk selection disables row swipes. |
+| `components/ui/dropdown-menu` | Thin RNR dropdown composition with Tolaria colors/spacing and a root portal host; primitive-owned anchoring and dismissal |
+| `MobilePropertiesPanel` | Inspector composition; delegates scalar/tag rendering to `MobilePropertyValues`, typed relationships/references to `MobileRelationshipRows`, and shared section/action primitives to `MobilePropertyRows`. Phones defer empty schema suggestions until after populated properties, relationships and references, while tablets preserve desktop ordering |
+| `MobileSidebarSettings` / `mobileSidebarSyncStatus` | Sidebar-bottom sync pill before Command and Settings, without a workspace footer. The root-matched controls context supplies the existing ledger's availability and last success; the pill never invents a zero pending count or iCloud-upload confirmation. Visible content is limited to a single-line source and single-line detail: last success normally, actionable status for errors or active sync. Complete status/history stays accessible without a third visual line or a fabricated failure timestamp. Linked folders report provider writeback, GitHub uses the existing manual sync operation, and local-only/conflict/manual-commit states open existing management controls. Minute labels update locally without re-indexing or re-mounting the editor. |
+
+Mobile UI copy should reuse the localization catalog in `src/lib/locales/en.json` whenever the desktop concept already exists. New mobile-specific copy must be added to that catalog and translated through the normal Lara workflow.
+
+`useMobileModalDismiss` registers a visible sheet's existing Cancel/Close callback
+with `mobileModalDismissal`. Android hardware Back uses the same topmost dismissal
+stack while a sheet is visible; its listener is removed with the last sheet and
+does not intercept normal activity navigation when no sheet is open. Native
+`Modal` surfaces retain their `onRequestClose` path. The last opened dialog owns
+Escape until cleanup;
+rerenders update the callback without changing ownership. A single native/browser
+subscription and event deduplication prevent one Escape from closing two dialogs.
+Native modal eligibility is separate from palette arrow navigation, preserving
+text-input cursor keys and busy-operation close guards (ADR 0231).
+
+The mobile UI lab uses a fixture-backed repository. The same boundary reads an
+injected host snapshot from `tolaria:mobile-workspace-snapshot` for local
+large-vault QA and native vaults through `source=native-vault`. Native startup
+restores the saved catalog; first launch prepares the bundled local starter vault
+when there is no existing local catalog or legacy selection (ADR 0230). It never
+treats Expo's entire private document directory as a vault. An intentionally empty
+catalog remains empty. Standalone iOS builds retain explicit provider grants as
+security-scoped bookmarks through `TolariaWorkspaceAccess`; Expo Go access remains
+session-scoped. Explicit QA sources and deterministic probes take precedence over
+remembered user data. The Laputa development bridge is read-only and rejects writes.
+
+Prepared multi-note actions validate every
+target's current identity/path before publishing any hydration, so a moved or
+deleted later target cannot leave partial hydration from an abandoned action.
+
+`workspaceSnapshotFrame.beginBackgroundReload` owns a single-use, cancellable
+read-only-scan reconciliation ticket (ADR 0277). Its baseline is an authoritative
+snapshot, not a source-free startup preview. `workspaceReloadReconciliation`
+merges scan results with the frame's latest immutable state; source changes,
+hydration, creations, moves and deletions made during the scan take precedence.
+It retains selected-note identity, search, undo history and current failures,
+while accepting external changes to untouched notes. Type/view/folder changes
+use the same three-way baseline rules. The merge performs no repository writes.
+
+Collection indexing, source comparisons and merge batches share the existing
+input-task budget. Input arriving during a yield invalidates the candidate and
+causes a retry against the latest frame; cancellation or a newer ticket prevents
+publication. Duplicate identities/case aliases, cross-vault results and ambiguous
+creation collisions fail before any state is published. This boundary does not
+replace checkout/save/recovery barriers or grant cached metadata edit authority.
+Startup admission and its fresh type/template inputs must be connected separately
+before using it to enable editing during startup.
+
+`folderOpenFailure.ts` keeps cancellation separate from folder-open failures.
+Known native cancellation codes (or the legacy exact cancellation message) stay
+quiet; provider/picker, selected-folder import, catalog and preparation failures
+carry a categorical stage to localized recovery copy. A failed folder attempt
+does not replace the in-memory active selection or its existing sync history.
+Consent-gated `mobile_folder_open_failed` sends only the stage, never the native
+error, provider name, URI or filenames. Existing linked-folder coordination and
+file preservation are unchanged; native picker availability and physical Files
+provider behavior still require separate device acceptance.
+
+`localVaultSnapshot.ts` converts scanned Markdown files, folder paths and
+`views/*.yml` into `MobileWorkspaceSnapshot`: type-color inheritance, Type metadata
+and raw content, instance schema/defaults, relationship values, Markdown previews,
+sidebar counts, custom scalar properties, empty folders and saved View results.
+Raw content is capped to visible notes while metadata covers the full pool.
+Relationship-target indexing yields every 32 normalized targets through the same
+snapshot iterator and cooperative task budget. This bounds both multi-note and
+alias-heavy indexing work without publishing a partial resolver or changing
+first-match precedence. Cancellation is checked before the next batch runs.
+Type metadata follows desktop-normalized frontmatter aliases for casing and spacing,
+preserving underscore-only system fields such as `_organized`. Host QA injects
+full Markdown separately through `tolaria:mobile-workspace-note-contents`, allowing
+lazy hydration when navigation opens a metadata-only note.
+
+`mobileWorkspaceEditing.ts` returns the next snapshot and a write plan. Saved View
+edits write `views/*.yml`; note moves and filename renames emit a file move and
+backlink rewrite saves; folder edits emit directory operations. Type edits write
+or delete Type documents, preserving custom scalar defaults and relationship
+fields. `tabletWorkspaceHistory.ts` records before/after snapshots and structural
+restore edits so notes, folders, Views and Type definitions round-trip without
+losing content, filenames, ordering or write paths. `tabletWorkspacePathHistory.ts`
+owns inverse path-changing commands; backlink rewrites remain reducer-owned. The
+filesystem repository persists relative-path write plans. Fixture and host
+repositories retain deterministic QA behavior; Git checkout and linked-folder
+reconciliation use the separate editor/write barriers described above.
+
+The tablet workspace controller owns temporary interaction state: selected sidebar scope, selected note, search query, action-sheet form values, and an editable snapshot derived by `mobileWorkspaceEditing.ts`. `TabletWorkspace` and `PhoneWorkspace` should share that controller/repository boundary; phone-specific work should adapt navigation and chrome, not fork business logic. The repository boundary owns persistence. Visual components must continue to receive callbacks and snapshots rather than importing Expo or filesystem APIs directly.
+
+`tabletWorkspaceNavigationSelectors` owns the existing pure sidebar/view/type filters and note presentation projections; `tabletWorkspaceNavigation` keeps React state, memoization and history traversal. Controller action bindings are partitioned by responsibility into `tabletWorkspaceActionOpeners`, `tabletWorkspaceViewActions`, `tabletWorkspaceTypeActions` and `tabletWorkspaceFieldActions`. `tabletWorkspaceActionForms` shares the existing initial form data and edit dispatch helpers; their type-only contract is `tabletWorkspaceController.types`. These modules receive the same controller context and do not own vault storage or a second navigation state.
+
+`PhoneWorkspaceLayout` composes the phone shell; `PhoneWorkspaceScreens` and
+`PhoneWorkspaceEditorScreen` render its retained panels. Shared
+chrome, styles, and editor options remain separate from navigation callbacks.
+The standalone phone inspector uses the editor's literal filename identity in
+its existing single header; tablet Properties chrome remains unchanged.
+`usePhonePanelRail` owns one native gesture and the absolute offset of the real
+panels. `phoneNativePanGesture` recognizes intent and settles with Reanimated;
+an epoch rejects interrupted completion callbacks. `phonePanelRail` owns pure
+geometry, bounds and snap selection. `PhoneWorkspaceTransition` clips the rail
+without creating preview copies or replaying a route entrance after settlement.
+Its motion context gives the list FAB the active rail offset and viewport origin,
+so the button counter-translates during rail motion instead of traveling with the
+off-screen editor/sidebar page. The opt-in frame probe records viewport-position
+samples for this control.
+The native detector has exclusive gesture ownership: the legacy JavaScript
+PanResponder is attached only for the web fallback, never to the native stage.
+Opt-in layout probes can record recognition, numeric offsets and settlement
+epochs through the existing loopback QA sink; ordinary gestures emit no trace.
+`usePhoneViewportWidth` subtracts the app's outer horizontal safe areas exactly
+once; gesture coordinates are local to that usable viewport. Lightweight panes
+are prepared eagerly, while the single editor is retained after its first visit.
+Native panel-drag tests verify the destination bounds alongside lifecycle tests
+for cancellation and duplicate-animation prevention.
+Mobile editor and list toolbars omit redundant pane toggles and editor back
+buttons. Panel navigation remains available through drags and command-palette
+commands; note-row swipes retain their quick actions. The phone root clips
+off-screen transitions so browser layout overflow cannot change gesture bounds.
+Shared native/browser navigation test helpers perform drags and wait for the
+destination geometry rather than activating removed toolbar controls.
+
+Mobile pane footers share `mobilePaneFooterLayout.ts`: a 48-point control row
+centers the sidebar utilities, note-list filters and compact/wide formatting
+actions. Safe-bottom clearance is added once, by the list pane or the owning
+sidebar/editor footer; editor hosts add no second vertical padding. Sidebar
+utilities remain transparent and floating over scrollable content.
+Mobile Settings keeps Auto Git inside the active vault's Git controls and the
+local-folder action inside Available Vaults, including the empty catalog state.
+The sidebar sync pill owns the compact sync summary; Settings retains operation
+errors and conflict controls without repeating the last-sync/commit overview.
+
+Mobile deep-link copying follows the same boundary. `mobileDeepLinks.ts` owns URL construction from `MobileWorkspaceSnapshot.source` and the selected note path, and `mobileClipboard.ts` owns the Expo Clipboard call plus deterministic QA logging. Components such as `MobileWorkspaceActionSheet` receive `onCopyDeepLink` and do not import clipboard or URL-building modules directly.
+
+Mobile PDF export uses the same callback boundary. `mobilePdfExport.ts` converts the selected `MobileNote` into frontmatter-free HTML with the mobile Markdown body renderer, records deterministic web/Playwright export attempts, and calls `expo-print` plus `expo-sharing` only from the controller-owned action path. Generated PDFs are temporary platform share artifacts and do not mutate the vault.
+
+Mobile attachment import stays behind the same boundary. `mobileAttachmentImport.native.ts` is the only mobile module that talks to `expo-document-picker` for user file selection, `mobileAttachments.ts` owns timestamped safe filenames and portable `attachments/...` Markdown serialization, and editor components receive importer callbacks plus pure attachment payloads.
+
+`apps/mobile/src/ui/mobileParityInventory.ts` is the executable mobile surface map,
+with desktop source references, parity contracts and assertions. Its coverage test
+guards unmapped visible implementation files. Work and outstanding acceptance live
+in the [Tolaria Mobile Linear project](https://linear.app/refactoringhq/project/tolaria-mobile-e4f418a855d6),
+not a parallel repository checklist. See [mobile development](GETTING-STARTED.md#react-native-mobile-development)
+for setup and native QA. Browser screenshots are a fast parity check, never a
+substitute for native interaction, layout and persistence checks.
+
+Mobile host tests use `fixtures/requiredFixture.ts` to require a present fixture
+value without a TypeScript non-null assertion. It rejects only null/undefined,
+preserving valid falsy values and object identity; it is not a mobile runtime
+dependency.
+
+The native workspace persistence probe keeps its disposable-vault orchestration
+in `nativeWorkspacePersistenceProbeRepository.ts`. Its scenario content, seed
+writes, edit plans, and independent read-back assertions live in the sibling
+`nativeWorkspacePersistenceScenario`, `Seeds`, `Edits`, and `Readback` modules.
+The proof compares saved-view filter values structurally without relying on YAML
+object-key insertion order; array order, nested conditions, and value types remain
+part of the contract. Both workspace and WYSIWYG persistence probes decline to
+run when their disposable native root cannot be resolved; neither falls back to
+the currently selected user vault.
+Disposable rich-editor fixtures are seeded synchronously before the synchronous
+snapshot read; subsequent editor saves still use the durable repository path.
+
+`nativeLayoutMetrics.ts` is the host-side numeric QA entry point, not a mobile
+runtime dependency. Its surface-specific validators live in the sibling sidebar
+item/section, folder, note-list, phone-shell and WYSIWYG layout modules.
+`nativeLayoutMetricCore.ts` owns log parsing, failure formatting, tolerance and
+shared exact-stacking checks. The entry point preserves the existing contracts
+and assertion order so simulator-log consumers keep the same numerical evidence.
+Sidebar validation accepts an explicit 120% density projection while preserving
+other panels' physical widths. Header labels resolve through the measured toggle
+parent; native checks fail closed if that parent measurement is missing. Folder
+stacking alone allows a half-point canonical discrepancy for native edge rounding,
+while retaining the measured delta in failures and rejecting larger overlaps.
 
 ### Vault Git Capability
 
@@ -322,7 +1334,7 @@ Type templates can be stored explicitly in the `template` frontmatter property. 
 
 **Type relationship**: When any entry has an `isA` value (e.g., "Project"), the Rust backend automatically adds a `"Type"` entry to its `relationships` map pointing to `[[project]]`. This makes the type navigable from the Inspector panel while keeping location as an implementation detail.
 
-**Instance schema/defaults**: Custom scalar/scalar-array properties and relationship fields on a type document define the expected shape for notes of that type. Existing instances do not get mutated when a type changes; the Inspector enriches their real frontmatter with gray placeholders for missing type-defined properties/relationships. Valued type fields are copied into frontmatter only when Tolaria creates a new instance of that type. Blank type fields stay as placeholders.
+**Instance schema/defaults**: Custom scalar/scalar-array properties and relationship fields on a type document define the expected shape for notes of that type. Existing instances do not get mutated when a type changes; the Inspector enriches their real frontmatter with gray placeholders for missing type-defined properties/relationships. Valued type fields are copied into frontmatter only when Tolaria creates a new instance of that type. Blank type fields stay as placeholders. The shared `src/utils/typeInstanceDefaults.mjs` policy owns the valued-value predicate, system/display-key exclusions, type/title exclusion and canonical-key deduplication used by desktop creation and structured MCP `create_note`. Status/status retains its original key on Type documents as an instance default while also providing semantic status metadata. Structured MCP creation inherits valued Type fields from disk; full-content MCP writes remain verbatim.
 
 **UI behavior**:
 - Clicking a section group header pins the type document at the top of the NoteList if it exists
@@ -389,7 +1401,7 @@ Tolaria separates **display title** from the file identifier:
 - **Path identity rules** (`src/utils/notePathIdentity.ts`, `vault/path_identity.rs`): note creation, tab selection, rename bookkeeping, pull refresh, git history, and vault cache updates normalize path separators and macOS `/private/tmp` aliases through one owner. Case folding is reserved for collision/deduplication checks; active-note identity remains case-sensitive.
 - **Portable filename validation** (`vault/filename_rules.rs`): note filenames, folder names, and custom view filenames all reject Windows-reserved device names, invalid characters, and trailing dot/space suffixes so a vault created on macOS/Linux still clones and syncs cleanly on Windows.
 - **Recoverable save failures** (`useEditorSave`, `vault/file.rs`): invalid platform path syntax is reported as a clear retryable save error, while transient access-denied writes are retried briefly before surfacing failure. The editor keeps the unsaved buffer intact for another attempt.
-- **Untitled drafts** start as `untitled-*.md` and are auto-renamed on save once the note gains an H1.
+- **Untitled drafts** start as `untitled-*.md` and are auto-renamed on save once the note gains an H1. On the web with a remote, where the live document saves the note, the rename is scheduled from the H1 the bound editor reports.
 - **Property mutation boundary** flushes pending editor content before frontmatter writes without forcing the pending untitled rename. If the filesystem rename wins the narrow race before its renderer response settles, the Inspector keeps the requested mutation for five seconds and replays it only when the same untitled entry appears at its renamed path; the active-path guard is allowed to catch up for one task before that replay. Navigation still settles pending renames before switching notes.
 
 ### Title Surface (UI)
@@ -419,7 +1431,7 @@ type SidebarSelection =
 
 `SidebarSelection.kind === 'folder'` is a first-class navigation target, not just a visual highlight.
 
-- `FolderTree` keeps the folder interaction surface decomposed into `FolderTreeRow`, `FolderNameInput`, `FolderContextMenu`, and disclosure/context-menu hooks so nested row rendering, inline rename, and right-click actions stay isolated. The UI wraps backend folder nodes in a synthetic vault-root row with `path: ""` and `rootPath` set to the opened vault so root-level files can be listed without turning the vault root into a mutable folder. Inline folder creation carries an optional `FolderCreationParent` (`path` plus `rootPath`) through `App` to the `create_vault_folder` command, so new folders land under the selected folder, right-clicked folder, or selected mounted vault root while preserving the active-vault path boundary. Non-mutating reveal/copy-path menu items stay callback-driven from `App` so filesystem convenience actions do not leak into folder mutation hooks.
+- `FolderTree` keeps the folder interaction surface decomposed into `FolderTreeRow`, `FolderNameInput`, `FolderContextMenu`, and disclosure/context-menu hooks so nested row rendering, inline rename, and right-click actions stay isolated. The UI wraps backend folder nodes in a synthetic vault-root row with `path: ""` and `rootPath` set to the opened vault so root-level files can be listed without turning the vault root into a mutable folder. Inline folder creation carries an optional `FolderCreationParent` (`path` plus `rootPath`) through `App` to `createVaultFolder`, which goes through `createVaultBackend(...).files.createFolder` (the `create_vault_folder` command on the desktop, `POST /v1/folders` on a Tolaria remote, TOL-233), so new folders land under the selected folder, right-clicked folder, or selected mounted vault root while preserving the active-vault path boundary. Non-mutating reveal/copy-path menu items stay callback-driven from `App` so filesystem convenience actions do not leak into folder mutation hooks.
 - `src/components/sidebar/sidebarHooks.ts` owns the shared sidebar interaction primitives for menu positioning/dismissal and inline rename input behavior. Folder, Type, and saved View rows keep their domain-specific actions local, but use those primitives so right-click menus and rename fields have the same outside-click, Escape, focus, blur, and submit semantics.
 - `BreadcrumbOverflowMenuTrigger` isolates the note toolbar overflow trigger from the broader breadcrumb layout. Pointer activation waits for the completed click before opening the Radix menu, while keyboard activation and the root menu state retain standard focus, Escape, and outside-dismiss behavior.
 - `useFolderActions()` composes `useFolderRename()` and `useFolderDelete()` to keep folder mutations selection-aware while the rest of `App.tsx` only wires the resulting callbacks into `Sidebar` and the command registry.
@@ -454,7 +1466,7 @@ In a mounted-workspace graph, each loaded `ViewFile` carries optional renderer-o
 
 `useMcpSetupDialogController()` owns MCP setup dialog state, busy actions, and manual config callbacks so `App.tsx` only passes the controller into settings/status surfaces. `useAiWorkspaceWindowBridgeEvents()` owns native AI-workspace event subscriptions and listener cleanup for popped-out workspace windows.
 
-`createCrossWindowPersistedStore()` is the shared renderer primitive for AI workspace state that must stay synchronized across the main window and popped-out workspace windows. It owns localStorage reads/writes, BroadcastChannel publishing, storage-event synchronization, and external-store subscribers; domain modules such as `aiWorkspaceSessionStore` and `aiWorkspaceWindowSharedContext` provide sanitizers and mutations around that shell.
+`createCrossWindowPersistedStore()` is the shared renderer primitive for AI workspace state that must stay synchronized across the main window and popped-out workspace windows. It owns localStorage reads/writes, BroadcastChannel publishing, storage-event synchronization, and external-store subscribers; domain modules such as `aiWorkspaceSessionStore` and `aiWorkspaceWindowSharedContext` provide sanitizers and mutations around that shell. AI transcript snapshots coalesce localStorage writes and cross-window broadcasts for one second while publishing in-memory changes immediately, and flush the latest snapshot on `pagehide` so streamed text survives a close or reload.
 
 The renderer uses `viewOrdering` helpers to convert drag or command-palette move intent into dense order updates before saving each affected view file through `save_view_cmd`. The sidebar treats saved View rows like Type rows for direct customization: double-click starts inline rename, right-click opens edit/rename/icon-color/delete actions, and keyboard users can open that same menu from the focused row while command-palette actions remain responsible for saved View ordering.
 
@@ -496,6 +1508,12 @@ The renderer keeps app shortcuts platform-exact where they overlap with native d
 - `files` is the plain file path. `write(path, content, { baseRevision })` writes only when the stored file is still at that revision and otherwise returns `{ status: 'conflict', current }`; `baseRevision: null` means create; omitting it is the explicit last-write-wins fallback. A `VaultRevision` is an opaque token: a content hash for local and mock stores, a server-issued ETag for the remote.
 - `collab` is the collaborative document channel. `openDoc(path)` returns `doc`, `fragment`, `provider` and `awareness` (the inputs of BlockNote's `collaboration` option), a `synced` promise and `close()`. Backends without collaboration expose `collab: null`. Markdown files stay canonical; the live document is the primary write path where it exists.
 - `capabilities` (`collaboration`, `atomicRevisions`, `attachments`) and `interfaceVersion` let callers adapt without checking `isTauri()`.
+- `CollabEditorBinding` (`src/components/collabEditorBinding.ts`) is how the shell's rich editor gets the active note's content: `local` (tab markdown, saved through `onContentChange`), `pending` (live document opening; nothing is loaded or saved) or `bound` (BlockNote edits the live document's fragment). `useCollabDocument` holds the document for exactly one note and closes it on path change or unmount, except when the path changed because this page renamed the note: the remote backend moves the open document's `path` with the file, and the hook keeps it. A bound editor is keyed by its document, not its path. Its changes report the note's first H1 (`liveDocumentTitle`) on the `liveNoteTitle` channel instead of saving, which `useAppSave` turns into the untitled rename.
+- Raw mode on a bound note reads and edits the live document (`useLiveRawContentSource`, `src/components/useLiveRawContentSource.ts`, TOL-221). It opens on the document's `frontmatter` text plus the bound editor's serialized body, and its edits are written back by `createLiveMarkdownWriter` (`src/lib/liveNoteMarkdown.ts`) as one transaction (origin `tolaria:raw-edit`) on the frontmatter text and the blocks fragment, using the server's own parse (`packages/markdown-yjs/src/markdownParse.ts`) and block patch. The server then flushes it to the file like any other edit, so raw mode never writes the file through `files.write`. Of writes made in a row, only the last is applied. Local notes keep saving raw edits through `onContentChange`.
+- `updateFrontmatterContent` (`src/lib/frontmatterText/`) is the TypeScript port of the desktop frontmatter writer (`src-tauri/src/frontmatter/ops.rs`, `yaml.rs`, `keys.rs`): same key matching, canonical write keys, YAML quoting and line endings, byte for byte. Both test suites read the golden cases in `tests/fixtures/frontmatter-ops/cases.json`; change the two writers together. The port refuses (`UnsafeFrontmatterEditError`) keys and values the desktop formatter would write as YAML that does not read back as written. On the web with a Tolaria remote, `editRemoteFrontmatter` (`src/lib/remoteFrontmatter.ts`) applies a property edit as one transaction on the bound note's `frontmatter` Y.Text (found through `liveNoteDocument`, registered by `useCollabEditorBinding` while bound), or, for a note that is not open, rewrites the file through `files.write` with the revision it read; a conflict fails the edit instead of overwriting.
+- `remoteNotes` (`src/lib/remoteNotes.ts`) is the note lifecycle of the web build with a Tolaria remote: vault-relative new-note paths (`newNotePath`), create-only writes that resolve with the conflict copy when the path was taken (`createRemoteNote`, `VaultWriteResult.copyPath`), deletes and the untitled rename. Desktop and the mock browser build never reach it (`hasRemoteVault()`).
+
+- Attachments on a Tolaria remote (ADR 0283): `files.saveAttachment` stores an upload as `attachments/<millis>-<name>` through a create-only `PUT`. `createRemoteAttachmentClient()` (`src/lib/vaultBackend/index.ts`) exposes the remote's `RemoteAttachments` (`packages/collab-client/src/remoteAttachments.ts`: `save`, `read` as a typed `Blob`, `importFromUrl`). `src/lib/remoteAttachments.ts`, loaded only when an editor needs it, uploads pasted or dropped images, imports pasted remote images through the server, and resolves `attachments/...` URLs to cached object URLs via `resolveWebAttachmentUrl` and `webAttachmentPath` in `src/utils/vaultAttachments.ts`. `richEditorFileUrlResolver()` gives BlockNote a `resolveFileUrl` only on a remote, and `remoteImageImportTarget` (`src/components/richPasteImageImport.ts`) picks the server import and portable paths there, the native download and asset URLs on desktop.
 
 The desktop and mock backends implement only `files`, through the existing commands. Nothing in the app is routed through the interface yet.
 
@@ -503,15 +1521,48 @@ The desktop and mock backends implement only `files`, through the existing comma
 
 `packages/protocol` (ADR 0186) defines what a `remote` backend speaks: `PROTOCOL_VERSION`, the `/v1` routes, capabilities, and the request and response shapes (`FileEntry`, `WriteResult`, `RenameRequest`, `SearchResponse`, `ErrorBody`). A file's `etag` is its git blob id and maps to the seam's `VaultRevision`; `WriteResult.outcome` is `created`, `updated`, `unchanged`, `recreated` or `conflict`, and a `conflict` carries the path of the conflict copy and the `current` revision of the original.
 
-Collaboration (ADR 0187) adds, in `packages/markdown-yjs`: `NoteCodec` (markdown to and from a `tolaria.blocknote/1` Y.Doc; `fileContent` writes an edit back over the source file's bytes), `merge3` and `reconcile` (three-way line merge and the adopt, merge or conflict decision), `patchBlocks` (changes a live document block by block). In `apps/server/src/collab`: `Room` (a document and its peers), `NoteSession` (the link between a room and its file: `flush`, `fileChanged`), `CollabHub` (rooms by `docId`), `FlushScheduler` and `FlushPolicy`, `TicketBook`, `SnapshotStore`. `Vault.update(path, produce)` computes a file's new content under the vault lock, after the pull. In `packages/collab-client`: `CollabProvider` (status `connecting`, `syncing`, `synced`, `offline`, `closed`) and `createRemoteVaultBackend`, whose `collab.openDoc` returns the `doc`, `fragment`, `provider` and `awareness` that BlockNote's `collaboration` option takes.
+Collaboration (ADR 0187) adds, in `packages/markdown-yjs`: `NoteCodec` (markdown to and from a `tolaria.blocknote/1` Y.Doc; `fileContent` writes an edit back over the source file's bytes; `preserveSource` merges only the frontmatter and body lines and puts back the source's blank lines after the frontmatter and its trailing line breaks, so a save adds or drops no layout bytes), `merge3` and `reconcile` (three-way line merge and the adopt, merge or conflict decision), `patchBlocks` (changes a live document block by block; a changed block that lines up with a new block of the same shape is patched in place by `patchInPlace`, so a cursor in it and text typed into it at the same time survive a rewrite from the file, TOL-236). In `apps/server/src/collab`: `Room` (a document and its peers), `NoteSession` (the link between a room and its file: `flush`, `fileChanged`, and `relink`, which applies a rename's link rewrite to the document with `patchLiveLinks` before moving to the new file revision), `CollabHub` (rooms by `docId`), `FlushScheduler` and `FlushPolicy`, `TicketBook`, `SnapshotStore`. Sharing enforcement (ADR 0296, TOL-18) is in `apps/server/src`: `Access` (`access.ts`, the roles a request has on each path: the bearer token is `Access.OWNER`), `readAccessTicket`/`signAccessTicket` (`accessTickets.ts`, the signed `ta1.` tickets), `Credentials` (`credentials.ts`, the bearer credential to a rate-limit account and an `Access`) and `Revocations` (`accessRevocations.ts`, refused tickets and the open websockets and change feeds that close when their subject's access shrinks); every route checks or filters with the request's `Access`, and a collab ticket keeps the `Access` it was asked with. Attribution (ADR 0297, TOL-238): `CoAuthor`, `isCoAuthor`, `coAuthorTrailers` and the ordered, once-per-address `CoAuthors` set live in `apps/server/src/coAuthors.ts`; `Access.coAuthors()` is the ticket's `author` for a non-owner and empty otherwise; every committing `Vault` method takes those `CommitCoAuthors`, which `GitRepo.commitStaged` writes as trailers; a `Peer` carries them into its room, `NoteSession` collects the editors since the last write and names them in the next flush, and `GitSync`'s replay keeps the trailers of the commits it replaces. `Vault.update(path, produce)` computes a file's new content under the vault lock, after the pull. `Vault.rename(from, to, options)` runs a `RenameTransaction` (`apps/server/src/renameTransaction.ts`): the move, the `title` property of a title rename and, with `rewriteLinks`, the wikilink rewrite of `renameLinks.ts` (the desktop's `rename.rs` targets and pattern) in every other note, as one commit (ADR 0289). `Vault.renameFolder(from, to, options)` runs a `FolderRenameTransaction` (`apps/server/src/folderRenameTransaction.ts`): every tracked file under the folder moves and, with `rewriteLinks`, `folderLinkRewrites` rewrites the path links to each moved note in every note, as one commit (TOL-227); both transactions stage their rewrites with `stagedRewrites.ts`, and a `LinkRewrites` value (one rewrite or a list) is what `NoteSession.relink` patches into a live document. `Vault.createFolder(path)` and `Vault.deleteFolder(path)` stage with `apps/server/src/folderLifecycle.ts` and commit through the same `commitFolderChange` as a folder rename, one commit each (TOL-233): a created folder holds an empty `.keep` file because git keeps no empty folder, and a delete removes every tracked file under the folder, whose notes' rooms close as for any deletion. In `packages/collab-client`: `CollabProvider` (status `connecting`, `syncing`, `synced`, `offline`, `closed`) and `createRemoteVaultBackend`, whose `collab.openDoc` returns the `doc`, `fragment`, `provider` and `awareness` that BlockNote's `collaboration` option takes.
+
+Offline read on the web (ADR 0282) adds, in `src/lib/offline`: `routeOfflineRequest` and the cache names of `offlineCachePolicy` (one versioned shell cache, one `tolaria-web-account-<hash>` cache per credential), `installOfflineServiceWorker` (the hand-written worker, written against an injectable scope, bundled into `service-worker.js` by `apps/web/serviceWorkerPlugin.ts`), and `offlineMode` (`hasOfflineRead`, `isOfflineReadOnly`, `assertVaultWritable`, `scheduleOfflineServiceWorkerRegistration`, `clearOfflineData`, and `clearOfflineDataOnAccountExit` on the `tolaria:account-signed-out` and `tolaria:account-deleted` events). `useOfflineReadOnly()` turns the editors read-only, `useCodeMirrorReadOnly` switches a CodeMirror view through a compartment, and `offlineCollabPath` keeps `useCollabEditorBinding` from opening a live document offline. The `offlineRead` platform capability is true only for the `remote` backend. `apps/web/phosphorIconChunk.ts` is a web-only `manualChunks` rule that groups statically imported Phosphor icons into two chunks.
+
+URL routing on the web (ADR 0284) adds `src/utils/webRoute.ts` (`WebRoute`, `parseWebRoute`, `webRouteSearch`, `webRouteForState`, `routeNotePath` for local absolute and remote relative entry paths, `findRouteEntry`, `routeVaultSlug` with the `tolaria://` deep-link slug), `useWebRouting` (History API sync and `popstate`), and `useActiveNoteLocation`, which App calls in place of `useLastActiveNote`: it feeds the opening URL's note to `useLastActiveNote` as `preferredEntry` and starts routing once `useLastActiveNote` reports the restore finished. Routing is on only when `VITE_TOLARIA_WEB_BUILD` is `true`.
+
+Sharing on the web (ADR 0298, TOL-237) adds:
+
+- **`src/lib/sharing`:**
+  - `sharedVaultLocation`: `sharedVaultIdFromPath`, `vaultBasePath` and `sharedVaultHref` for the `/vaults/<id>/` page of a shared vault.
+  - `vaultAccess`: `VaultAccessState` (`owner`, `checking`, `shared`, `revoked`), `roleOn`, `canWritePath`, `canChangeVault`, `isViewOnly`, `sharedRoleOf`; `checkVaultAccess`, `reportAccessDenied` and `assertSharedVaultWritable`, called by `assertVaultWritable`.
+  - `sharesApi`: `OutgoingShare`, `IncomingShare`, `parseInvitee`, `createShare`, `changeShareRole`, `revokeShare`, `ShareApiError` codes.
+  - `sharingStore`: whether sharing is offered, the own vault's shares and "Shared with me".
+  - `sharingAnalytics`.
+- **Remote config:** `src/lib/vaultBackend/remoteConfig.ts` (`remoteVaultConfig`) and `createConfiguredRemoteBackend`.
+- **Hooks:** `useVaultAccess`, `useSharedReadOnly` and `useSharing`.
+- **Components** (`src/components/sharing`): `ShareNoteButton`, `ShareDialog`, `ShareInviteForm`, `SharePeopleList`, `RoleSelect`, `SharingStatusButton`, `SharedWithMeDialog`, `AccessRevokedDialog`, `SharedReadOnlyBanner`.
+- **`packages/collab-client`:**
+  - `CollabProvider`'s `onDenied`, for a `4403` close or a 401/403/404 ticket, after which it stays closed.
+  - `RemoteOptions.onAccessDenied`.
+  - `entriesCacheKey`, so each vault keeps its own snapshot.
+
+The phone layout on the web (ADR 0286) adds `usePhoneLayout` (`PHONE_LAYOUT_QUERY`), `usePhoneNoteStack` (`PhoneNoteStack`: `active`, `pane`, `backToList`, `showNote`; `NoteListPane` for `useWebRouting`; `BACK_TO_NOTE_LIST_STATE_KEY` in `history.state`; `PHONE_PANE_ATTRIBUTE` on `<html>`), which `useActiveNoteLocation` now returns, `phoneNoteStackStore` (`publishPhoneNoteStack`, `usePhoneNoteStackControls`, `usePhoneNoteOpener`), `useKeyboardAwareViewport` (`--tolaria-visual-viewport-height` / `-top`, `keepCaretAboveKeyboard`), and `src/components/phone/PhoneNoteBackBar.tsx`, the in-app back control rendered by `LazyEditor`.
+
+The tablet layout on the web (ADR 0287) adds `useMediaQueryMatch` (which `usePhoneLayout` now uses), `useTabletSidebar` (`TABLET_LAYOUT_QUERY`, `TABLET_LAYOUT_ATTRIBUTE` on `<html>`; `TabletSidebar`: `sidebarVisible`, `followViewMode`, `collapse`), called by `useAppWindowControls`, `webShortcuts` (`BROWSER_OWNED_SHORTCUT_COMMANDS`, `findWebShortcutCommand`, `webSafeDesktopCommand`, `webShortcutDisplay`), which `appCommandCatalog` consults in the web build, and `isWebBuild` in `src/utils/webBuild.ts`.
+
+Touch input on the web (ADR 0288) adds `installTouchInput` (`TOUCH_INPUT_QUERY`, `TOUCH_INPUT_ATTRIBUTE`, `LONG_PRESS_MS`) in `src/lib/touchInput.ts`, `useTouchInput` (web build and `pointer: coarse`), and `TouchEmptyState`, the editor empty state for a finger.
+
+Presence in the web note view (ADR 0291) adds `NotePresence` (`src/components/NotePresence.tsx`, the avatars of the others in the active live document, rendered in the breadcrumb bar's actions and listed by name in a `Popover`), `useLocalPresence` / `announcePresence` (announce this window in an opened document, withdraw it while offline), `localPresenceUser` / `deviceName` in `src/lib/presenceIdentity.ts` (the "Safari · iPhone" name and a per-client colour), and `renderCollabCursor` (`src/components/collabCursor.ts`, BlockNote's `renderCursor` with a phone-sized name label). In `packages/collab-client`, `awarenessPacing.ts` holds `AwarenessThrottle`, `keepPresenceFresh` and `BROWSER_PRESENCE_PACING`, which `CollabProvider` takes as the opt-in `awarenessThrottleMs` and `presenceTimeoutMs` options; `presence.ts` adds `clientColor`, `safeColor` and `safeName`.
+
+Conflict surfaces on the web (ADR 0290) add `ConflictCopyNotice` (rendered by `WebSyncPill` for the copy `useConflictCopy` reads from `meta.conflictCopy`), `ConflictCopyBadge` in note list rows, `isConflictCopyPath` and `fileNameOf` in `src/lib/conflictCopyPaths.ts`, and `requestVaultEntriesReload` / `useVaultEntriesStaleReload` (`VAULT_ENTRIES_STALE_EVENT`) in `src/lib/vaultEntriesStale.ts`, which `useVaultLoader` uses. On the server, `NoteSession.fork` keeps the live document and `keepIncomingAsCopy` commits the incoming version as the copy.
 
 In `apps/server`:
 
 - `Vault` (`src/vault.ts`) runs every mutation under one lock as pull, change, commit, push. `writeOutcome(current, incoming, precondition)` is the whole write decision.
 - `GitSync` (`src/gitSync.ts`) fetches, fast-forwards or replays unpushed commits onto the remote's history, and pushes with retry.
 - `VaultPath` (`src/paths.ts`) is a path that passed validation; only such paths reach the working clone.
+- `RateLimiter` (`src/rateLimit.ts`) keeps a token bucket per account (`accountOf`: the token's, or the anonymous one); `RateLimited` is its `429 rate_limited` with `Retry-After`. `ConnectionCounter` and `watchIdle` (`src/collab/connectionLimits.ts`) cap open websockets per account and per document and close idle ones with `4408` (ADR 0292).
 - `DocIndex` (`src/docIndex.ts`) gives each note a stable `docId` that follows renames, for the reserved collaboration channel.
 - `BlobStore` (`src/store.ts`) is the storage interface for server state outside git, with `LocalDiskStore`; it is the seam for Object Storage.
+- `remoteImageFetcher` (`src/remoteImage.ts`) downloads an image for `POST /v1/attachments/imports` from public hosts only: `isPublicAddress` (`src/publicAddress.ts`) decides, a guarded `lookup` pins the connection to a checked address, and redirects, size and time are capped. `Services.remoteImages` lets a test swap it.
+- `checkStoreEndpoints` (`src/storeEndpoint.ts`) runs at startup, before any `R2BlobStore` request: each configured R2/S3 endpoint must be, or resolve only to, public addresses (the same `isPublicAddress`), unless `TOLARIA_R2_ALLOW_PRIVATE_ENDPOINT=1` with `NODE_ENV=development` allows a local MinIO. `R2BlobStore` then sends every request through the shared `guardedLookup`, so each connection is pinned to an address that passed the same policy (`R2Options.isAllowedAddress`).
 
 ### Vault Scanning (Rust)
 
@@ -587,7 +1638,7 @@ The `with_frontmatter()` helper wraps this in a read-transform-write cycle on th
 
 Git operations live in `src-tauri/src/git/`. All operations shell out to the `git` CLI (not libgit2). Path-producing commands use `core.quotePath=false` so Unicode note filenames stay as UTF-8 paths across status, history, cache invalidation, and rename detection. Ordinary app-owned Git commands disable terminal and Git Credential Manager prompts, so launch/focus/interval sync and its follow-up status fetch fail with an actionable authentication error instead of repeatedly opening an external account picker. Only the explicit connect-remote flow permits credential interaction. Git subprocesses also inherit the user's shell-managed Git identity/config environment when the app process is missing it, including `GIT_AUTHOR_*`, `GIT_COMMITTER_*`, `GIT_CONFIG_*`, `XDG_CONFIG_HOME`, and `EMAIL`. Missing bindings are collected in one login-shell process per Git launch configuration, and synchronous repository detection runs on the blocking Tokio pool so shell startup cannot stall the renderer command queue. Focus-triggered external rename detection uses the same blocking-pool boundary before running `git diff`, keeping window activation and editor input responsive even for slow repositories. Every Settings-triggered provider probe—native Git version, WSL distribution discovery, and WSL Git version—uses the shared hidden-process command constructor so Windows never allocates a console for background capability checks.
 
-Vault Git commands use `run_vault_git_operation`; note-scoped Git commands delegate to it after expanding the note path. Disk and subprocess work runs on Tokio's blocking pool, including note read/create, title synchronization, frontmatter edits, rename/move, wikilink repair, and single-entry reload. Synchronous helpers remain available to backend callers that already own their execution context. macOS login-shell Git discovery caches its result once per process; configured Git paths and provider choices are still read for each launch.
+Single-task commands share `commands::blocking::run_blocking`, which schedules synchronous work on Tokio's blocking pool and maps join failures to string errors. `run_blocking_labeled` preserves contextual failure wording through the same boundary. Vault commands flatten their work results through a thin `off_main_thread` delegate. Vault Git commands expand the vault path in `run_vault_git_operation` before delegating to that boundary; note-scoped Git commands also expand the note path. Git provider probes keep their timeouts, and `is_git_repo` still returns false on a join failure. Disk and subprocess work runs on Tokio's blocking pool, including note read/create, title synchronization, frontmatter edits, rename/move, wikilink repair, and single-entry reload. Synchronous helpers remain available to backend callers that already own their execution context. macOS login-shell Git discovery caches its result once per process; configured Git paths and provider choices are still read for each launch.
 
 Native watcher fingerprints compare file modification time and size for ambiguous or metadata-only modifications. Repeated unchanged notifications are omitted; explicit content writes, creates, renames, and removals still refresh vault state. AI workspace context publication waits for a 300 ms quiet period and cancels superseded or unmounted publications to avoid repeated synchronous cloning and storage writes during editor bursts.
 
@@ -673,7 +1724,7 @@ interface PulseCommit {
 
 ### External Vault Refresh
 
-External vault mutations are any disk writes Tolaria did not just perform through its own save path: Git pulls, AI-agent writes, filesystem watcher events, and edits from another app. These changes must route through `refreshPulledVaultState()` rather than calling `reloadVault()` in isolation. The shared refresh abstraction reloads entries, folders, and saved views together, preserves unsaved active-editor content, replaces a clean active note when the changed-path list includes that note, and closes the active tab if the file disappeared. A same-path replacement does not clear the active tab. `useEditorTabSwap` compares the live editor body before treating changed source content as stale, so frontmatter-only refreshes update the tab cache without replacing BlockNote or resetting its caret and scroll position; genuine body changes still converge to disk. If the active editor owned focus before a necessary content replacement, the app requests editor focus again afterward. Unknown or unrelated watcher updates refresh vault-derived state without replacing the active editor. `useVaultWatcher` supplies changed filesystem paths to this abstraction after debouncing and after filtering recent app-owned saves. Overlapping entry reloads and modified-file polls are coalesced with a single trailing rerun so watcher and sync bursts do not stack native vault scans or Git status processes.
+External vault mutations are any disk writes Tolaria did not just perform through its own save path: Git pulls, AI-agent writes, filesystem watcher events, and edits from another app. These changes must route through `refreshPulledVaultState()` rather than calling `reloadVault()` in isolation. The shared refresh abstraction reloads entries, folders, and saved views together, preserves unsaved active-editor content, replaces a clean active note when the changed-path list includes that note, and closes the active tab if the file disappeared. A same-path replacement does not clear the active tab. `useEditorTabSwap` compares the live editor body before treating changed source content as stale, so frontmatter-only refreshes update the tab cache without replacing BlockNote or resetting its caret and scroll position; genuine body changes still converge to disk. If the active editor owned focus before a necessary content replacement, the app requests editor focus again afterward. Unknown or unrelated watcher updates refresh vault-derived state without replacing the active editor. `useVaultWatcher` supplies changed filesystem paths to this abstraction after debouncing and after filtering recent app-owned saves. `useVaultRefreshHandlers` owns the App-level callbacks that feed pulls and watcher batches into it. Overlapping entry reloads and modified-file polls are coalesced with a single trailing rerun so watcher and sync bursts do not stack native vault scans or Git status processes.
 
 `useGitRepositories` is the commit-time companion to `useAutoSync`:
 - Owns repository picker validation plus `get_modified_files` and `git_remote_status` loading for active Git repositories
@@ -737,7 +1788,7 @@ Defined in `src/components/editorSchema.tsx` and styled in `src/components/Edito
 - Missing common grammars live in `src/utils/codeBlockLanguageCatalog.ts` and are registered lazily from direct `@shikijs/langs` imports by `src/components/codeBlockOptions.ts`; known aliases such as `ps1` and `vb` normalize to canonical picker values during Markdown import.
 - Shell fences normalize `bash`, `sh`, `shell`, `shellscript`, and `zsh` to the canonical **Bash** picker entry while reusing Shiki's shellscript grammar.
 - Tolaria keeps `defaultLanguage: "text"` so unlabeled code blocks do not silently become JavaScript at creation time. Parsed unlabeled code blocks then run through Tolaria's lightweight language inference, while explicit fence languages and user dropdown choices still win.
-- `src/components/codeBlockLanguageControls.tsx` owns the visible shadcn language picker. It tracks each live BlockNote code block by block ID, overlays the library-owned selector, and writes changes through the editor API so a selector created during a transient read-only render cannot remain stale or disabled. Continuous scroll only copies native selector geometry into the existing overlay on the next animation frame; it does not publish React target state, so trackpad and wheel scrolling cannot leave the portal behind while a render update is deferred.
+- `src/components/codeBlockLanguageControls.tsx` owns the visible shadcn language picker. It scopes targets to the owning editor and portals each picker into the library-owned selector's noneditable host, anchored with local CSS. Scrolling, resizing, zoom, and layout changes therefore move and clip the picker with its code block without viewport-coordinate synchronization. Host replacement refreshes the portal target. The code-block schema ignores DOM mutations inside that noneditable language-control host so ProseMirror does not rebuild a block in response to the picker UI; code-content mutations remain observable. Language changes use the editor API, including after a transient read-only render.
 - `createRichEditorCodeBlockShortcutExtension()` adds the editor-local creation paths that BlockNote does not provide: Enter converts a paragraph containing three backticks plus an optional language into an empty language-aware code block, while Cmd/Ctrl+Shift+Backquote converts the current block. Both paths emit `editor_code_block_created` with source-only metadata.
 - `codeBlockLineNumbers.ts` derives one ProseMirror widget decoration at each logical line start. The empty, non-editable widgets participate in the code's inline layout, expose their labels through CSS pseudo-content, and therefore stay aligned through wrapping and width changes without polluting note text, selections, or clipboard output. The gutter and its code-facing gap are reserved in the same `pre > code` layout instead of being painted in a detached overlay.
 - Code block CSS wraps long source lines instead of introducing horizontal scrolling. Cmd/Ctrl+A inside a code block scopes the browser selection to that block's raw source; normal full-note selections continue through the existing rich-copy path.
@@ -787,6 +1838,7 @@ Defined in `src/utils/durableMarkdownBlocks.ts`, `src/utils/editorDurableMarkdow
 - `src/components/GuardedTldrawCanvas.tsx` installs the Edge/WebKit text-span measurement guard synchronously before tldraw renders any shapes; the later store mount owns cleanup without stacking a second wrapper. Snapshot restoration/listening lives in `src/components/useTldrawBoardStore.ts`, while `useWhiteboardRuntime`, runtime alerts, and canvas controls keep lifecycle and presentation responsibilities below their analyzer complexity boundaries.
 - Pasted tldraw content with an incompatible historical schema is rejected before it can reach the React error boundary; Tolaria keeps the current board intact, reports the recoverable format mismatch in-app, and records a privacy-safe `whiteboard_paste_rejected` event.
 - Whiteboard prop writes re-resolve the live BlockNote block by id before mutating it, and disappear as no-ops if a note reload or mode switch has already removed that block.
+- `src/components/useWhiteboardUi.tsx` removes tldraw's debug-mode action from the shared action registry and disables its debug menu/panel, including when existing instance state has debug mode enabled. Ordinary export and preference actions remain available. A localized error fallback retries only the whiteboard editor against its existing document store; it does not reload Tolaria or clear note content.
 - The tldraw runtime receives Tolaria's resolved light/dark mode as its user color scheme, so embedded whiteboards follow the app appearance and update while mounted.
 - Embedded whiteboards expose a session-only full-window workspace that reuses the same tldraw store and Markdown snapshot; expanding or closing it does not persist camera, tool, or size state.
 - Mermaid and tldraw both register small codecs with the shared durable fenced-block pipeline; scanner, token, block injection, and mixed serialization mechanics live in one owner.
@@ -993,6 +2045,8 @@ interface SearchResult {
 
 The NoteList header search keeps its local title/snippet/property filtering for immediate scoped results, then augments the match set with `search_vault` hits from the visible workspace roots using the command's frontmatter-excluding search option. React stores only matching paths so body-only matches appear in the current list scope without a second content-read pass or rendering private matched text in note rows.
 
+`useNoteListDeletionFocus` snapshots the displayed note order and vault membership. When a displayed note is removed from the vault, it opens the next surviving displayed note, falling back to the previous note, and returns keyboard focus to the list after React updates selection. Filtering, sorting, loading, sidebar navigation, and path replacement during rename do not count as deletion. An empty result keeps the existing empty state. All deletion surfaces use the same list reconciliation.
+
 No indexing step required — search runs directly against the filesystem.
 
 ## Vault Management
@@ -1139,6 +2193,7 @@ Managed by `useSettings` hook and `SettingsPanel` component. `theme_mode` is ins
 
 ### Libraries
 - **`src/lib/telemetry.ts`** — `initSentry()`, `teardownSentry()`, `initPostHog()`, `teardownPostHog()`, `trackEvent()`. Path scrubber via `beforeSend` hook. The same hook drops known benign browser ResizeObserver loop-limit notifications and rich-editor failures already handled by Tolaria's recovery boundaries, including stale ProseMirror selection positions, while keeping unrelated failures reportable. DSN/key from `VITE_SENTRY_DSN` and `VITE_POSTHOG_KEY`; `VITE_SENTRY_RELEASE` is treated as the build version and only becomes Sentry's `release` for stable calendar builds (`YYYY.M.D`). Alpha/prerelease/internal builds tag `tolaria.build_version` and `tolaria.release_kind` without creating normal Sentry Releases entries.
+- **`src/lib/webSentry.ts`** (TOL-232, ADR 0294) — web-only additions to `initSentry`: when `resolveFrontendTelemetryConfig()` reports `platform: 'web'` (the web build sets `VITE_TOLARIA_WEB_BUILD`), `withWebPrivacy()` wraps the shared `beforeSend` and adds a `beforeBreadcrumb` that cut page, request and navigation URLs to origin plus first path segment, and `initSentry` tags `platform: web`. The web release is `tolaria-web@<commit>` instead of a calendar version. The web build's DSN and release come from `apps/web/sentryWebBuild.ts` (`TOLARIA_WEB_SENTRY_DSN`), which also moves the hidden source maps out of `apps/web/dist` into `apps/web/sourcemaps/`; `apps/web/sourcemapUpload.ts` (`pnpm upload:web-sourcemaps`) uploads them to Sentry. See `docs/web/telemetry.md`.
 - **`src/main.tsx`** — React root error callbacks (`onCaughtError`, `onUncaughtError`, `onRecoverableError`) forward component-stack context to `Sentry.reactErrorHandler()` for debuggable production React errors.
 - **`src-tauri/src/telemetry.rs`** — Rust-side Sentry init with `beforeSend` path scrubber. `init_sentry_from_settings()` reads settings and conditionally initializes; stable calendar `CARGO_PKG_VERSION` values become Sentry releases, while alpha/prerelease/internal versions are kept as diagnostic tags only. `reinit_sentry()` for runtime toggle.
 
@@ -1176,8 +2231,18 @@ Managed by `useSettings` hook and `SettingsPanel` component. `theme_mode` is ins
 
 ### CI/CD
 - **`scripts/release-version.mjs`** — Tested calendar-version policy shared by authoritative CircleCI releases and the compatibility GitHub Actions release workflows. It emits shell or GitHub-output formats from the same result, validates stable tag dates, preserves the same-day-stable alpha safeguard, and produces the one-time future-version recovery bridge from ADR-0173.
-- **`.circleci/config.yml`** — Authoritative CI/CD graph for portable validation and native releases. The validation workflow reuses the `.chunk/` frontend and Playwright lanes and runs the same Rust lint/format and coverage commands in parallel so pre-push and outer-loop gates stay aligned without serializing the Rust checks. Alpha prereleases run from qualifying `main` pushes using calendar-semver technical versions (`YYYY.M.D-alpha.N`) and zero-padded GitHub tags (`alpha-vYYYY.M.D-alpha.NNNN`). Stable releases run from `vYYYY-MM-DD` and legacy `stable-vYYYY.M.D` tags, and future-dated stable tags fail closed. Both channels fan out signed macOS Apple Silicon/Intel, Linux x64, and Windows x64 builds; stable adds macOS DMGs. Windows always requires Tauri updater signatures and adds Authenticode plus `Get-AuthenticodeSignature` verification when certificate secrets are present. Linux uses Tauri's stock linuxdeploy AppImage output plugin and validates DEB/RPM desktop metadata plus installer and updater-signature artifacts. Downstream jobs assemble `alpha-latest.json` or `stable-latest.json`, publish GitHub Releases through the restricted release context, rebuild public download/history pages, and commit generated Pages output to `gh-pages`. macOS assets retain the `Tolaria_<version>_macOS_Silicon` and `Tolaria_<version>_macOS_Intel` base names. Packaged builds pass the computed version as `VITE_SENTRY_RELEASE`.
+- **`.circleci/config.yml`** — Authoritative CI/CD graph for portable validation and native releases. The validation workflow reuses the `.chunk/` frontend and Playwright lanes and runs the same Rust lint/format and coverage commands in parallel so pre-push and outer-loop gates stay aligned without serializing the Rust checks. Alpha prereleases run from qualifying `main` pushes using calendar-semver technical versions (`YYYY.M.D-alpha.N`) and zero-padded GitHub tags (`alpha-vYYYY.M.D-alpha.NNNN`). Stable releases run from `vYYYY-MM-DD` and legacy `stable-vYYYY.M.D` tags, and future-dated stable tags fail closed. Both channels fan out signed macOS Apple Silicon/Intel, Linux x64, and Windows x64 builds; stable adds macOS DMGs. Windows always requires Tauri updater signatures and adds Authenticode plus `Get-AuthenticodeSignature` verification when certificate secrets are present. Linux uses Tauri's stock linuxdeploy AppImage output plugin and validates DEB/RPM desktop metadata plus installer and updater-signature artifacts. Downstream jobs assemble `alpha-latest.json` or `stable-latest.json`, publish GitHub Releases through the restricted release context, rebuild public download/history pages, and commit generated Pages output to `gh-pages`. Every Pages publisher (CircleCI `publish-docs`, `deploy-docs.yml`, `release.yml`) builds through `scripts/build-pages-site.sh` (landing + docs + `assemble-pages-site.sh` + `verify-pages-site.sh`). macOS assets retain the `Tolaria_<version>_macOS_Silicon` and `Tolaria_<version>_macOS_Intel` base names. Packaged builds pass the computed version as `VITE_SENTRY_RELEASE`.
 - **Beta cohorts** are handled in PostHog targeting only. There is no beta updater feed.
+
+HTML vault expressions that read spreadsheet cells await the shared `src/utils/sheetEngineReadiness.ts` initialization promise before evaluating workbooks. The sheet editor uses the same promise, so simultaneous cold-start previews and sheet opens initialize IronCalc once. Previews remain blank while the engine initializes. Preview effects re-render after readiness and ignore completion after unmount; failed initialization resets the promise for a later mount to retry. Templates without cell references render synchronously.
+
+Inline `/File` PDF attachments use `TolariaFileBlock` through `tolariaFileBlockSpec`, sharing `PdfFilePreview` with standalone file tabs. The BlockNote file wrapper retains upload, caption, and filename fallback controls; failed rendering emits `file_preview_failed` with only the PDF category. The existing file schema and external HTML/Markdown serialization stay unchanged. Image blocks keep their existing renderer. The durable Markdown preprocessing pipeline resolves portable attachment URLs against the active vault before rebuilding file blocks, so previews also load after an app restart.
+
+The editor schema reuses the durable embedded-HTML codec through `embeddedBlockParsing` for HTML code elements. Attachment Markdown parsing handles captioned and uncaptioned links separately, retaining escaped labels and destinations without a nested optional-caption regular expression.
+
+## Visible note order
+
+`useNoteListModel` obtains one memoized `visibleEntries` array from `useVisibleNotesSync`: the entity followed by searched relationship groups in neighborhood views, or the searched list elsewhere. Keyboard navigation, range selection, and deletion focus consume that same array. App-level consumers receive the same order through `visibleNotesRef`, with deleted-note previews filtered out. Deletion focus snapshots change only when the list inputs or callbacks change; inbox auto-advance keeps its existing next-only rule.
 
 ### Web bookmark blocks
 

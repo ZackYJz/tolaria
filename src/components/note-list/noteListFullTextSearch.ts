@@ -1,25 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import type { VaultEntry } from '../../types'
-import { isTauri, mockInvoke } from '../../mock-tauri'
+import { createVaultBackend } from '../../lib/vaultBackend'
 
 type NoteListSearchQuery = string
 type NotePath = string
 type VaultPath = string
 
-interface SearchResultData {
-  path: NotePath
-}
-
-interface SearchResponseData {
-  results: SearchResultData[]
-  elapsed_ms: number
-}
-
-interface SearchCommandArgs extends Record<string, unknown> {
+interface SearchCommandArgs {
   vaultPath: VaultPath
   query: NoteListSearchQuery
-  mode: 'keyword'
   limit: number
   excludeFrontmatter: true
 }
@@ -85,25 +74,23 @@ function resolveNoteListSearchVaultPaths(entries: VaultEntry[]): VaultPath[] {
   return root ? [root] : []
 }
 
-function searchVault(args: SearchCommandArgs): Promise<SearchResponseData> {
-  return isTauri()
-    ? invoke<SearchResponseData>('search_vault', args)
-    : mockInvoke<SearchResponseData>('search_vault', args)
-}
-
-function resolveResultPaths(responses: SearchResponseData[]): Set<string> {
-  return new Set(unique(responses.flatMap((response) => response.results.map((result) => result.path))))
+async function searchVault(args: SearchCommandArgs): Promise<Set<string>> {
+  const backend = createVaultBackend(args.vaultPath)
+  const response = await backend.files.search(args.query, {
+    limit: args.limit,
+    excludeFrontmatter: args.excludeFrontmatter,
+  })
+  return new Set(response.results.map(result => result.path))
 }
 
 async function runFullTextSearch(request: FullTextSearchRequest): Promise<Set<string>> {
-  const responses = await Promise.all(request.vaultPaths.map((vaultPath) => searchVault({
+  const resultSets = await Promise.all(request.vaultPaths.map((vaultPath) => searchVault({
     vaultPath,
     query: request.query,
-    mode: 'keyword',
     limit: request.limit,
     excludeFrontmatter: true,
   })))
-  return resolveResultPaths(responses)
+  return new Set(unique(resultSets.flatMap(set => [...set])))
 }
 
 function createSearchRequest({ entries, query }: { entries: VaultEntry[]; query: NoteListSearchQuery }): FullTextSearchRequest | null {

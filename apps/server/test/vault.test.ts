@@ -343,7 +343,7 @@ describe('rename', () => {
       raced = true
       await fixture.desktop.commit('archive/hello.md', 'desktop got here first\n')
     })
-    const result = await vault.rename(at('welcome.md'), at('archive/hello.md'), WELCOME_ETAG)
+    const result = await vault.rename(at('welcome.md'), at('archive/hello.md'), { ifMatch: WELCOME_ETAG })
 
     expect(result).toMatchObject({ from: 'welcome.md', path: 'archive/hello (conflict 2026-10-10 1903).md', pushed: true })
     expect(await fixture.desktop.read('archive/hello.md')).toBe('desktop got here first\n')
@@ -352,7 +352,7 @@ describe('rename', () => {
   })
 
   it('moves the file in one pushed commit and keeps its etag', async () => {
-    const result = await vault.rename(at('welcome.md'), at('archive/hello.md'), WELCOME_ETAG)
+    const result = await vault.rename(at('welcome.md'), at('archive/hello.md'), { ifMatch: WELCOME_ETAG })
     expect(result).toMatchObject({ from: 'welcome.md', path: 'archive/hello.md', etag: WELCOME_ETAG, pushed: true })
     expect(await paths()).toEqual(['archive/hello.md', 'attachments/pixel.bin', 'projects/alpha.md'])
     expect((await fixture.desktop.log())[0]).toBe('Rename welcome.md to archive/hello.md')
@@ -364,7 +364,7 @@ describe('rename', () => {
       status: 409,
       code: 'destination_exists',
     })
-    await expect(vault.rename(at('welcome.md'), at('x.md'), 'stale')).rejects.toMatchObject({
+    await expect(vault.rename(at('welcome.md'), at('x.md'), { ifMatch: 'stale' })).rejects.toMatchObject({
       status: 412,
       code: 'precondition_failed',
       details: { current: { path: 'welcome.md', etag: WELCOME_ETAG } },

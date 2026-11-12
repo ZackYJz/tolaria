@@ -1,4 +1,4 @@
-import type { FilterCondition } from '../types'
+import type { ArrayFilterCondition } from './viewFilterArrayFields'
 
 type ConditionText = string
 type PropertyValue = string
@@ -13,7 +13,7 @@ function conditionList(value: unknown): ConditionText[] | null {
   return Array.isArray(value) ? value.map(toStringValue) : null
 }
 
-function textMatchResult(op: FilterCondition['op'], matched: boolean): boolean {
+function textMatchResult(op: ArrayFilterCondition['op'], matched: boolean): boolean {
   if (op === 'contains' || op === 'equals') return matched
   if (op === 'not_contains' || op === 'not_equals') return !matched
   return false
@@ -50,7 +50,7 @@ class PropertyArrayField {
 }
 
 export function evaluatePropertyArrayCondition(
-  cond: FilterCondition,
+  cond: ArrayFilterCondition,
   values: PropertyValue[],
   condVal: ConditionText,
   regex: RegExp | null,
@@ -61,7 +61,7 @@ export function evaluatePropertyArrayCondition(
   const equals = field.equals(condVal)
   const matchesAny = field.matchesAny(conditionList(cond.value))
   const isEmpty = field.isEmpty()
-  return new Map<FilterCondition['op'], boolean>([
+  return new Map<ArrayFilterCondition['op'], boolean>([
     ['contains', contains],
     ['not_contains', !contains],
     ['equals', equals],

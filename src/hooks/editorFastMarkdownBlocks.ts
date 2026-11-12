@@ -1,7 +1,9 @@
+import { advanceMarkdownFence, readMarkdownFence } from '../utils/markdownFences'
+import { isTableBodyLine, isTableStart, splitTableRow } from '../utils/markdownTables'
 import {
-  fastMarkdownTextItem as textItem,
-  parseFastMarkdownInline as parseInline,
   type FastMarkdownInlineItem as InlineItem,
+  parseFastMarkdownInline as parseInline,
+  fastMarkdownTextItem as textItem,
 } from './editorFastMarkdownInline'
 
 export interface FastMarkdownParseMetrics {
@@ -26,7 +28,7 @@ interface BlockLike {
 
 interface TableContentLike {
   type: 'tableContent'
-  rows: Array<{ cells: Array<{ content: InlineItem[], type: 'tableCell' }> }>
+  rows: Array<{ cells: Array<{ content: InlineItem[]; type: 'tableCell' }> }>
   headerRows?: number
 }
 
@@ -79,7 +81,6 @@ const ORDERED_LIST_RE = /^([ \t]*)(\d+)[.)][ \t]+(.+)$/u
 const UNORDERED_LIST_RE = /^([ \t]*)([-*+])[ \t]+(.+)$/u
 const CHECK_LIST_PREFIX_RE = /^([ \t]*)([-*+])[ \t]+\[([ xX])\]/u
 const THEMATIC_BREAK_RE = /^[ \t]{0,3}(?:-{3,}|\*{3,}|_{3,})[ \t]*$/u
-const FENCE_RE = /^[ \t]{0,3}(`{3,}|~{3,})(.*)$/u
 const MARKDOWN_IMAGE_RE = /(^|[^\\])!\[[^\]]*\]\(/u
 const STANDALONE_IMAGE_RE = /^[ \t]{0,3}!\[((?:\\.|[^\]\\])*)\]\((<[^>\r\n]+>|[^\s()\r\n]+)\)[ \t]*$/u
 const REFERENCE_LINK_RE = /^[ \t]{0,3}\[[^\]]+\]:[ \t]+/u
@@ -133,7 +134,12 @@ function headingBlock(line: MarkdownLine): BlockLike | null {
   if (!match) return null
   return {
     type: 'heading',
-    props: { level: match[1].length, textColor: 'default', backgroundColor: 'default', textAlignment: 'left' },
+    props: {
+      level: match[1].length,
+      textColor: 'default',
+      backgroundColor: 'default',
+      textAlignment: 'left',
+    },
     content: parseInline(match[2]),
     children: [],
   }
@@ -153,10 +159,10 @@ function listLine(line: MarkdownLine): ListLine | null {
   const check = CHECK_LIST_PREFIX_RE.exec(line)
   if (check) {
     return {
-      checked: (check.at(3) ?? '').toLowerCase() === 'x',
-      depth: listDepth(check.at(1) ?? ''),
-      marker: check.at(2) ?? '-',
-      text: line.slice(check.at(0)?.length ?? 0).trimStart(),
+      checked: check[3].toLowerCase() === 'x',
+      depth: listDepth(check[1]),
+      marker: check[2],
+      text: line.slice(check[0].length).trimStart(),
       type: 'checkListItem',
     }
   }
@@ -200,12 +206,7 @@ function listBlock(item: ListLine): BlockLike {
   }
 }
 
-function appendListBlock(
-  state: ParserState,
-  root: BlockLike[],
-  stack: BlockLike[],
-  item: ListLine,
-): boolean {
+function appendListBlock(state: ParserState, root: BlockLike[], stack: BlockLike[], item: ListLine): boolean {
   if (item.depth > stack.length) {
     state.fallbackReason = 'list-depth-gap'
     return false
@@ -222,12 +223,7 @@ function appendListBlock(
   return true
 }
 
-function appendNestedListBlock(
-  state: ParserState,
-  stack: BlockLike[],
-  depth: number,
-  block: BlockLike,
-): boolean {
+function appendNestedListBlock(state: ParserState, stack: BlockLike[], depth: number, block: BlockLike): boolean {
   const parent = stack.at(depth - 1)
   if (!parent) {
     state.fallbackReason = 'list-parent-missing'
@@ -246,7 +242,7 @@ function parseList(state: ParserState, start: LineIndex): { blocks: BlockLike[];
   let index = start
 
   while (index < state.lines.length) {
-    const item = listLine(state.lines.at(index) ?? '')
+    const item = listLine(markdownLine(state.lines, index))
     if (!item) break
     if (!appendListBlock(state, root, stack, item)) return null
     index += 1
@@ -256,16 +252,14 @@ function parseList(state: ParserState, start: LineIndex): { blocks: BlockLike[];
 }
 
 function parseFence(state: ParserState, start: LineIndex): { block: BlockLike; next: LineIndex } | null {
-  const opening = FENCE_RE.exec(state.lines.at(start) ?? '')
+  const line = markdownLine(state.lines, start)
+  const opening = readMarkdownFence(line)
   if (!opening) return null
-  const marker = opening[1]
-  const markerChar = marker.charAt(0)
-  const language = opening[2].trim().split(/\s+/u)[0] ?? ''
+  const language = line.trimStart().slice(opening.length).trim().split(/\s+/u)[0] ?? ''
   let end = start + 1
 
   while (end < state.lines.length) {
-    const trimmed = (state.lines.at(end) ?? '').trim()
-    if (trimmed.startsWith(markerChar.repeat(marker.length))) {
+    if (advanceMarkdownFence(markdownLine(state.lines, end), opening) === null) {
       return {
         block: {
           type: 'codeBlock',
@@ -283,61 +277,22 @@ function parseFence(state: ParserState, start: LineIndex): { block: BlockLike; n
   return null
 }
 
-function splitTableRow(line: MarkdownLine): string[] {
-  let trimmed = line.trim()
-  if (trimmed.startsWith('|')) trimmed = trimmed.slice(1)
-  if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1)
-
-  const cells: string[] = []
-  let cell = ''
-  for (let index = 0; index < trimmed.length; index += 1) {
-    const char = trimmed.charAt(index)
-    if (char === '\\' && trimmed.charAt(index + 1) === '|') {
-      cell += '|'
-      index += 1
-      continue
-    }
-    if (char === '|') {
-      cells.push(cell.trim())
-      cell = ''
-      continue
-    }
-    cell += char
-  }
-  cells.push(cell.trim())
-  return cells
-}
-
-function isTableSeparator(line: MarkdownLine): boolean {
-  const cells = splitTableRow(line)
-  return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/u.test(cell))
-}
-
-function isTableStart(lines: MarkdownLine[], index: LineIndex): boolean {
-  const current = lines.at(index)
-  const next = lines.at(index + 1)
-  return Boolean(current?.includes('|') && next && isTableSeparator(next))
-}
-
-function isTableBodyLine(state: ParserState, index: number): boolean {
-  const line = state.lines.at(index)
-  return Boolean(line?.includes('|') && line.trim())
-}
-
 function parseTable(state: ParserState, start: LineIndex): { block: BlockLike; next: LineIndex } | null {
-  if (!isTableStart(state.lines, start)) return null
-  const rows: string[][] = [splitTableRow(state.lines.at(start) ?? '')]
+  if (
+    !isTableStart({
+      line: markdownLine(state.lines, start),
+      nextLine: markdownLine(state.lines, start + 1),
+    })
+  )
+    return null
+  const rows: string[][] = [splitTableRow(markdownLine(state.lines, start))]
   let index = start + 2
-  while (index < state.lines.length && isTableBodyLine(state, index)) {
-    rows.push(splitTableRow(state.lines.at(index) ?? ''))
+  while (index < state.lines.length && isTableBodyLine(markdownLine(state.lines, index))) {
+    rows.push(splitTableRow(markdownLine(state.lines, index)))
     index += 1
   }
 
   const width = Math.max(...rows.map(row => row.length), 0)
-  if (width === 0) {
-    state.fallbackReason = 'empty-table'
-    return null
-  }
 
   return {
     block: {
@@ -362,7 +317,7 @@ function parseParagraph(state: ParserState, start: LineIndex): { block: BlockLik
   const lines: string[] = []
   let index = start
   while (index < state.lines.length) {
-    const line = state.lines.at(index) ?? ''
+    const line = markdownLine(state.lines, index)
     if (!line.trim()) break
     if (index !== start && startsBlock(state.lines, index)) break
     lines.push(line.trim())
@@ -375,15 +330,21 @@ function parseParagraph(state: ParserState, start: LineIndex): { block: BlockLik
   }
 }
 
+function markdownLine(lines: MarkdownLine[], index: LineIndex): MarkdownLine {
+  return lines.at(index) ?? ''
+}
+
 function startsBlock(lines: MarkdownLine[], index: LineIndex): boolean {
-  const line = lines.at(index) ?? ''
-  if (imageBlock(line)) return true
-  if (headingBlock(line)) return true
-  if (quoteBlock(line)) return true
-  if (listLine(line)) return true
-  return FENCE_RE.test(line)
-    || THEMATIC_BREAK_RE.test(line)
-    || isTableStart(lines, index)
+  const line = markdownLine(lines, index)
+  return Boolean(
+    imageBlock(line) ||
+      headingBlock(line) ||
+      quoteBlock(line) ||
+      listLine(line) ||
+      readMarkdownFence(line) !== null ||
+      THEMATIC_BREAK_RE.test(line) ||
+      isTableStart({ line, nextLine: markdownLine(lines, index + 1) })
+  )
 }
 
 function blockStep({ block, next }: BlockStepInput): ParsedBlockStep {
@@ -411,16 +372,14 @@ function parseSingleLineBlock({ index, line }: SingleLineParseInput): ParsedBloc
   const quote = quoteBlock(line)
   if (quote) return blockStep({ block: quote, next: index + 1 })
 
-  return THEMATIC_BREAK_RE.test(line)
-    ? blockStep({ block: { type: 'divider', children: [] }, next: index + 1 })
-    : null
+  return THEMATIC_BREAK_RE.test(line) ? blockStep({ block: { type: 'divider', children: [] }, next: index + 1 }) : null
 }
 
 function parseNextBlock(state: ParserState, index: LineIndex): ParsedBlockStep | null {
   const multiline = parseMultilineBlock(state, index)
   if (multiline || state.fallbackReason) return multiline
 
-  const line = state.lines.at(index) ?? ''
+  const line = markdownLine(state.lines, index)
   const singleLine = parseSingleLineBlock({ index, line })
   if (singleLine) return singleLine
 
@@ -443,12 +402,15 @@ function createParseResult({ blocks, source, startedAt, state }: ParseResultInpu
 
 function parseBlocks(source: FastMarkdownSource): FastMarkdownParseResult {
   const startedAt = now()
-  const state: ParserState = { fallbackReason: null, lines: source.markdown.split(/\r?\n/u) }
+  const state: ParserState = {
+    fallbackReason: null,
+    lines: source.markdown.split(/\r?\n/u),
+  }
   const blocks: BlockLike[] = []
   let index = 0
 
   while (index < state.lines.length) {
-    const line = state.lines.at(index) ?? ''
+    const line = markdownLine(state.lines, index)
     const unsupported = unsupportedLine(line)
     if (unsupported) {
       state.fallbackReason = unsupported
@@ -474,13 +436,11 @@ export function tryParseFastMarkdownBlocks(markdown: MarkdownSourceText): FastMa
 }
 
 function canUseFastMarkdownWorker(): boolean {
-  return typeof Worker !== 'undefined'
-    && typeof URL !== 'undefined'
-    && !('__vitest_worker__' in globalThis)
+  return typeof Worker !== 'undefined' && typeof URL !== 'undefined' && !('__vitest_worker__' in globalThis)
 }
 
 function parseFastMarkdownInWorker(source: FastMarkdownSource): Promise<FastMarkdownParseResult> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     let settled = false
     const worker = new Worker(new URL('./editorFastMarkdownBlocks.worker.ts', import.meta.url), { type: 'module' })
     const settle = (result: FastMarkdownParseResult) => {
@@ -500,7 +460,9 @@ function parseFastMarkdownInWorker(source: FastMarkdownSource): Promise<FastMark
   })
 }
 
-export async function tryParseFastMarkdownBlocksOffThread(markdown: MarkdownSourceText): Promise<FastMarkdownParseResult> {
+export async function tryParseFastMarkdownBlocksOffThread(
+  markdown: MarkdownSourceText
+): Promise<FastMarkdownParseResult> {
   if (!canUseFastMarkdownWorker()) return tryParseFastMarkdownBlocks(markdown)
   try {
     return await parseFastMarkdownInWorker({ markdown })

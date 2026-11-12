@@ -92,6 +92,9 @@ export default defineConfig({
 		globals: true,
 		environment: "jsdom",
 		setupFiles: ["./src/test/setup.ts"],
+		// Node 22's experimental Web Storage global can shadow jsdom's storage
+		// with an undefined value in workers started without --localstorage-file.
+		execArgv: ["--no-experimental-webstorage"],
 		include: ["src/**/*.{test,spec}.{ts,tsx}"],
 		// The full jsdom suite is heavy enough that unconstrained worker fan-out can
 		// starve UI tests on local dev machines. Keep the default hook path stable,

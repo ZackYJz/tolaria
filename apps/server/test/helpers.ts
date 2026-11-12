@@ -105,7 +105,7 @@ export async function createFixture(): Promise<Fixture> {
     vaultDir: join(root, 'server', 'vault'),
     remote,
     desktop,
-    openVault: (options = {}) => Vault.open({ dir: join(root, 'server', 'vault'), remoteUrl: remote, ...options }),
+    openVault: (options = {}) => Vault.open({ dir: join(root, 'server', 'vault'), remoteUrl: remote, pushDebounceMs: 0, ...options }),
     cleanup: () => rm(root, { recursive: true, force: true }),
   }
 }

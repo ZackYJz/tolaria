@@ -367,7 +367,7 @@ describe('FolderTree', () => {
       />,
     )
     fireEvent.doubleClick(screen.getByTestId('folder-row:projects'))
-    expect(onStartRenameFolder).toHaveBeenCalledWith('projects')
+    expect(onStartRenameFolder).toHaveBeenCalledWith('projects', undefined)
   })
 
   it('keeps rename and delete out of row hover actions', () => {
@@ -521,7 +521,7 @@ describe('FolderTree', () => {
     fireEvent.contextMenu(screen.getByText('projects'))
     expect(screen.getByTestId('folder-context-menu')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('delete-folder-menu-item'))
-    expect(onDeleteFolder).toHaveBeenCalledWith('projects')
+    expect(onDeleteFolder).toHaveBeenCalledWith('projects', undefined)
   })
 
   it('sizes the folder context menu to visible actions instead of filling the viewport', () => {
@@ -580,11 +580,11 @@ describe('FolderTree', () => {
 
     fireEvent.contextMenu(screen.getByText('projects'))
     fireEvent.click(screen.getByTestId('reveal-folder-menu-item'))
-    expect(onRevealFolder).toHaveBeenCalledWith('projects')
+    expect(onRevealFolder).toHaveBeenCalledWith('projects', undefined)
 
     fireEvent.contextMenu(screen.getByText('projects'))
     fireEvent.click(screen.getByTestId('copy-folder-path-menu-item'))
-    expect(onCopyFolderPath).toHaveBeenCalledWith('projects')
+    expect(onCopyFolderPath).toHaveBeenCalledWith('projects', undefined)
   })
 
   it('creates a note in the right-clicked mounted folder', () => {

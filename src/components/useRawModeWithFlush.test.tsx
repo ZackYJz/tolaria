@@ -69,3 +69,27 @@ describe('useRawModeWithFlush', () => {
     })
   })
 })
+
+describe('useRawModeWithFlush entry content', () => {
+  it('opens raw mode on the entry content made from the tab', async () => {
+    const liveContent = '---\nstatus: Done\n---\n# Test\n\nFrom the live document\n'
+    const entryContent = vi.fn(() => liveContent)
+    const editor = makeEditor()
+    const { result } = renderHook(() => useRawModeWithFlush(
+      editor as never,
+      notePath,
+      originalContent,
+      vi.fn(),
+      undefined,
+      { current: vi.fn(() => false) },
+      entryContent,
+    ))
+
+    await act(async () => {
+      await result.current.handleToggleRaw()
+    })
+
+    expect(entryContent).toHaveBeenCalledWith(originalContent, notePath)
+    expect(result.current.rawModeContentOverride).toEqual({ path: notePath, content: liveContent })
+  })
+})

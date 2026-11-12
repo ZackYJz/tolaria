@@ -11,11 +11,11 @@ import {
 } from '../utils/propertyTypes'
 import { containsWikilinks } from '../components/DynamicPropertiesPanel'
 import { canonicalFrontmatterKey, canonicalSystemMetadataKey, isSystemMetadataKey } from '../utils/systemMetadata'
+import { isRelationshipKey } from '../utils/relationshipKeys'
 
 // Keys to skip showing in Properties (handled by dedicated UI or internal)
 // Compared case-insensitively via isVisibleProperty()
 const SKIP_KEYS = new Set(['aliases', 'workspace', 'title', 'type', 'is_a', 'is a', '_archived', 'archived', 'archived_at', '_favorite', '_favorite_index', '_organized'])
-const RELATIONSHIP_SCHEMA_KEYS = new Set(['belongs_to', 'related_to', 'has'])
 
 type PropertyEntry = [string, FrontmatterValue]
 
@@ -150,7 +150,7 @@ function findTypeEntry(entries: VaultEntry[] | undefined, entryIsA: string | nul
 }
 
 function isRelationshipSchemaKey(key: string): boolean {
-  return RELATIONSHIP_SCHEMA_KEYS.has(canonicalFrontmatterKey(key))
+  return isRelationshipKey(key)
 }
 
 function buildExistingFrontmatterKeys(frontmatter: ParsedFrontmatter): Set<string> {

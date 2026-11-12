@@ -29,7 +29,6 @@ struct ReferenceRewrite<'a> {
 }
 
 struct NameRequest<'a> {
-    extension: &'a str,
     requested: &'a str,
 }
 
@@ -50,13 +49,6 @@ struct AttachmentRenamePlan {
 
 fn requested_stem(request: &NameRequest<'_>) -> String {
     let trimmed = request.requested.trim();
-    let suffix_length = request.extension.len() + 1;
-    if trimmed.len() > suffix_length
-        && trimmed[trimmed.len() - suffix_length..]
-            .eq_ignore_ascii_case(&format!(".{}", request.extension))
-    {
-        return trimmed[..trimmed.len() - suffix_length].to_string();
-    }
     trimmed
         .rsplit_once('.')
         .map_or(trimmed, |(stem, _)| stem)
@@ -274,7 +266,6 @@ fn resolve_destination(
     )?;
     let extension = attachment_extension(&source)?;
     let stem = portable_stem(&NameRequest {
-        extension,
         requested: request.requested_name,
     })?;
     let destination = available_destination(&source, &stem, extension)?;
@@ -379,6 +370,23 @@ mod tests {
             fs::read_to_string(dir.path().join("second.md")).unwrap(),
             "![[attachments/旅行.png]]\n"
         );
+    }
+
+    #[test]
+    fn renames_multibyte_names_without_extensions() {
+        for name in ["分析", "abc分", "photo😀", "cafe\u{301}"] {
+            let (dir, source) = attachment_fixture("原始.png");
+            let result = rename_attachment(AttachmentRenameRequest {
+                requested_name: name,
+                source_path: source.to_str().unwrap(),
+                vault_path: dir.path().to_str().unwrap(),
+            })
+            .unwrap();
+
+            assert_eq!(result.new_name, format!("{name}.png"));
+            assert_eq!(fs::read(&result.new_path).unwrap(), b"image data");
+            assert!(!source.exists());
+        }
     }
 
     #[test]

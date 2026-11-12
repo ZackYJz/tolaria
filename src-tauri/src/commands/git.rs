@@ -36,9 +36,7 @@ where
     F: FnOnce(&str) -> T + Send + 'static,
 {
     let vault_path = expand_tilde(&vault_path).into_owned();
-    tokio::task::spawn_blocking(move || operation(&vault_path))
-        .await
-        .map_err(|error| format!("Task panicked: {error}"))
+    crate::commands::blocking::run_blocking(move || operation(&vault_path)).await
 }
 
 // ── Git commands (desktop) ──────────────────────────────────────────────────
@@ -59,15 +57,14 @@ pub async fn get_modified_files(
     include_stats: Option<bool>,
 ) -> Result<Vec<ModifiedFile>, String> {
     let vault_path = expand_tilde(&vault_path).into_owned();
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         if include_stats.unwrap_or(false) {
             crate::git::get_modified_files_with_stats(&vault_path)
         } else {
             crate::git::get_modified_files(&vault_path)
         }
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[cfg(desktop)]
@@ -140,7 +137,7 @@ pub async fn get_last_commit_info(
 #[tauri::command]
 pub async fn git_pull(vault_path: VaultPathArg) -> Result<GitPullResult, String> {
     let vault_path = expand_tilde(&vault_path).into_owned();
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         if !crate::git::is_inside_work_tree(std::path::Path::new(&vault_path)) {
             return Ok(GitPullResult {
                 status: "no_remote".to_string(),
@@ -152,8 +149,7 @@ pub async fn git_pull(vault_path: VaultPathArg) -> Result<GitPullResult, String>
 
         crate::git::git_pull(&vault_path)
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[cfg(desktop)]
@@ -200,7 +196,7 @@ pub async fn git_commit_conflict_resolution(vault_path: VaultPathArg) -> Result<
 #[tauri::command]
 pub async fn git_push(vault_path: VaultPathArg) -> Result<GitPushResult, String> {
     let vault_path = expand_tilde(&vault_path).into_owned();
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         if !crate::git::is_inside_work_tree(std::path::Path::new(&vault_path)) {
             return Ok(GitPushResult {
                 status: "no_remote".to_string(),
@@ -210,15 +206,14 @@ pub async fn git_push(vault_path: VaultPathArg) -> Result<GitPushResult, String>
 
         crate::git::git_push(&vault_path)
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
 pub async fn git_remote_status(vault_path: VaultPathArg) -> Result<GitRemoteStatus, String> {
     let vault_path = expand_tilde(&vault_path).into_owned();
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         if !crate::git::is_inside_work_tree(std::path::Path::new(&vault_path)) {
             return Ok(GitRemoteStatus {
                 branch: String::new(),
@@ -232,8 +227,7 @@ pub async fn git_remote_status(vault_path: VaultPathArg) -> Result<GitRemoteStat
 
         crate::git::git_remote_status(&vault_path)
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[cfg(desktop)]
@@ -261,7 +255,7 @@ pub async fn git_discard_file(
 #[tauri::command]
 pub async fn is_git_repo(vault_path: VaultPathArg) -> bool {
     let vault_path = expand_tilde(&vault_path).into_owned();
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         crate::git::is_inside_work_tree(std::path::Path::new(&vault_path))
     })
     .await
@@ -282,11 +276,10 @@ pub async fn git_workspace_info(vault_path: VaultPathArg) -> Result<GitWorkspace
 pub async fn git_provider_status() -> Result<GitProviderStatus, String> {
     tokio::time::timeout(
         std::time::Duration::from_secs(GIT_PROVIDER_PROBE_TIMEOUT_SECONDS),
-        tokio::task::spawn_blocking(crate::git::git_provider_status),
+        crate::commands::blocking::run_blocking(crate::git::git_provider_status),
     )
     .await
     .map_err(|_| "Git provider detection timed out".to_string())?
-    .map_err(|e| format!("Task panicked: {e}"))
 }
 
 #[cfg(desktop)]
@@ -298,13 +291,12 @@ pub async fn test_git_provider(
 ) -> Result<GitProviderProbe, String> {
     tokio::time::timeout(
         std::time::Duration::from_secs(GIT_PROVIDER_PROBE_TIMEOUT_SECONDS),
-        tokio::task::spawn_blocking(move || {
+        crate::commands::blocking::run_blocking(move || {
             crate::git::test_git_provider(&provider, distro.as_deref(), vault_path.as_deref())
         }),
     )
     .await
     .map_err(|_| "Git provider test timed out".to_string())?
-    .map_err(|e| format!("Task panicked: {e}"))
 }
 
 #[cfg(desktop)]

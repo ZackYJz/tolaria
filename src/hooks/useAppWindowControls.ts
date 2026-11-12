@@ -5,12 +5,14 @@ import {
   getMainWindowMinWidth,
   useMainWindowSizeConstraints,
 } from './useMainWindowSizeConstraints'
+import { useTabletSidebar } from './useTabletSidebar'
 import { useViewMode, type ViewMode } from './useViewMode'
 import { useZoom } from './useZoom'
 import { useBuildNumber } from './useBuildNumber'
 import type { useLayoutPanels } from './useLayoutPanels'
 import type { NotePdfExportSource } from '../utils/notePdfExport'
 import { isWindows } from '../utils/platform'
+import { isWebBuild } from '../utils/webBuild'
 
 type FindInNoteHandler = (options?: { replace?: boolean }) => void
 type PdfExportHandler = (source?: NotePdfExportSource) => void
@@ -89,6 +91,28 @@ function useMainWindowConstraintUpdater(
   ])
 }
 
+function useWindowViewMode(windowMode: boolean, updateMainWindowConstraints: WindowConstraintUpdater) {
+  const viewMode = useViewMode(windowMode ? 'editor-only' : undefined)
+  const { setViewMode, noteListVisible } = viewMode
+  // Tablets show the note list and the note, with the sidebar collapsed (TOL-194).
+  const { collapse: collapseTabletSidebar, followViewMode, sidebarVisible } = useTabletSidebar({
+    enabled: !windowMode && isWebBuild(),
+    sidebarVisible: viewMode.sidebarVisible,
+  })
+
+  const handleSetViewMode = useCallback((mode: ViewMode) => {
+    setViewMode(mode)
+    followViewMode(mode)
+    updateMainWindowConstraints(mode === 'all', mode !== 'editor-only')
+  }, [followViewMode, setViewMode, updateMainWindowConstraints])
+
+  const handleCollapseSidebar = useCallback(() => {
+    if (!collapseTabletSidebar()) handleSetViewMode('editor-list')
+  }, [collapseTabletSidebar, handleSetViewMode])
+
+  return { handleCollapseSidebar, handleSetViewMode, noteListVisible, sidebarVisible }
+}
+
 export function useAppWindowControls({
   layout,
   windowMode,
@@ -101,21 +125,15 @@ export function useAppWindowControls({
     tableOfContentsToggleRef,
   } = useAppWindowActionRefs()
 
-  const { setViewMode, sidebarVisible, noteListVisible } = useViewMode(
-    windowMode ? 'editor-only' : undefined,
-  )
   const zoom = useZoom()
   const buildNumber = useBuildNumber()
   const updateMainWindowConstraints = useMainWindowConstraintUpdater(layout, windowMode)
-
-  const handleSetViewMode = useCallback((mode: ViewMode) => {
-    setViewMode(mode)
-    updateMainWindowConstraints(mode === 'all', mode !== 'editor-only')
-  }, [setViewMode, updateMainWindowConstraints])
-
-  const handleCollapseSidebar = useCallback(() => {
-    handleSetViewMode('editor-list')
-  }, [handleSetViewMode])
+  const {
+    handleCollapseSidebar,
+    handleSetViewMode,
+    noteListVisible,
+    sidebarVisible,
+  } = useWindowViewMode(windowMode, updateMainWindowConstraints)
 
   const handleToggleInspector = useCallback(() => {
     const nextInspectorCollapsed = !layout.inspectorCollapsed

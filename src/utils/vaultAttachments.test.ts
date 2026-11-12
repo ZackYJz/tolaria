@@ -6,7 +6,9 @@ import {
   portableAttachmentPathFromCurrentVaultAssetUrl,
   portableAttachmentPathFromCurrentVaultPath,
   resolveVaultAttachmentPath,
+  resolveWebAttachmentUrl,
   vaultAttachmentAssetUrl,
+  webAttachmentPath,
 } from './vaultAttachments'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -138,5 +140,34 @@ describe('vault attachment URL/path conversions', () => {
     expect(isTauriAssetUrl({ url: 'http://asset.localhost/%2Fvault%2Fattachments%2Fshot.png' })).toBe(true)
     expect(isTauriAssetUrl({ url: 'asset:///vault/attachments/shot.png' })).toBe(true)
     expect(isTauriAssetUrl({ url: 'https://example.com/shot.png' })).toBe(false)
+  })
+})
+
+describe('the web attachment resolver (TOL-204)', () => {
+  it('names the vault-relative attachment of a portable URL', () => {
+    expect(webAttachmentPath({ url: 'attachments/shot.png' })).toBe('attachments/shot.png')
+    expect(webAttachmentPath({ url: ' ./attachments/My%20Shot.png ' })).toBe('attachments/My Shot.png')
+    expect(webAttachmentPath({ url: '/attachments/nested/shot.png' })).toBe('attachments/nested/shot.png')
+  })
+
+  it('refuses anything that is not a vault attachment or climbs out of the vault', () => {
+    expect(webAttachmentPath({ url: 'https://example.com/attachments/shot.png' })).toBeNull()
+    expect(webAttachmentPath({ url: 'asset://localhost/%2Fvault%2Fattachments%2Fshot.png' })).toBeNull()
+    expect(webAttachmentPath({ url: 'attachments/../welcome.md' })).toBeNull()
+    expect(webAttachmentPath({ url: 'attachments/%2E%2E/welcome.md' })).toBeNull()
+    expect(webAttachmentPath({ url: 'attachments/..%5Cwelcome.md' })).toBeNull()
+    expect(webAttachmentPath({ url: 'attachments\\shot.png' })).toBeNull()
+  })
+
+  it('loads attachments and leaves every other URL alone', async () => {
+    const loadAttachmentUrl = vi.fn(async (path: string) => `blob:${path}`)
+
+    await expect(resolveWebAttachmentUrl({ url: './attachments/a.png', loadAttachmentUrl })).resolves.toBe(
+      'blob:attachments/a.png',
+    )
+    await expect(resolveWebAttachmentUrl({ url: 'https://example.com/a.png', loadAttachmentUrl })).resolves.toBe(
+      'https://example.com/a.png',
+    )
+    expect(loadAttachmentUrl).toHaveBeenCalledTimes(1)
   })
 })

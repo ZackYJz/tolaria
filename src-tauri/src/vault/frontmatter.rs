@@ -506,6 +506,24 @@ fn flush_list(
     }
 }
 
+/// Type status is both semantic metadata and a valued instance default.
+/// Keep its source spelling so new instances retain the author's property key.
+fn type_instance_properties(
+    data: &HashMap<String, serde_json::Value>,
+    frontmatter: &Frontmatter,
+) -> HashMap<String, serde_json::Value> {
+    let mut properties = extract_properties(data);
+    if resolve_is_a(frontmatter.is_a.clone()).as_deref() != Some("Type") {
+        return properties;
+    }
+    for (key, value) in data {
+        if FrontmatterKey::new(key).normalized() == "status" {
+            properties.insert(key.clone(), value.clone());
+        }
+    }
+    properties
+}
+
 /// Extract frontmatter, relationships, and custom properties from parsed gray_matter data.
 /// When gray_matter fails to parse YAML (e.g. malformed quotes from Notion exports),
 /// `raw_content` is used as a fallback: simple key:value pairs are extracted line-by-line
@@ -531,9 +549,7 @@ pub(crate) fn extract_fm_and_rels(
             }
         }
     };
-    (
-        parse_frontmatter(&json_map, raw_content),
-        extract_relationships(&json_map),
-        extract_properties(&json_map),
-    )
+    let frontmatter = parse_frontmatter(&json_map, raw_content);
+    let properties = type_instance_properties(&json_map, &frontmatter);
+    (frontmatter, extract_relationships(&json_map), properties)
 }

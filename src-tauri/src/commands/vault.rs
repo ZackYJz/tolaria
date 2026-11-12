@@ -16,14 +16,11 @@ pub use rename_cmds::*;
 pub use scan_cmds::*;
 pub use view_cmds::*;
 
-/// Synchronous Tauri commands run on the main thread, so path validation and
-/// note IO there freeze the UI whenever the disk, OneDrive or antivirus is slow.
+// Keep vault callers' flattened Result boundary; scheduling is shared by commands.
 async fn off_main_thread<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    tokio::task::spawn_blocking(work)
-        .await
-        .map_err(|error| format!("Task panicked: {error}"))?
+    super::blocking::run_blocking(work).await?
 }
 
 #[cfg(test)]
@@ -138,16 +135,6 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn off_main_thread_runs_work_on_a_blocking_pool_thread() {
-        let caller = std::thread::current().id();
-
-        let worker = off_main_thread(|| Ok(std::thread::current().id()))
-            .await
-            .unwrap();
-
-        assert_ne!(worker, caller);
-    }
     #[test]
     fn test_batch_archive_notes() {
         let (dir, note) = temp_note("---\nStatus: Active\n---\n# Note\n");

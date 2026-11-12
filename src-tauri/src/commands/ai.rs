@@ -51,7 +51,7 @@ where
 {
     use tauri::Emitter;
 
-    tokio::task::spawn_blocking(move || {
+    super::blocking::run_blocking_labeled("Task failed", move || {
         let DesktopStreamScope {
             event_name,
             stream_id,
@@ -69,8 +69,7 @@ where
             None => run(),
         }
     })
-    .await
-    .map_err(|e| format!("Task failed: {e}"))?
+    .await?
 }
 
 #[cfg(desktop)]

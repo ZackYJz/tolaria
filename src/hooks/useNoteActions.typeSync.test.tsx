@@ -1,7 +1,7 @@
-import { renderHook, act } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VaultEntry } from '../types'
-import { useNoteActions, type NoteActionsConfig } from './useNoteActions'
+import { type NoteActionsConfig, useNoteActions } from './useNoteActions'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('../mock-tauri', () => ({
@@ -10,10 +10,6 @@ vi.mock('../mock-tauri', () => ({
   updateMockContent: vi.fn(),
   trackMockChange: vi.fn(),
   mockInvoke: vi.fn().mockResolvedValue(''),
-}))
-vi.mock('./mockFrontmatterHelpers', () => ({
-  updateMockFrontmatter: vi.fn().mockReturnValue('---\ntype: Hotel\n---\n'),
-  deleteMockFrontmatterProperty: vi.fn().mockReturnValue('---\n---\n'),
 }))
 
 const baseEntry: VaultEntry = {

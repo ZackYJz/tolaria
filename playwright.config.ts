@@ -23,7 +23,10 @@ export default defineConfig({
     headless: true,
     storageState: claudeCodeOnboardingStorageState,
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    { name: 'webkit', use: { browserName: 'webkit' } },
+  ],
   webServer: {
     command: `pnpm dev --port ${process.env.BASE_URL?.match(/:(\d+)/)?.[1] || '5201'}`,
     url: baseURL,

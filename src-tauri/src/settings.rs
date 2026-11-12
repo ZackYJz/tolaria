@@ -161,7 +161,7 @@ pub fn normalize_default_ai_agent(value: Option<&str>) -> Option<String> {
 
 pub fn normalize_theme_mode(value: Option<&str>) -> Option<String> {
     match value.map(|candidate| candidate.trim().to_ascii_lowercase()) {
-        Some(mode) if mode == "light" || mode == "dark" || mode == "system" => Some(mode),
+        Some(mode) if matches!(mode.as_str(), "light" | "dark" | "system" | "hybrid") => Some(mode),
         _ => None,
     }
 }

@@ -280,6 +280,15 @@ fn test_system_theme_mode_is_preserved() {
 }
 
 #[test]
+fn test_hybrid_theme_mode_is_preserved() {
+    let loaded = save_and_reload(Settings {
+        theme_mode: Some("hybrid".to_string()),
+        ..Default::default()
+    });
+    assert_eq!(loaded.theme_mode.as_deref(), Some("hybrid"));
+}
+
+#[test]
 fn test_invalid_theme_mode_is_filtered() {
     let loaded = save_and_reload(Settings {
         theme_mode: Some("sepia".to_string()),

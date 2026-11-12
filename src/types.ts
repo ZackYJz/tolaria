@@ -5,6 +5,14 @@ import type { AiModelProvider } from './lib/aiTargets'
 import type { ThemeMode } from './lib/themeMode'
 import type { AppLocale } from './lib/i18n'
 import type { DateDisplayFormat } from './utils/dateDisplay'
+import type {
+  FilterCondition as SavedViewFilterCondition,
+  FilterGroup as SavedViewFilterGroup,
+  FilterNode as SavedViewFilterNode,
+  FilterOp as SavedViewFilterOp,
+  ViewDefinition as SavedViewDefinition,
+  ViewFileCore,
+} from './utils/viewSchema'
 
 export type VaultPropertyScalar = string | number | boolean | null
 export type VaultPropertyArray = Array<string | number | boolean>
@@ -299,32 +307,13 @@ export type SidebarSelection =
 
 // --- Custom Views ---
 
-export type FilterOp = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'any_of' | 'none_of' | 'is_empty' | 'is_not_empty' | 'before' | 'after'
+export type FilterOp = SavedViewFilterOp
+export type FilterCondition = SavedViewFilterCondition
+export type FilterGroup = SavedViewFilterGroup
+export type FilterNode = SavedViewFilterNode
+export type ViewDefinition = SavedViewDefinition
 
-export interface FilterCondition {
-  field: string
-  op: FilterOp
-  value?: unknown
-  regex?: boolean
-}
-
-export type FilterGroup = { all: FilterNode[] } | { any: FilterNode[] }
-export type FilterNode = FilterCondition | FilterGroup
-
-export interface ViewDefinition {
-  name: string
-  icon: string | null
-  color: string | null
-  /** Display order for saved Views in sidebar/list surfaces (lower = higher). */
-  order?: number | null
-  sort: string | null
-  listPropertiesDisplay?: string[]
-  filters: FilterGroup
-}
-
-export interface ViewFile {
-  filename: string
-  definition: ViewDefinition
+export interface ViewFile extends ViewFileCore {
   rootPath?: string
   workspace?: WorkspaceIdentity
 }

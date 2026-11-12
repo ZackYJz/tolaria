@@ -1,4 +1,9 @@
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
+// The web build's release (TOL-232): apps/web/sentryWebBuild.ts names it after the commit.
+const WEB_RELEASE_PREFIX = 'tolaria-web@'
+const HEX_DIGITS = /^[0-9a-f]+$/
+const MIN_COMMIT_LENGTH = 7
+const MAX_COMMIT_LENGTH = 40
 const IPV6_ADDRESS_CHARS = new Set('0123456789abcdefABCDEF:')
 const DISALLOWED_TELEMETRY_VALUES = new Set([
   'false',
@@ -10,6 +15,7 @@ const DISALLOWED_TELEMETRY_VALUES = new Set([
 ])
 
 type TelemetryEnv = {
+  VITE_TOLARIA_WEB_BUILD?: string
   VITE_SENTRY_DSN?: string
   VITE_SENTRY_RELEASE?: string
   VITE_POSTHOG_KEY?: string
@@ -28,7 +34,10 @@ interface TelemetryValueInput {
   value: string
 }
 
+export type TelemetryPlatform = 'desktop' | 'web'
+
 export type FrontendTelemetryConfig = {
+  platform: TelemetryPlatform
   sentryDsn: string
   sentryBuildVersion: string
   sentryRelease: string
@@ -103,6 +112,17 @@ function isAllowedTelemetryHostname({ hostname }: HostnameInput): boolean {
   return normalized.includes('.') || isIpAddress({ hostname: normalized })
 }
 
+function resolveSentryRelease(platform: TelemetryPlatform, { value }: TelemetryValueInput): string {
+  if (platform === 'desktop') return normalizeSentryRelease({ value })
+  return isWebRelease({ value }) ? value : ''
+}
+
+function isWebRelease({ value }: TelemetryValueInput): boolean {
+  if (!value.startsWith(WEB_RELEASE_PREFIX)) return false
+  const commit = value.slice(WEB_RELEASE_PREFIX.length)
+  return commit.length >= MIN_COMMIT_LENGTH && commit.length <= MAX_COMMIT_LENGTH && HEX_DIGITS.test(commit)
+}
+
 function normalizeHttpLikeValue({ value }: TelemetryValueInput): string {
   if (!value) return ''
   if (/^[a-z][a-z\d+\-.]*:\/\//i.test(value)) return value
@@ -138,6 +158,7 @@ function normalizePostHogHost({ value }: TelemetryValueInput): string | null {
 export function resolveFrontendTelemetryConfig(
   env: TelemetryEnv = import.meta.env as TelemetryEnv,
 ): FrontendTelemetryConfig {
+  const platform: TelemetryPlatform = env.VITE_TOLARIA_WEB_BUILD === 'true' ? 'web' : 'desktop'
   const sentryDsn = normalizeSentryDsn({
     value: sanitizeTelemetryEnvValue(env.VITE_SENTRY_DSN),
   })
@@ -145,13 +166,13 @@ export function resolveFrontendTelemetryConfig(
   const sentryBuildVersion = DISALLOWED_TELEMETRY_VALUES.has(sanitizedSentryVersion.toLowerCase())
     ? ''
     : sanitizedSentryVersion
-  const sentryRelease = normalizeSentryRelease({ value: sentryBuildVersion })
+  const sentryRelease = resolveSentryRelease(platform, { value: sentryBuildVersion })
   const posthogKey = sanitizeTelemetryEnvValue(env.VITE_POSTHOG_KEY)
   const posthogHost = normalizePostHogHost({
     value: sanitizeTelemetryEnvValue(env.VITE_POSTHOG_HOST),
   })
 
-  return { sentryDsn, sentryBuildVersion, sentryRelease, posthogKey, posthogHost }
+  return { platform, sentryDsn, sentryBuildVersion, sentryRelease, posthogKey, posthogHost }
 }
 
 export { DEFAULT_POSTHOG_HOST as _defaultPostHogHostForTest }

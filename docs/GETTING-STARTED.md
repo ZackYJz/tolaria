@@ -83,6 +83,59 @@ pnpm playwright:smoke       # Curated Playwright core smoke lane (~5 min)
 pnpm playwright:regression  # Full Playwright regression suite
 ```
 
+## React Native Mobile Development
+
+The tablet/phone app lives in `apps/mobile`, separate from the Tauri desktop app.
+Track work and acceptance evidence in the
+[Tolaria Mobile Linear project](https://linear.app/refactoringhq/project/tolaria-mobile-e4f418a855d6),
+not repository readiness reports. Durable decisions use the shared `docs/adr`
+numbering and a `Platform: mobile` header. Reference the TOL issue in commits.
+
+```bash
+pnpm install
+pnpm mobile:ios        # Build/install the native development app and start Metro
+pnpm mobile:start     # Start Metro for an already installed development app
+pnpm mobile:lint
+pnpm mobile:typecheck
+pnpm mobile:test
+```
+
+Expo Go and browser previews do not include all native modules. Validate folder
+access, Git, keyboard handling, editor focus and gestures in a current-source
+standalone native build. An embedded Release bundle runs without Metro; record
+the source SHA and build configuration with its native results. The
+[native interaction test guide](../apps/mobile/native-ui-tests/README.md) explains
+the XCUITest runner, disposable fixtures and per-surface checks. Use both iPhone
+and iPad for shared mobile changes; simulator results do not certify physical
+devices, Android, offline operation or large-vault performance.
+
+Use `pnpm mobile:qa:screenshots` for browser parity checks, not native acceptance.
+The read-only host-vault harness accepts `MOBILE_QA_VAULT_PATH` and otherwise uses
+`$HOME/Laputa` when available. Never use a user's vault for destructive tests.
+Use isolated native fixtures and remove only test-owned additions after checking
+their contents; do not uninstall the user's app to reset a test.
+
+The executable surface map is
+`apps/mobile/src/ui/mobileParityInventory.ts`; its tests guard desktop references
+and behavioral/layout proof coverage. Measure actual native frames and tokens
+alongside screenshots. Screens compose Tolaria wrappers over local RNR primitives;
+explicit React Native typography must not be overridden by primitive text defaults.
+Each editing change should identify its desktop source, mobile owner, behavioral
+proof and, when it writes data, native persistence proof. Rebuild the generated
+TenTap editor after changing its WebView extensions:
+
+```bash
+node apps/mobile/scripts/build-wysiwyg-editor-html.mjs
+```
+
+Routine `mobile-ui-foundation` hooks run the scoped mobile checks. Promotion and
+release-readiness work requires `TOLARIA_MOBILE_FULL_GATE=1` and the release gates;
+a successful local build is not permission to distribute it. CircleCI owns
+release orchestration. Follow [ADR 0227](adr/0227-mobile-ios-distribution-identity.md)
+for the explicit TestFlight identity and build-number configuration. Development
+and distribution apps have separate sandboxes; preserve existing installations.
+Keep signing/upload secrets out of `EXPO_PUBLIC_*`, the manifest and Git.
+
 ## Chunk Sidecar Validation
 
 The experimental `.chunk/config.json` mirrors the portable parts of the local git hook gate as named validations. Use it for inner-loop checks before running the full pre-push hook:

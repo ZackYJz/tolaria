@@ -1,5 +1,6 @@
 mod ai;
 mod app_icon;
+mod blocking;
 mod bookmark;
 mod clipboard;
 mod delete;

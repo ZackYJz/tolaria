@@ -1,10 +1,13 @@
 import { Awareness, removeAwarenessStates } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { awarenessMessage, receive, syncStep1, updateMessage } from '../../../../packages/protocol/src/collabWire.ts'
+import type { CoAuthor } from '../coAuthors.ts'
 
 /** One websocket of one client, as far as a room is concerned. */
 export interface Peer {
   readOnly: boolean
+  /** Who the commits of this peer's edits name besides the owner (ADR 0297); none for the owner. */
+  coAuthors?: readonly CoAuthor[]
   send(data: Uint8Array): void
 }
 
@@ -33,6 +36,8 @@ export class Room {
   private readonly check: DocCheck
   /** Each peer with the awareness client ids it announced, to withdraw them when it leaves. */
   private readonly peers = new Map<Peer, Set<number>>()
+  /** Peers asked for what their last change built on, and not yet heard from with a change. */
+  private readonly asked = new Set<Peer>()
 
   constructor(check: DocCheck = () => null) {
     this.check = check
@@ -59,34 +64,73 @@ export class Room {
   /** Applies a message from a peer. Throws when the bytes are not a valid message. */
   receive(peer: Peer, data: Uint8Array): void {
     if (!this.peers.has(peer)) return
-    const sender = { origin: peer, readOnly: peer.readOnly, accept: (update: Uint8Array) => this.accepts(update) }
+    const sender = {
+      origin: peer,
+      readOnly: peer.readOnly,
+      accept: (update: Uint8Array) => this.accepts(peer, update),
+      ownsClient: (clientId: number) => this.owns(peer, clientId),
+    }
     const { reply } = receive(data, this, sender)
     if (reply) peer.send(reply)
   }
 
-  /** Tries a peer's change on the copy: the document itself only ever gets changes that pass. */
-  private accepts(update: Uint8Array): boolean {
+  /**
+   * Tries a peer's change on the copy: the document itself only ever gets changes that pass.
+   * A change that builds on something the server has not seen (another tab's edit relayed out
+   * of order, or a forged one) would wait inside Yjs, outside the tree the check reads, and come
+   * in unchecked with whatever arrives next. Such a change is left out instead, and the peer is
+   * sent a sync step 1: its step 2 carries the change together with what it builds on, and is
+   * checked as a whole. The peer is asked once until a change of its is applied.
+   */
+  private accepts(peer: Peer, update: Uint8Array): boolean | 'later' {
+    const verdict = this.tryOnCopy(update)
+    if (verdict !== true) this.resetTrial()
+    if (verdict === 'later' && !this.asked.has(peer)) {
+      this.asked.add(peer)
+      peer.send(syncStep1(this.doc))
+    }
+    if (verdict === true) this.asked.delete(peer)
+    return verdict
+  }
+
+  private tryOnCopy(update: Uint8Array): boolean | 'later' {
     try {
       Y.applyUpdate(this.trial, update)
-      if (this.check(this.trial) === null) return true
     } catch {
       // An update that cannot be applied is turned down like one that fails the check.
+      return false
     }
+    const { pendingStructs, pendingDs } = this.trial.store
+    if (pendingStructs || pendingDs) return 'later'
+    return this.check(this.trial) === null
+  }
+
+  private resetTrial(): void {
     this.trial.destroy()
     this.trial = new Y.Doc()
     Y.applyUpdate(this.trial, Y.encodeStateAsUpdate(this.doc))
-    return false
+  }
+
+  /** A peer may publish presence for any client id that neither the server nor another peer uses. */
+  private owns(peer: Peer, clientId: number): boolean {
+    if (clientId === this.doc.clientID) return false
+    for (const [other, announced] of this.peers) {
+      if (other !== peer && announced.has(clientId)) return false
+    }
+    return true
   }
 
   leave(peer: Peer): void {
     const announced = this.peers.get(peer)
     if (!announced) return
     this.peers.delete(peer)
+    this.asked.delete(peer)
     removeAwarenessStates(this.awareness, [...announced], peer)
   }
 
   destroy(): void {
     this.peers.clear()
+    this.asked.clear()
     this.trial.destroy()
     this.awareness.destroy()
     this.doc.destroy()

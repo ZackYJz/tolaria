@@ -987,6 +987,7 @@ body.tldraw-whiteboard-fullscreen-open {
 .editor__blocknote-container .bn-block-content[data-content-type="codeBlock"] {
   background-color: var(--editor-code-block-background) !important;
   border: 1px solid var(--editor-code-block-border);
+  flex-direction: column;
   color: var(--editor-code-block-text) !important;
   position: relative;
 }
@@ -1021,6 +1022,10 @@ body.tldraw-whiteboard-fullscreen-open {
 .editor__blocknote-container .bn-block-content[data-content-type="codeBlock"] > div {
   display: flex;
   margin-bottom: 0.35rem;
+  min-height: 28px;
+  position: relative;
+  width: 100%;
+  z-index: 1;
 }
 
 .editor__blocknote-container .bn-block-content[data-content-type="codeBlock"] > div > select {
@@ -1031,7 +1036,7 @@ body.tldraw-whiteboard-fullscreen-open {
   border-radius: 6px;
   appearance: auto;
   background-color: color-mix(in srgb, var(--editor-code-block-background) 88%, var(--surface-app));
-  color: var(--editor-code-block-language) !important;
+  color: var(--editor-code-block-language);
   cursor: pointer;
   font: inherit;
   font-size: 0.85rem;
@@ -1040,8 +1045,9 @@ body.tldraw-whiteboard-fullscreen-open {
 }
 
 .editor__code-block-language-overlay {
-  position: fixed;
-  z-index: 40;
+  position: absolute;
+  inset: 8px auto auto 18px;
+  max-width: 100%;
 }
 
 .editor__code-block-language-overlay .editor__code-block-language-trigger {

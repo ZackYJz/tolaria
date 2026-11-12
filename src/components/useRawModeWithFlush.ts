@@ -25,6 +25,9 @@ import {
   useEditorModePositionSync,
 } from './useEditorModePositionSync'
 
+/** The content the raw editor opens on, from the tab's content and path. */
+type RawEntryContent = (tabContent: string | null, path: string | null) => string | null
+
 interface PendingRoundTripRawRestore {
   path: string
   state: CodeMirrorRestoreState
@@ -162,11 +165,13 @@ function useHandleFlushPending(options: {
   restoreTransitionRef: React.MutableRefObject<EditorModeRestoreTransition>
   setRawModeContentOverride: React.Dispatch<React.SetStateAction<PendingRawExitContent | null>>
   vaultPath?: string
+  entryContent?: RawEntryContent
 }) {
   const {
     editor,
     activeTabPath,
     activeTabContent,
+    entryContent,
     editorContentPath,
     rawInitialContentRef,
     rawLatestContentRef,
@@ -178,20 +183,21 @@ function useHandleFlushPending(options: {
   } = options
   return useCallback(async () => {
     rawSourceContentRef.current = activeTabContent
+    const sourceContent = entryContent ? entryContent(activeTabContent, activeTabPath) : activeTabContent
     const serializeRichEditorContent = flushPendingEditorChangeRef?.current?.() ?? true
     const syncedContent = syncActiveTabIntoRawBuffer({
       editor,
       activeTabPath,
-      activeTabContent,
+      activeTabContent: sourceContent,
       editorContentPath,
       rawLatestContentRef,
       serializeRichEditorContent,
       vaultPath,
     })
-    rawInitialContentRef.current = syncedContent ?? activeTabContent
+    rawInitialContentRef.current = syncedContent ?? sourceContent
     const restoreTransition = restoreTransitionRef.current
     restoreTransition.rawRestore = buildPendingRawRestore({
-      activeTabContent,
+      activeTabContent: sourceContent,
       activeTabPath,
       editor,
       restoreTransition,
@@ -206,6 +212,7 @@ function useHandleFlushPending(options: {
     activeTabPath,
     editor,
     editorContentPath,
+    entryContent,
     flushPendingEditorChangeRef,
     restoreTransitionRef,
     rawInitialContentRef,
@@ -299,6 +306,10 @@ function useSyncRawModeContentOverride({
   }, [activeTabContent, activeTabPath, rawSourceContentRef, setRawModeContentOverride])
 }
 
+/**
+ * `entryContent`, when given, turns the tab's content into the content the raw editor opens
+ * on: a note bound to a live document takes its properties from the document.
+ */
 export function useRawModeWithFlush(
   editor: ReturnType<typeof useCreateBlockNote>,
   activeTabPath: string | null,
@@ -306,6 +317,7 @@ export function useRawModeWithFlush(
   onContentChange?: (path: string, content: string) => void,
   vaultPath?: string,
   flushPendingEditorChangeRef?: React.MutableRefObject<(() => boolean) | null>,
+  entryContent?: RawEntryContent,
 ) {
   const { path: editorContentPath } = useEditorContentPathSignal()
   const rawLatestContentRef = useRef<string | null>(null)
@@ -358,6 +370,7 @@ export function useRawModeWithFlush(
     restoreTransitionRef,
     setRawModeContentOverride,
     vaultPath,
+    entryContent,
   })
   const handleBeforeRawEnd = useHandleBeforeRawEnd({
     activeTabPath,

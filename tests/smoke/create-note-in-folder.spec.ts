@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { test, expect } from '@playwright/test'
 import {
   createFixtureVaultCopy,
@@ -29,7 +29,7 @@ test.afterEach(() => {
 
 test('creates new notes inside the targeted folder @smoke', async ({ page }) => {
   await page.getByTestId('folder-row:project').click({ button: 'right' })
-  await page.getByTestId('create-node-in-folder-menu-item').click()
+  await page.getByTestId('create-note-in-folder-menu-item').click()
 
   await expect.poll(untitledNotesInProject, { timeout: 5_000 }).toHaveLength(1)
 

@@ -138,6 +138,19 @@ describe('PropertyValueCells', () => {
     expect(onSelect).toHaveBeenCalledWith('Related to', null)
   })
 
+  it('shows the relationship icon for has-prefixed relationship properties', () => {
+    render(
+      <DisplayModeSelector
+        propKey="has_part"
+        currentMode="text"
+        autoMode="text"
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('display-mode-icon-relationship')).toBeInTheDocument()
+  })
+
   it('selects explicit display modes from the menu', () => {
     const onSelect = vi.fn()
 

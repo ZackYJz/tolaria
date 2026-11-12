@@ -4,13 +4,14 @@ export const THEME_MODE_STORAGE_KEY = APP_STORAGE_KEYS.theme
 export const LEGACY_THEME_MODE_STORAGE_KEY = LEGACY_APP_STORAGE_KEYS.theme
 export const DEFAULT_THEME_MODE = 'light'
 export const SYSTEM_THEME_MODE = 'system'
+export const HYBRID_THEME_MODE = 'hybrid'
 export const SYSTEM_THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'
 
 const RESOLVED_THEME_MODES = new Set(['light', 'dark'])
-const THEME_MODES = new Set([...RESOLVED_THEME_MODES, SYSTEM_THEME_MODE])
+const THEME_MODES = new Set([...RESOLVED_THEME_MODES, SYSTEM_THEME_MODE, HYBRID_THEME_MODE])
 
 export type ResolvedThemeMode = 'light' | 'dark'
-export type ThemeMode = ResolvedThemeMode | typeof SYSTEM_THEME_MODE
+export type ThemeMode = ResolvedThemeMode | typeof SYSTEM_THEME_MODE | typeof HYBRID_THEME_MODE
 
 type ThemeStorage = Pick<Storage, 'getItem' | 'setItem'>
 type ThemeDocument = Pick<Document, 'documentElement'>
@@ -45,6 +46,7 @@ export function resolveSystemThemeMode(matchMedia?: ThemeMatchMedia): ResolvedTh
 export function resolveThemeMode(value: unknown, matchMedia?: ThemeMatchMedia): ResolvedThemeMode {
   const mode = normalizeThemeMode(value)
   if (mode === SYSTEM_THEME_MODE) return resolveSystemThemeMode(matchMedia)
+  if (mode === HYBRID_THEME_MODE) return 'light'
   return mode ?? DEFAULT_THEME_MODE
 }
 
@@ -92,6 +94,7 @@ export function applyThemeSelectionToDocument(
 ): ResolvedThemeMode {
   const resolvedMode = resolveThemeMode(mode, matchMedia)
   applyThemeModeToDocument(documentObject, resolvedMode)
+  documentObject.documentElement.setAttribute('data-theme-mode', mode)
   return resolvedMode
 }
 

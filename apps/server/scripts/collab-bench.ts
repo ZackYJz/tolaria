@@ -14,6 +14,7 @@ import { WebSocket } from 'ws'
 import * as Y from 'yjs'
 import { CollabProvider, type SocketLike } from '../../../packages/collab-client/src/collabProvider.ts'
 import type { ListResponse } from '../../../packages/protocol/src/index.ts'
+import { ChangeEmitter } from '../src/changeEmitter.ts'
 import { type FlushPolicy, simulateFlushes } from '../src/collab/flush.ts'
 import { closeVaultServer, createVaultServer } from '../src/server.ts'
 import { LocalDiskStore } from '../src/store.ts'
@@ -158,6 +159,7 @@ async function printRealRun(remoteUrl: string, seconds: number): Promise<void> {
     token: TOKEN,
     maxBodyBytes: 1024 * 1024,
     collab: { policy: real, lingerMs: 0 },
+    changes: new ChangeEmitter(),
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {

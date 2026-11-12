@@ -163,6 +163,7 @@ describe('usePropertyPanelState', () => {
         title: 'Book',
         isA: 'Type',
         properties: {
+          has_part: 'Chapter',
           'start date': null,
           Rating: 5,
         },

@@ -1,5 +1,5 @@
 import { BookOpen, GearSix as Settings, Megaphone, Moon, Package, Sun, type IconProps } from '@phosphor-icons/react'
-import type { ComponentType, MouseEventHandler } from 'react'
+import type { ComponentType, MouseEventHandler, ReactNode } from 'react'
 import type { McpStatus } from '../../hooks/useMcpStatus'
 import type { ThemeMode } from '../../lib/themeMode'
 import { translate, type AppLocale, type TranslationKey } from '../../lib/i18n'
@@ -75,6 +75,8 @@ interface StatusBarPrimarySectionProps {
   onUpdateWorkspaceIdentity?: (path: string, patch: Partial<VaultOption>) => void
   mcpStatus?: McpStatus
   onInstallMcp?: () => void
+  /** Replaces the git controls: the web status bar's sync pill. */
+  syncPill?: ReactNode
   stacked?: boolean
   compact?: boolean
   locale?: AppLocale
@@ -381,7 +383,7 @@ function StatusBarGitControls(
 }
 
 export function StatusBarPrimarySection(options: StatusBarPrimarySectionProps) {
-  const { modifiedCount, vaultPath, defaultWorkspacePath, vaults, multiWorkspaceEnabled, onSwitchVault, onSetDefaultWorkspace, onOpenVaultSettings, onOpenLocalFolder, onCreateEmptyVault, onCloneVault, onCloneGettingStarted, onAddRemote, onClickPending, onClickPulse, onCommitPush, commitActionPending = false, gitFeaturesEnabled = true, onInitializeGit, isOffline = false, isVaultReloading = false, isGitVault = true, syncStatus, lastSyncTime, conflictCount, remoteStatus, repositories, selectedRepositoryPath, onRepositoryChange, onTriggerSync, onPullAndPush, onOpenConflictResolver, buildNumber, onCheckForUpdates, onRemoveVault, onReorderVaults, onUpdateWorkspaceIdentity, mcpStatus, onInstallMcp, locale = 'en', stacked = false, compact = false } = options
+  const { vaultPath, defaultWorkspacePath, vaults, multiWorkspaceEnabled, onSwitchVault, onSetDefaultWorkspace, onOpenVaultSettings, onOpenLocalFolder, onCreateEmptyVault, onCloneVault, onCloneGettingStarted, buildNumber, onCheckForUpdates, onRemoveVault, onReorderVaults, onUpdateWorkspaceIdentity, syncPill, locale = 'en', stacked = false, compact = false } = options
   return (
     <div style={primarySectionStyle(stacked, compact)}>
       <VaultMenu
@@ -407,47 +409,88 @@ export function StatusBarPrimarySection(options: StatusBarPrimarySectionProps) {
         compact={compact}
         locale={locale}
       />
-      <StatusBarGitControls
-        modifiedCount={modifiedCount}
-        vaultPath={vaultPath}
-        vaults={vaults}
-        onSwitchVault={onSwitchVault}
-        remoteStatus={remoteStatus}
-        repositories={repositories}
-        selectedRepositoryPath={selectedRepositoryPath}
-        onRepositoryChange={onRepositoryChange}
-        onAddRemote={onAddRemote}
-        onClickPending={onClickPending}
-        onCommitPush={onCommitPush}
-        commitActionPending={commitActionPending}
-        gitFeaturesEnabled={gitFeaturesEnabled}
-        onInitializeGit={onInitializeGit}
-        syncStatus={syncStatus}
-        lastSyncTime={lastSyncTime}
-        onTriggerSync={onTriggerSync}
-        onPullAndPush={onPullAndPush}
-        onOpenConflictResolver={onOpenConflictResolver}
-        conflictCount={conflictCount}
-        onClickPulse={onClickPulse}
-        isGitVault={isGitVault}
-        mcpStatus={mcpStatus}
-        onInstallMcp={onInstallMcp}
-        isOffline={isOffline}
-        isVaultReloading={isVaultReloading}
-        compact={compact}
-        locale={locale}
-      />
+      {syncPill ?? <StatusBarGitControls {...options} compact={compact} locale={locale} />}
     </div>
+  )
+}
+
+function ZoomResetButton({ zoomLevel, onZoomReset, locale }: { zoomLevel: number; onZoomReset?: () => void; locale: AppLocale }) {
+  if (zoomLevel === 100) return null
+  return (
+    <ActionTooltip
+      copy={{
+        label: translate(locale, 'status.zoom.reset'),
+        ...ZOOM_RESET_SHORTCUT,
+      }}
+      side="top"
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        className="h-auto rounded-sm px-1 py-0.5 text-[12px] font-medium text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+        onClick={onZoomReset}
+        aria-label={translate(locale, 'status.zoom.reset')}
+        data-testid="status-zoom"
+      >
+        <span style={ICON_STYLE}>{zoomLevel}%</span>
+      </Button>
+    </ActionTooltip>
+  )
+}
+
+function ThemeModeButton({ themeMode, onToggleThemeMode, locale }: { themeMode: ThemeMode; onToggleThemeMode?: () => void; locale: AppLocale }) {
+  const ThemeIcon = themeMode === 'dark' ? Sun : Moon
+  const themeTooltip = {
+    label: translate(locale, themeMode === 'dark' ? 'status.theme.light' : 'status.theme.dark'),
+  }
+
+  return (
+    <ActionTooltip copy={themeTooltip} side="top" align="end" contentTestId="status-theme-mode-tooltip">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        className="text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+        onClick={onToggleThemeMode}
+        disabled={!onToggleThemeMode}
+        aria-label={themeTooltip.label}
+        data-testid="status-theme-mode"
+      >
+        <ThemeIcon size={14} weight="regular" />
+      </Button>
+    </ActionTooltip>
+  )
+}
+
+function SettingsButton({ onOpenSettings, locale }: { onOpenSettings?: () => void; locale: AppLocale }) {
+  return (
+    <ActionTooltip
+      copy={{
+        label: translate(locale, 'status.settings.open'),
+        ...SETTINGS_SHORTCUT,
+      }}
+      side="top"
+      align="end"
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        className="text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+        onClick={onOpenSettings}
+        aria-label={translate(locale, 'status.settings.open')}
+        data-testid="status-settings"
+      >
+        <Settings size={14} weight="regular" />
+      </Button>
+    </ActionTooltip>
   )
 }
 
 export function StatusBarSecondarySection(options: StatusBarSecondarySectionProps) {
   const { noteCount, zoomLevel, themeMode = 'light', onZoomReset, onToggleThemeMode, onOpenFeedback, onOpenDocs, onOpenSettings, locale = 'en', stacked = false, compact = false } = options
   void noteCount
-  const ThemeIcon = themeMode === 'dark' ? Sun : Moon
-  const themeTooltip = {
-    label: translate(locale, themeMode === 'dark' ? 'status.theme.light' : 'status.theme.dark'),
-  }
 
   return (
     <div
@@ -460,63 +503,11 @@ export function StatusBarSecondarySection(options: StatusBarSecondarySectionProp
         width: stacked ? '100%' : 'auto',
       }}
     >
-      {zoomLevel === 100 ? null : (
-        <ActionTooltip
-          copy={{
-            label: translate(locale, 'status.zoom.reset'),
-            ...ZOOM_RESET_SHORTCUT,
-          }}
-          side="top"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className="h-auto rounded-sm px-1 py-0.5 text-[12px] font-medium text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
-            onClick={onZoomReset}
-            aria-label={translate(locale, 'status.zoom.reset')}
-            data-testid="status-zoom"
-          >
-            <span style={ICON_STYLE}>{zoomLevel}%</span>
-          </Button>
-        </ActionTooltip>
-      )}
+      <ZoomResetButton zoomLevel={zoomLevel} onZoomReset={onZoomReset} locale={locale} />
       {onOpenFeedback && <FeedbackButton compact={compact} locale={locale} onOpenFeedback={onOpenFeedback} />}
       {onOpenDocs && <DocsButton compact={compact} locale={locale} onOpenDocs={onOpenDocs} />}
-      <ActionTooltip copy={themeTooltip} side="top" align="end" contentTestId="status-theme-mode-tooltip">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
-          onClick={onToggleThemeMode}
-          disabled={!onToggleThemeMode}
-          aria-label={themeTooltip.label}
-          data-testid="status-theme-mode"
-        >
-          <ThemeIcon size={14} weight="regular" />
-        </Button>
-      </ActionTooltip>
-      <ActionTooltip
-        copy={{
-          label: translate(locale, 'status.settings.open'),
-          ...SETTINGS_SHORTCUT,
-        }}
-        side="top"
-        align="end"
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
-          onClick={onOpenSettings}
-          aria-label={translate(locale, 'status.settings.open')}
-          data-testid="status-settings"
-        >
-          <Settings size={14} weight="regular" />
-        </Button>
-      </ActionTooltip>
+      <ThemeModeButton themeMode={themeMode} onToggleThemeMode={onToggleThemeMode} locale={locale} />
+      <SettingsButton onOpenSettings={onOpenSettings} locale={locale} />
     </div>
   )
 }

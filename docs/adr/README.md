@@ -97,7 +97,7 @@ proposed → active → superseded
 | [0039](0039-git-history-for-note-dates.md) | Git history as source of truth for note creation/modification dates | active |
 | [0040](0040-custom-views-yml-filter-engine.md) | Custom Views — .laputa/views/*.yml with YAML filter engine | active |
 | [0041](0041-filekind-all-files-in-vault-scanner.md) | fileKind field — scan all vault files, not just markdown | active |
-| [0042](0042-posthog-release-channels-feature-flags.md) | PostHog-based release channels and feature flags | superseded → [0057](0057-alpha-stable-release-channels-and-beta-cohorts.md) |
+| [0264](0264-posthog-release-channels-feature-flags.md) | PostHog-based release channels and feature flags | superseded → [0057](0057-alpha-stable-release-channels-and-beta-cohorts.md) |
 | [0042](0042-trash-auto-purge-safety-model.md) | Trash auto-purge safety model | superseded → [0045](0045-permanent-delete-no-trash.md) |
 | [0043](0043-reactive-vault-state-on-save.md) | Reactive vault state: editor changes propagate immediately to all UI | active |
 | [0044](0044-h1-as-title-primary-source.md) | H1 as primary title source — filename as stable identifier | superseded → [0055](0055-h1-is-the-only-editor-title-surface.md) |
@@ -163,9 +163,9 @@ proposed → active → superseded
 | [0104](0104-tauri-frontend-readiness-watchdog.md) | Tauri frontend readiness watchdog | active |
 | [0105](0105-editor-correctness-and-responsiveness-contract.md) | Editor correctness and responsiveness contract | active |
 | [0106](0106-shared-app-command-manifest.md) | Shared app command manifest | active |
-| [0107](0107-markdown-durable-tldraw-whiteboards.md) | Markdown-durable tldraw whiteboards in notes | active |
+| [0265](0265-markdown-durable-tldraw-whiteboards.md) | Markdown-durable tldraw whiteboards in notes | active |
 | [0107](0107-pointer-owned-editor-block-reordering.md) | Pointer-owned editor block reordering | active |
-| [0108](0108-direct-model-ai-targets.md) | Direct model AI targets alongside coding agents | active |
+| [0266](0266-direct-model-ai-targets.md) | Direct model AI targets alongside coding agents | active |
 | [0108](0108-sanitized-rendered-markup-and-safe-regex.md) | Sanitized rendered markup and safe user regex | active |
 | [0109](0109-debounced-worker-derived-editor-indexes.md) | Debounced worker-derived editor indexes | active |
 | [0110](0110-in-app-media-and-pdf-file-previews.md) | In-app media and PDF previews for binary vault files | superseded → [0121](0121-appimage-external-fallback-for-audio-and-video-previews.md) |
@@ -192,7 +192,7 @@ proposed → active → superseded
 | [0132](0132-alpha-authenticode-soft-gate.md) | Alpha Authenticode soft gate | superseded -> [0139](0139-temporary-windows-authenticode-soft-gate.md) |
 | [0133](0133-request-scoped-ai-stream-events.md) | Request-scoped AI stream event channels | active |
 | [0134](0134-sheet-nodes-with-plain-text-workbook-storage.md) | Sheet nodes with plain-text workbook storage | experimental |
-| [0134](0134-direct-shiki-language-registrations.md) | Direct Shiki language registrations for code blocks | active |
+| [0267](0267-direct-shiki-language-registrations.md) | Direct Shiki language registrations for code blocks | active |
 | [0135](0135-clean-active-note-refresh-after-external-edit.md) | Clean active notes refresh immediately after external edits | active |
 | [0136](0136-macos-webview-pdf-export.md) | macOS Webview PDF export | active |
 | [0137](0137-shared-rich-editor-input-transforms.md) | Shared rich-editor input transforms | active |
@@ -242,3 +242,58 @@ proposed → active → superseded
 | [0185](0185-tolaria-web-target-and-vault-backend-seam.md) | Tolaria Web target and VaultBackend seam | active |
 | [0186](0186-tolaria-remote-file-service-and-protocol.md) | Tolaria remote: git-backed file service and versioned protocol | active |
 | [0187](0187-yjs-collaboration-with-markdown-as-canonical-form.md) | Yjs collaboration with the markdown file as canonical form | active |
+| [0248](0248-expo-react-native-mobile-ui-foundation.md) | Expo React Native mobile UI foundation | active |
+| [0249](0249-nativewind-react-native-reusables-mobile-primitives.md) | Nativewind and React Native Reusables for mobile primitives | active |
+| [0250](0250-expo-sdk-54-for-ipad-expo-go-preview.md) | Expo SDK 54 for iPad Expo Go preview | superseded -> [0246](0246-mobile-expo-57-scene-lifecycle.md) |
+| [0251](0251-expo-file-system-mobile-vault-repository.md) | Expo FileSystem mobile vault repository | amended -> [0190](0190-explicit-session-scoped-ios-vault-selection.md) |
+| [0252](0252-expo-clipboard-mobile-deep-link-copy.md) | Expo Clipboard for mobile deep-link copy | active |
+| [0253](0253-mobile-folder-mutation-write-contract.md) | Mobile folder mutation write contract | active |
+| [0254](0254-mobile-note-move-write-contract.md) | Mobile note move write contract | active |
+| [0255](0255-tentap-mobile-wysiwyg-editor.md) | TenTap mobile WYSIWYG editor | active |
+| [0256](0256-expo-print-sharing-mobile-pdf-export.md) | Expo Print and Sharing for mobile PDF export | active |
+| [0257](0257-expo-document-picker-mobile-attachments.md) | Expo Document Picker for mobile attachments | active |
+| [0258](0258-mobile-vault-config-persistence.md) | Mobile vault-scoped config persistence | active |
+| [0259](0259-mobile-tentap-inline-math-node.md) | Mobile TenTap inline math node | active |
+| [0260](0260-mobile-inline-math-mathml-rendering.md) | Mobile inline math MathML rendering | active |
+| [0261](0261-mobile-tentap-code-block-node.md) | Mobile TenTap code block node | active |
+| [0262](0262-mobile-tentap-table-node.md) | Mobile TenTap table node | active |
+| [0189](0189-mobile-tentap-aligned-table-metadata.md) | Mobile TenTap aligned table metadata | active |
+| [0190](0190-explicit-session-scoped-ios-vault-selection.md) | Explicit session-scoped iOS vault selection | superseded -> [0191](0191-durable-ios-vault-bookmarks.md) |
+| [0191](0191-durable-ios-vault-bookmarks.md) | Durable iOS vault bookmarks | active |
+| [0203](0203-recoverable-ios-editor-text-saves.md) | Recoverable standalone iOS text saves | active |
+| [0204](0204-recoverable-ios-entry-mutations.md) | Recoverable standalone iOS moves and deletions | active |
+| [0235](0235-mobile-bounded-editor-document-reads.md) | Bounded native editor document reads | active |
+| [0236](0236-cooperative-mobile-workspace-preparation.md) | Cooperative mobile workspace preparation | active |
+| [0237](0237-mobile-completed-conflict-backup-retention.md) | Completed mobile conflict-backup retention | active |
+| [0238](0238-mobile-fresh-input-validated-snapshot-cache.md) | Fresh-input-validated mobile snapshot cache | active |
+| [0239](0239-mobile-known-remote-fetch-negotiation.md) | Negotiate mobile fetches from the known remote tip | active |
+| [0240](0240-mobile-bounded-git-filesystem-sessions.md) | Bounded mobile Git filesystem sessions | active |
+| [0241](0241-mobile-source-free-snapshot-previews.md) | Source-free mobile snapshot previews | active |
+| [0242](0242-mobile-startup-presentation-boundary.md) | Mobile startup presentation boundary | active |
+| [0246](0246-mobile-expo-57-scene-lifecycle.md) | Supported mobile scene lifecycle | active |
+| [0247](0247-automatic-alpha-manual-stable-mobile-ota.md) | Automatic alpha and manual stable mobile OTA | active |
+| [0269](0269-mobile-ota-validated-main-range.md) | Mobile OTA validated main range | active |
+| [0270](0270-expiring-exact-codacy-approval-records.md) | Expiring exact Codacy approval records | temporary; expires 2026-10-21 |
+| [0271](0271-mobile-revisioned-pending-note-indicators.md) | Mobile revisioned pending-note indicators | active |
+| [0277](0277-mobile-read-only-reload-reconciliation.md) | Reconcile read-only mobile reloads in the existing snapshot frame | active |
+| [0278](0278-desktop-note-save-byte-transport.md) | Desktop note saves use UTF-8 byte transport | active |
+| [0279](0279-mobile-preview-configuration-tolerance.md) | Mobile preview configuration tolerance | active |
+| [0280](0280-debounced-push-and-background-fetch.md) | Debounced push and background fetch for Tolaria remote | active |
+| [0282](0282-web-offline-read-service-worker.md) | Web offline read with a hand-written, per-account service worker | active |
+| [0283](0283-web-attachments-portable-paths-and-guarded-import.md) | Web attachments: portable paths, token-authorized object URLs and a server-side guarded image import | active |
+| [0284](0284-web-url-routing-with-query-routes.md) | Web URL routing with query routes over the History API | active |
+| [0285](0285-mobile-disk-authoritative-note-editing-and-index-reconciliation.md) | Disk-authoritative mobile note editing and index reconciliation | active |
+| [0286](0286-web-phone-layout-as-a-url-driven-pane-stack.md) | Web phone layout as a URL-driven pane stack | active |
+| [0287](0287-web-tablet-layout-and-browser-safe-shortcuts.md) | Web tablet layout and browser-safe shortcuts | active |
+| [0288](0288-web-touch-input-long-press-menus-and-touch-targets.md) | Web touch input: long-press menus and 44 px touch targets | active |
+| [0289](0289-server-rename-transaction-with-live-link-patches.md) | Server rename transaction with live wikilink patches | active |
+| [0290](0290-live-document-keeps-its-edits-on-a-desktop-conflict.md) | A live document keeps its edits on a desktop conflict; the incoming version becomes the conflict copy | active |
+| [0291](0291-presence-in-the-web-note-view.md) | Presence in the web note view: device names, paced awareness, clear within 5 s | active |
+| [0292](0292-in-process-request-and-websocket-limits-on-the-server.md) | In-process request and websocket limits on the server, per account | active |
+| [0293](0293-folder-create-and-delete-on-the-server.md) | Folders created on the server hold a .keep file; folder deletes take every file in one commit | active |
+| [0294](0294-web-build-error-telemetry-and-hidden-source-maps.md) | Web build error telemetry: build-time DSN, commit releases and hidden source maps | active |
+| [0295](0295-mobile-note-reads-during-linked-folder-sync.md) | Mobile note reads during linked-folder sync | active |
+| [0296](0296-sharing-enforced-in-the-server-with-signed-access-tickets.md) | Sharing is enforced in the open server with signed, short-lived access tickets; share records stay with the front end | active |
+| [0297](0297-collaborator-attribution-in-co-authored-by-trailers.md) | Shared edits name their collaborators in Co-authored-by trailers; the identity comes from the access ticket | active |
+| [0299](0299-mobile-native-platform-chrome.md) | Mobile chrome follows native platform conventions while note content and type icons retain desktop parity | active |
+| [0300](0300-optimistic-mobile-workspace-writes-with-per-path-locks-and-rollback.md) | Optimistic mobile workspace writes use per-path locks and selective rollback (complements [0285](0285-mobile-disk-authoritative-note-editing-and-index-reconciliation.md)) | active |

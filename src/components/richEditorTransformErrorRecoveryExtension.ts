@@ -1,15 +1,23 @@
 import { createExtension } from '@blocknote/core'
-import { trackEvent } from '../lib/telemetry'
 import { repairMalformedEditorBlocks } from '../hooks/editorBlockRepair'
 import {
-  classifyRichEditorRecoveryError,
   richEditorRecoveryErrorNeedsDocumentRepair,
   type RichEditorTransformRecoveryReason,
 } from './richEditorRecoveryClassifier'
+import {
+  isRecoverableEditorTransformError,
+  reportRecoveredEditorTransformError,
+  richEditorTransformRecoveryErrorReason,
+} from './richEditorTransformRecoveryReporting'
 import { createMalformedBlockClipboardRecoveryPlugin } from './richEditorMalformedClipboardRecovery'
 import { repairMalformedBlockContainers } from './richEditorMalformedBlockRecovery'
 import type { RichEditorPropRunner, RichEditorSomeProp } from './richEditorTransformRecoveryTypes'
 export { isStaleBlockReferenceError } from './richEditorRecoveryClassifier'
+export {
+  isRecoverableEditorTransformError,
+  reportRecoveredEditorTransformError,
+  richEditorTransformRecoveryErrorReason,
+} from './richEditorTransformRecoveryReporting'
 
 const DISPATCH_RECOVERY_STATE_KEY = '__tolariaRichEditorTransformErrorRecovery'
 const RECOVERABLE_EDITOR_HANDLER_PROPS = new Set([
@@ -91,14 +99,6 @@ function transactionDocIsStale(transaction: unknown, view: RichEditorDispatchVie
   return !currentDoc.eq(before)
 }
 
-export function isRecoverableEditorTransformError(error: unknown): boolean {
-  return richEditorTransformRecoveryErrorReason(error) !== null
-}
-
-export function richEditorTransformRecoveryErrorReason(error: unknown): RecoveryReason | null {
-  return classifyRichEditorRecoveryError(error, 'transform')
-}
-
 function recoveryReason(
   error: unknown,
   transaction: unknown,
@@ -110,11 +110,6 @@ function recoveryReason(
 
 function shouldRepairEditorDocument(error: unknown): boolean {
   return richEditorRecoveryErrorNeedsDocumentRepair(error)
-}
-
-export const reportRecoveredEditorTransformError = (reason: RecoveryReason, error: unknown): void => {
-  console.warn('[editor] Recovered rich-editor transform error:', error)
-  trackEvent('rich_editor_transform_error_recovered', { reason })
 }
 
 function releaseRecoveryState(

@@ -4,7 +4,13 @@ const tauriInvoke = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke: tauriInvoke }))
 
 import { MOCK_ENTRIES } from '../../mock-tauri/mock-entries'
-import { contentRevision, createMockVaultBackend, createTauriVaultBackend, createVaultBackend } from './index'
+import {
+  contentRevision,
+  createMockVaultBackend,
+  createRemoteAttachmentClient,
+  createTauriVaultBackend,
+  createVaultBackend,
+} from './index'
 
 const VAULT = '/Users/mock/demo-vault-v2'
 
@@ -53,5 +59,25 @@ describe('vault backend factories', () => {
     expect((await backend.files.read(path)).content).toBe('# Mine')
 
     expect(await backend.files.delete([path])).toEqual([path])
+  })
+})
+
+describe('the remote attachment client (TOL-204)', () => {
+  const target = window as { TOLARIA_REMOTE_URL?: string; TOLARIA_REMOTE_TOKEN?: string }
+
+  afterEach(() => {
+    delete target.TOLARIA_REMOTE_URL
+    delete target.TOLARIA_REMOTE_TOKEN
+  })
+
+  it('exists only when a remote serves the vault', () => {
+    expect(createRemoteAttachmentClient()).toBeNull()
+
+    target.TOLARIA_REMOTE_URL = 'https://vault.example'
+    target.TOLARIA_REMOTE_TOKEN = 'token-for-tests'
+    expect(createRemoteAttachmentClient()).toMatchObject({ save: expect.any(Function), read: expect.any(Function) })
+
+    setTauriRuntime(true)
+    expect(createRemoteAttachmentClient()).toBeNull()
   })
 })

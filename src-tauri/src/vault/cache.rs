@@ -29,7 +29,8 @@ use cache_io::{
 /// Bump this when VaultEntry fields change to force a full rescan.
 /// v12: fix gray_matter YAML sanitization (unquoted colons / hash comments in list items)
 /// v14: preserve scalar-array custom frontmatter properties in VaultEntry
-const CACHE_VERSION: u32 = 14;
+/// v15: preserve Type status fields as instance defaults
+const CACHE_VERSION: u32 = 15;
 const CACHE_WRITE_LOCK_STALE_SECS: u64 = 30;
 
 #[cfg(test)]

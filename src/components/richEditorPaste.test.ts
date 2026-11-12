@@ -7,6 +7,9 @@ import {
 } from './richEditorPaste'
 import { schema } from './editorSchema'
 
+const importRemoteImagesToVault = vi.hoisted(() => vi.fn())
+vi.mock('../lib/remoteAttachments', () => ({ importRemoteImagesToVault }))
+
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
 }))
@@ -308,5 +311,48 @@ describe('handleRichEditorPaste', () => {
     await Promise.resolve()
 
     expect(context.editor.updateBlock).not.toHaveBeenCalled()
+  })
+})
+
+describe('rich paste of remote images on a Tolaria remote (TOL-204)', () => {
+  const target = window as { TOLARIA_REMOTE_URL?: string; TOLARIA_REMOTE_TOKEN?: string }
+
+  it('has the server import them and links their portable attachment paths', async () => {
+    target.TOLARIA_REMOTE_URL = 'https://vault.example'
+    target.TOLARIA_REMOTE_TOKEN = 'token-for-tests'
+    importRemoteImagesToVault.mockResolvedValue({
+      failedCount: 0,
+      replacements: new Map([['https://example.com/photo.png', 'attachments/123-photo.png']]),
+      totalCount: 1,
+    })
+    const desktopImport = vi.fn()
+    const onImportResult = vi.fn()
+    const context = pasteContext({ 'text/html': '<img src="https://example.com/photo.png">' })
+    context.editor = {
+      document: [{
+        id: 'list-1',
+        type: 'bulletListItem',
+        children: [{ id: 'image-1', type: 'image', props: { url: 'https://example.com/photo.png' } }],
+      }],
+      pasteText: vi.fn(() => true),
+      updateBlock: vi.fn(),
+    }
+    const handler = createRichEditorPasteHandler({
+      getVaultPath: () => undefined,
+      importImages: desktopImport,
+      onImportResult,
+    })
+
+    try {
+      handler(context)
+      await vi.waitFor(() => expect(onImportResult).toHaveBeenCalledWith({ failedCount: 0, totalCount: 1 }))
+    } finally {
+      delete target.TOLARIA_REMOTE_URL
+      delete target.TOLARIA_REMOTE_TOKEN
+    }
+
+    expect(importRemoteImagesToVault).toHaveBeenCalledWith([{ alt: '', url: 'https://example.com/photo.png' }])
+    expect(desktopImport).not.toHaveBeenCalled()
+    expect(context.editor.updateBlock).toHaveBeenCalledWith('image-1', { props: { url: 'attachments/123-photo.png' } })
   })
 })

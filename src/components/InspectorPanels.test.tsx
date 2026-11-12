@@ -109,9 +109,9 @@ describe('DynamicRelationshipsPanel', () => {
         onNavigate={onNavigate}
       />
     )
-    const chip = container.querySelector('.group\\/link')
+    const chip = container.querySelector<HTMLElement>('.group\\/link')
     expect(chip).toBeTruthy()
-    expect(chip!.style.color).toBe(expectedColor)
+    expect(chip?.style.color).toBe(expectedColor)
   })
 
   it('hides empty state label when frontmatter has no relations', () => {
@@ -169,6 +169,28 @@ describe('DynamicRelationshipsPanel', () => {
     fireEvent.keyDown(within(placeholder).getByTestId('add-relation-ref-input'), { key: 'Enter' })
 
     expect(onAddProperty).toHaveBeenCalledWith('Mentor', '[[project/my-project]]')
+  })
+
+  it('shows Type relationship schema properties as relationship placeholders', () => {
+    const bookType = makeEntry({
+      path: '/vault/book.md',
+      filename: 'book.md',
+      title: 'Book',
+      isA: 'Type',
+      properties: {
+        has: 'Chapter',
+      },
+    })
+
+    renderRelationshipsPanel({
+      entry: makeEntry({ title: 'Dune', isA: 'Book' }),
+      entries: [...entries, bookType],
+      frontmatter: {},
+      onAddProperty,
+    })
+
+    const placeholder = screen.getByTestId('type-derived-relationship')
+    expect(within(placeholder).getByText('Has')).toHaveClass('text-muted-foreground/40')
   })
 
   it('navigates when clicking a relationship link', () => {

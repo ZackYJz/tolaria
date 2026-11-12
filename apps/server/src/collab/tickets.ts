@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { CollabAccess, CollabTicketResponse } from '../../../../packages/protocol/src/index.ts'
 import { ROUTES } from '../../../../packages/protocol/src/index.ts'
+import type { Access } from '../access.ts'
 import type { DocId } from '../docIndex.ts'
 
 /**
@@ -12,6 +13,8 @@ import type { DocId } from '../docIndex.ts'
 export interface Grant {
   docId: DocId
   access: CollabAccess
+  /** The credential the ticket was asked for with, when it was an access ticket: revocations follow it. */
+  holder?: Access
 }
 
 interface Issued extends Grant {
@@ -42,13 +45,13 @@ export class TicketBook {
     }
   }
 
-  /** The access a ticket gives to a document, or null. A ticket works once. */
-  redeem(ticket: string, docId: DocId): CollabAccess | null {
+  /** What a ticket gives on a document, or null. A ticket works once. */
+  redeem(ticket: string, docId: DocId): Grant | null {
     const found = this.issued.get(ticket)
     if (!found) return null
     this.issued.delete(ticket)
     if (found.docId !== docId || found.expiresAt <= this.now()) return null
-    return found.access
+    return { docId: found.docId, access: found.access, holder: found.holder }
   }
 
   private dropExpired(): void {

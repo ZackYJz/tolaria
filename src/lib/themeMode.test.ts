@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applyStoredThemeMode,
   applyThemeModeToDocument,
+  applyThemeSelectionToDocument,
   LEGACY_THEME_MODE_STORAGE_KEY,
   normalizeThemeMode,
   readStoredThemeMode,
@@ -27,6 +28,8 @@ describe('themeMode', () => {
     expect(normalizeThemeMode('light')).toBe('light')
     expect(normalizeThemeMode('dark')).toBe('dark')
     expect(normalizeThemeMode('system')).toBe('system')
+    expect(normalizeThemeMode('hybrid')).toBe('hybrid')
+    expect(resolveThemeMode('hybrid')).toBe('light')
     expect(resolveThemeMode('system', makeMatchMedia(true))).toBe('dark')
     expect(resolveThemeMode('system', makeMatchMedia(false))).toBe('light')
     expect(resolveThemeMode('sepia')).toBe('light')
@@ -39,6 +42,15 @@ describe('themeMode', () => {
 
     expect(readStoredThemeMode(storage)).toBe('system')
     expect(storage.setItem).toHaveBeenCalledWith(THEME_MODE_STORAGE_KEY, 'system')
+  })
+
+  it('persists hybrid mode under the current theme storage key', () => {
+    const storage = makeStorage()
+
+    writeStoredThemeMode(storage, 'hybrid')
+
+    expect(readStoredThemeMode(storage)).toBe('hybrid')
+    expect(storage.setItem).toHaveBeenCalledWith(THEME_MODE_STORAGE_KEY, 'hybrid')
   })
 
   it('migrates the legacy storage key', () => {
@@ -56,6 +68,9 @@ describe('themeMode', () => {
     applyThemeModeToDocument(document, 'light')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     expect(document.documentElement).not.toHaveClass('dark')
+    applyThemeSelectionToDocument(document, 'hybrid')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(document.documentElement).toHaveAttribute('data-theme-mode', 'hybrid')
   })
 
   it('bootstraps stored theme mode onto the document', () => {

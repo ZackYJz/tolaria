@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initials, PRESENCE_COLORS, presentUsers, userColor } from '../src/presence.ts'
+import { clientColor, initials, MAX_NAME_LENGTH, PRESENCE_COLORS, presentUsers, safeColor, safeName, userColor } from '../src/presence.ts'
 
 describe('presence', () => {
   it('lists who announced a user, the viewer first and the others by name', () => {
@@ -24,9 +24,38 @@ describe('presence', () => {
     expect(user).toEqual({ clientId: 1, name: '?', color: userColor('?'), self: false })
   })
 
+  it.each([
+    ['red; background: url(https://evil.test)'],
+    ['url(javascript:alert(1))'],
+    ['#12345'],
+    [`#${'a'.repeat(10_000)}`],
+    ['rgb(1, 2, 3)'],
+  ])('replaces the announced colour %j with the derived one', (color) => {
+    const [user] = presentUsers(new Map([[1, { user: { name: 'Ada', color } }]]), 9)
+
+    expect(user.color).toBe(userColor('Ada'))
+  })
+
+  it('cuts an oversized name a peer announces', () => {
+    const [user] = presentUsers(new Map([[1, { user: { name: 'é'.repeat(10_000) } }]]), 9)
+
+    expect([...user.name]).toHaveLength(MAX_NAME_LENGTH)
+    expect(safeName(42)).toBe('?')
+  })
+
+  it('accepts only a plain hex colour from a peer', () => {
+    expect([safeColor('#1971C2'), safeColor(' #1971c2'), safeColor(null)]).toEqual(['#1971C2', null, null])
+  })
+
   it('gives a name the same colour every time, from the palette', () => {
     expect(userColor('Ada Lovelace')).toBe(userColor('Ada Lovelace'))
     expect(PRESENCE_COLORS).toContain(userColor('Luca'))
+  })
+
+  it('gives each open document a palette colour, so two windows of one device differ', () => {
+    expect([clientColor(0), clientColor(1), clientColor(8)]).toEqual([PRESENCE_COLORS[0], PRESENCE_COLORS[1], PRESENCE_COLORS[0]])
+    expect(PRESENCE_COLORS).toContain(clientColor(-3))
+    expect(clientColor(Number.NaN)).toBe(PRESENCE_COLORS[0])
   })
 
   it.each([

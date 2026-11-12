@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { isTauri, mockInvoke } from '../mock-tauri'
 import type { NoteWidthMode, Settings, VaultEntry } from '../types'
 import type { FrontmatterValue } from '../components/Inspector'
 import type { FrontmatterOpOptions } from './frontmatterOps'
+import { createVaultBackend } from '../lib/vaultBackend'
 import { trackEvent } from '../lib/telemetry'
 import { canPersistNoteWidthMode, resolveNoteWidthMode, toggleNoteWidthMode } from '../utils/noteWidth'
 
@@ -18,6 +17,7 @@ interface EditorTab {
 
 interface ReadWidthContentRequest {
   path: VaultPath
+  vaultPath: string
   fallbackContent: MarkdownContent
 }
 
@@ -35,6 +35,7 @@ interface CurrentWidthRequest {
 interface UseNoteWidthModeOptions {
   tabs: EditorTab[]
   activeTabPath: VaultPath | null
+  vaultPath: string
   settings: Settings
   saveSettings: (settings: Settings) => Promise<void>
   updateFrontmatter: (
@@ -49,6 +50,7 @@ interface UseNoteWidthModeOptions {
 interface PersistWidthRequest {
   activeTab: EditorTab | null
   mode: NoteWidthMode
+  vaultPath: string
   updateFrontmatter: UseNoteWidthModeOptions['updateFrontmatter']
   rememberTransientWidth: (path: VaultPath, mode: NoteWidthMode) => void
   setToastMessage: (message: ToastMessage) => void
@@ -70,12 +72,13 @@ function resolveCurrentWidth({
 
 async function readNoteContentForWidthPersistence({
   path,
+  vaultPath,
   fallbackContent,
 }: ReadWidthContentRequest): Promise<MarkdownContent> {
   try {
-    return isTauri()
-      ? await invoke<MarkdownContent>('get_note_content', { path })
-      : await mockInvoke<MarkdownContent>('get_note_content', { path })
+    const backend = createVaultBackend(vaultPath)
+    const { content } = await backend.files.read(path)
+    return content
   } catch (error) {
     void error
     return fallbackContent
@@ -85,6 +88,7 @@ async function readNoteContentForWidthPersistence({
 async function persistOrRememberNoteWidth({
   activeTab,
   mode,
+  vaultPath,
   updateFrontmatter,
   rememberTransientWidth,
   setToastMessage,
@@ -94,6 +98,7 @@ async function persistOrRememberNoteWidth({
 
   const persistedContent = await readNoteContentForWidthPersistence({
     path,
+    vaultPath,
     fallbackContent: activeTab.content,
   })
   if (!canPersistNoteWidthMode(persistedContent)) {
@@ -114,6 +119,7 @@ async function persistOrRememberNoteWidth({
 export function useNoteWidthMode({
   tabs,
   activeTabPath,
+  vaultPath,
   settings,
   saveSettings,
   updateFrontmatter,
@@ -144,10 +150,11 @@ export function useNoteWidthMode({
   const setNoteWidth = useCallback((mode: NoteWidthMode) => persistOrRememberNoteWidth({
     activeTab,
     mode,
+    vaultPath,
     updateFrontmatter,
     rememberTransientWidth,
     setToastMessage,
-  }), [activeTab, rememberTransientWidth, setToastMessage, updateFrontmatter])
+  }), [activeTab, vaultPath, rememberTransientWidth, setToastMessage, updateFrontmatter])
 
   const toggleNoteWidth = useCallback(() => {
     void setNoteWidth(toggleNoteWidthMode(noteWidth))

@@ -5,6 +5,7 @@ import { workspacePathForEntry } from '../utils/workspaces'
 import { markNoteOpenTrace } from '../utils/noteOpenPerformance'
 import { errorMessage, isActiveVaultUnavailableError } from '../utils/vaultErrors'
 import { getNoteWindowParams, isNoteWindow } from '../utils/windowMode'
+import { createVaultBackend } from '../lib/vaultBackend'
 
 type NotePath = VaultEntry['path']
 
@@ -183,10 +184,8 @@ function getNoteContentCommandPayload(path: string, vaultPath?: string): { path:
 }
 
 function runGetNoteContentCommand(path: string, vaultPath?: string): Promise<string> {
-  const commandPayload = getNoteContentCommandPayload(path, vaultPath)
-  return isTauri()
-    ? invoke<string>('get_note_content', commandPayload)
-    : mockInvoke<string>('get_note_content', commandPayload)
+  const { vaultPath: scopedVaultPath } = getNoteContentCommandPayload(path, vaultPath)
+  return createVaultBackend(scopedVaultPath).files.read(path).then(file => file.content)
 }
 
 function delay(ms: number): Promise<void> {
@@ -414,10 +413,11 @@ export function getCachedNoteContentEntry(path: string): NoteContentCacheEntry |
 
 async function validateCachedNoteContent(entry: NoteContentCacheEntry): Promise<boolean> {
   if (entry.value === null) return false
-  const payload = getValidateNoteContentCommandPayload(entry.path, entry.value, entry.vaultPath)
-  return isTauri()
-    ? invoke<boolean>('validate_note_content', payload)
-    : mockInvoke<boolean>('validate_note_content', payload)
+  if (isTauri()) {
+    const payload = getValidateNoteContentCommandPayload(entry.path, entry.value, entry.vaultPath)
+    return invoke<boolean>('validate_note_content', payload)
+  }
+  return mockInvoke<boolean>('validate_note_content', getValidateNoteContentCommandPayload(entry.path, entry.value, entry.vaultPath))
 }
 
 function matchesCachedContentVault(entry: VaultEntry, cachedEntry: NoteContentCacheEntry): boolean {

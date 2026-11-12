@@ -1,46 +1,18 @@
 import { useState, useRef, useEffect, useCallback, type RefObject } from 'react'
 import type { SearchResult } from '../types'
-import { invoke } from '@tauri-apps/api/core'
-import { isTauri, mockInvoke } from '../mock-tauri'
+import { createVaultBackend } from '../lib/vaultBackend'
 import { GITIGNORED_VISIBILITY_CHANGED_EVENT } from '../lib/gitignoredVisibilityEvents'
-
-interface SearchResultData {
-  title: string
-  path: string
-  snippet: string
-  score: number
-  note_type: string | null
-}
-
-interface SearchResponseData {
-  results: SearchResultData[]
-  elapsed_ms: number
-}
 
 const DEBOUNCE_MS = 300
 
-function searchCall(args: Record<string, unknown>): Promise<SearchResponseData> {
-  return isTauri()
-    ? invoke<SearchResponseData>('search_vault', args)
-    : mockInvoke<SearchResponseData>('search_vault', args)
-}
-
-function mapResults(raw: SearchResultData[]): SearchResult[] {
+function mapResults(raw: SearchResult[]): SearchResult[] {
   const seen = new Set<string>()
-  return raw
-    .map(r => ({
-      title: r.title,
-      path: r.path,
-      snippet: r.snippet,
-      score: r.score,
-      noteType: r.note_type,
-    }))
-    .filter(r => {
-      if (seen.has(r.path)) return false
-      if (r.noteType === 'Config') return false
-      seen.add(r.path)
-      return true
-    })
+  return raw.filter(r => {
+    if (seen.has(r.path)) return false
+    if (r.noteType === 'Config') return false
+    seen.add(r.path)
+    return true
+  })
 }
 
 function useGitignoredVisibilitySearchRefresh({
@@ -110,10 +82,13 @@ export function useUnifiedSearch(vaultPath: string | string[], active: boolean) 
       const paths = Array.isArray(vaultPath) ? vaultPath : [vaultPath]
       const responses = await Promise.all(paths
         .filter((path) => path.trim().length > 0)
-        .map((path) => searchCall({ vaultPath: path, query: q, mode: 'keyword', limit: 20 })))
+        .map((path) => {
+          const backend = createVaultBackend(path)
+          return backend.files.search(q, { limit: 20 })
+        }))
       if (gen !== searchGenRef.current) return
       setResults(mapResults(responses.flatMap((response) => response.results)).slice(0, 20))
-      setElapsedMs(responses.reduce((sum, response) => sum + response.elapsed_ms, 0))
+      setElapsedMs(responses.reduce((sum, response) => sum + response.elapsedMs, 0))
       setSelectedIndex(0)
     } catch {
       if (gen !== searchGenRef.current) return

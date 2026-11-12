@@ -2,6 +2,7 @@ import { startTransition, useCallback, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri, mockInvoke } from '../mock-tauri'
 import { trackEvent } from '../lib/telemetry'
+import { deleteRemoteNotes, hasRemoteVault } from '../lib/remoteNotes'
 
 interface ConfirmDeleteState {
   title: string
@@ -72,6 +73,7 @@ async function runDeleteCommand(
   paths: string[],
   resolveVaultPathForPath?: (path: string) => string | null | undefined,
 ): Promise<string[]> {
+  if (hasRemoteVault()) return deleteRemoteNotes(paths)
   const batches = groupDeletePathsByVault(paths, resolveVaultPathForPath)
   const deletedGroups = await Promise.all(batches.map((batch) => (
     isTauri()

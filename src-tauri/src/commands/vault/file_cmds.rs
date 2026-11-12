@@ -242,19 +242,47 @@ pub async fn validate_note_content(
     super::off_main_thread(move || validate_note_content_blocking(path, content, vault_path)).await
 }
 
+// The path header is small; note/image bytes never pass through JSON serialization.
+fn decode_note_bytes_request(
+    body: &tauri::ipc::InvokeBody,
+    headers: &tauri::http::HeaderMap,
+) -> Result<(PathBuf, String), String> {
+    use base64::Engine;
+
+    let encoded_path = headers
+        .get("x-tolaria-note-path")
+        .ok_or("Missing note path")?
+        .to_str()
+        .map_err(|e| e.to_string())?;
+    let path_bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded_path)
+        .map_err(|e| e.to_string())?;
+    let path = String::from_utf8(path_bytes).map_err(|e| e.to_string())?;
+    let tauri::ipc::InvokeBody::Raw(bytes) = body else {
+        return Err("Note content must be UTF-8 bytes".to_string());
+    };
+    let content = String::from_utf8(bytes.clone()).map_err(|e| e.to_string())?;
+    Ok((PathBuf::from(path), content))
+}
+
+#[tauri::command]
+pub async fn save_note_content_bytes(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let (path, content) = decode_note_bytes_request(request.body(), request.headers())?;
+    save_note_content(path, content, None).await
+}
+
 #[tauri::command]
 pub async fn save_note_content(
     path: PathBuf,
     content: String,
     vault_path: Option<PathBuf>,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         with_writable_note_path(path, vault_path, |validated_path| {
             vault::save_note_content(validated_path, &content)
         })
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 pub(crate) fn create_note_content_blocking(
@@ -405,47 +433,84 @@ pub async fn download_remote_image_to_vault(
     vault_path: PathBuf,
     url: String,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking_labeled("Remote image task failed", move || {
         with_image_asset_scope(&app_handle, vault_path.as_path(), |requested_root| {
             vault::download_remote_image(requested_root, &url)
         })
     })
-    .await
-    .map_err(|error| format!("Remote image task failed: {error}"))?
+    .await?
 }
 
 #[tauri::command]
 pub async fn list_vault(path: PathBuf) -> Result<Vec<VaultEntry>, String> {
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         with_expanded_vault_root(path.as_path(), scan_visible_vault_entries)
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[tauri::command]
 pub async fn read_vault_snapshot(path: PathBuf) -> Result<Option<Vec<VaultEntry>>, String> {
     let hide_gitignored = crate::settings::hide_gitignored_files_enabled();
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         with_expanded_vault_root(path.as_path(), |vault_path| {
             let snapshot = vault::read_vault_snapshot(vault_path)?;
             Ok(snapshot
                 .map(|entries| filter_visible_vault_entries(vault_path, entries, hide_gitignored)))
         })
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[tauri::command]
 pub async fn list_vault_folders(path: PathBuf) -> Result<Vec<FolderNode>, String> {
-    tokio::task::spawn_blocking(move || {
+    crate::commands::blocking::run_blocking(move || {
         with_expanded_vault_root(path.as_path(), scan_visible_vault_folders)
     })
-    .await
-    .map_err(|e| format!("Task panicked: {e}"))?
+    .await?
 }
 
 #[cfg(test)]
 #[path = "file_cmds_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod byte_save_tests {
+    use super::*;
+    use base64::Engine;
+    use tauri::http::HeaderMap;
+    use tauri::ipc::InvokeBody;
+
+    fn path_headers(path: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(path);
+        headers.insert("x-tolaria-note-path", encoded.parse().unwrap());
+        headers
+    }
+
+    #[test]
+    fn embedded_image_bytes_and_unicode_path_roundtrip() {
+        let path = "/vault/日本語 🖼.md";
+        let content = format!(
+            "![photo](data:image/png;base64,{})\nTyped — 日本語",
+            "A".repeat(8 * 1024 * 1024)
+        );
+        let body = InvokeBody::Raw(content.as_bytes().to_vec());
+        let (decoded_path, decoded_content) =
+            decode_note_bytes_request(&body, &path_headers(path)).unwrap();
+        assert_eq!(decoded_path, PathBuf::from(path));
+        assert_eq!(decoded_content, content);
+    }
+
+    #[test]
+    fn malformed_byte_requests_fail_without_writing() {
+        let body = InvokeBody::Raw(vec![255]);
+        assert!(decode_note_bytes_request(&body, &path_headers("/vault/note.md")).is_err());
+        assert!(decode_note_bytes_request(&body, &HeaderMap::new()).is_err());
+        let json = InvokeBody::Json(serde_json::json!({"content": "draft"}));
+        assert!(decode_note_bytes_request(&json, &path_headers("/vault/note.md")).is_err());
+        let mut invalid_headers = HeaderMap::new();
+        invalid_headers.insert("x-tolaria-note-path", "%%%".parse().unwrap());
+        assert!(decode_note_bytes_request(&body, &invalid_headers).is_err());
+    }
+}

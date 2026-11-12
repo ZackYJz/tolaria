@@ -162,17 +162,19 @@ fn read_native_clipboard(command: Command) -> Result<String, String> {
 #[cfg(desktop)]
 #[tauri::command]
 pub async fn copy_text_to_clipboard(text: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || write_native_clipboard(clipboard_command(), &text))
-        .await
-        .map_err(|e| format!("Native clipboard task failed: {e}"))?
+    crate::commands::blocking::run_blocking_labeled("Native clipboard task failed", move || {
+        write_native_clipboard(clipboard_command(), &text)
+    })
+    .await?
 }
 
 #[cfg(desktop)]
 #[tauri::command]
 pub async fn read_text_from_clipboard() -> Result<String, String> {
-    tokio::task::spawn_blocking(move || read_native_clipboard(clipboard_read_command()))
-        .await
-        .map_err(|e| format!("Native clipboard task failed: {e}"))?
+    crate::commands::blocking::run_blocking_labeled("Native clipboard task failed", move || {
+        read_native_clipboard(clipboard_read_command())
+    })
+    .await?
 }
 
 #[cfg(mobile)]

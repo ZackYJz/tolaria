@@ -46,7 +46,7 @@ export function EditorMemoryProbe({
   locale?: AppLocale
   vaultPath?: string
 }) {
-  const controller = useEditorMemoryProbeController(entries)
+  const controller = useEditorMemoryProbeController(entries, vaultPath ?? '')
   useEditorMemoryProbeBridge(controller)
   useEditorMemoryProbeShortcut(controller.runAndCopy)
 

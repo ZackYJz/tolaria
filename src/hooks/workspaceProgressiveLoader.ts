@@ -1,6 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { VaultOption } from '../components/status-bar/types'
 import type { VaultEntry } from '../types'
+import { isTauri } from '../mock-tauri'
+import { resolveBrowserBackendKind } from '../lib/platformCapabilities'
 import { loadWorkspaceEntries } from './vaultLoaderCommands'
 import {
   nearestLoadedWorkspaceAncestor,
@@ -41,9 +43,17 @@ function reuseLoadedAncestor(options: ProgressiveWorkspaceLoadOptions, vault: Va
   return true
 }
 
+/**
+ * On a Tolaria remote, listing the active vault again only repeats the initial load (there is
+ * no rescan to force), and its full fetch and re-render held the first list paint back (TOL-206).
+ */
+function repeatsInitialRemoteLoad(options: ProgressiveWorkspaceLoadOptions, vault: VaultOption): boolean {
+  return vault.path === options.vaultPath && !isTauri() && resolveBrowserBackendKind() === 'remote'
+}
+
 async function loadWorkspace(options: ProgressiveWorkspaceLoadOptions, vault: VaultOption): Promise<void> {
   try {
-    if (reuseLoadedAncestor(options, vault)) return
+    if (repeatsInitialRemoteLoad(options, vault) || reuseLoadedAncestor(options, vault)) return
     const loadedEntries = await loadWorkspaceEntries(vault, options.defaultWorkspacePath, {
       forceReload: vault.path === options.vaultPath,
       reloadIfEmpty: true,

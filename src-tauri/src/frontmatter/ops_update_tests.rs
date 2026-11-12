@@ -241,3 +241,66 @@ fn test_update_frontmatter_canonicalizes_type_key_case() {
 
     assert_update_cases(cases);
 }
+
+/// Golden cases shared with the web port of these operations
+/// (`src/lib/frontmatterText/ops.ts`): both read the same fixture file and must produce
+/// the same bytes, so a property written on the web is the one the desktop would write.
+mod golden {
+    use super::{update_frontmatter_content, FrontmatterValue};
+    use serde::Deserialize;
+
+    const GOLDEN_CASES_JSON: &str =
+        include_str!("../../../tests/fixtures/frontmatter-ops/cases.json");
+
+    #[derive(Deserialize)]
+    struct GoldenFile {
+        cases: Vec<GoldenCase>,
+    }
+
+    #[derive(Deserialize)]
+    struct GoldenCase {
+        name: String,
+        content: String,
+        key: String,
+        op: String,
+        #[serde(default)]
+        value: serde_json::Value,
+        expected: Option<String>,
+        error: Option<String>,
+    }
+
+    impl GoldenCase {
+        fn value(&self) -> Option<FrontmatterValue> {
+            match self.op.as_str() {
+                "update" => Some(
+                    serde_json::from_value(self.value.clone())
+                        .unwrap_or_else(|err| panic!("{}: bad value: {err}", self.name)),
+                ),
+                "delete" => None,
+                other => panic!("{}: unknown op {other}", self.name),
+            }
+        }
+    }
+
+    fn golden_cases() -> Vec<GoldenCase> {
+        serde_json::from_str::<GoldenFile>(GOLDEN_CASES_JSON)
+            .expect("golden cases must parse")
+            .cases
+    }
+
+    #[test]
+    fn frontmatter_updates_match_the_shared_golden_cases() {
+        let cases = golden_cases();
+        assert!(!cases.is_empty());
+        for case in cases {
+            let result = update_frontmatter_content(&case.content, &case.key, case.value());
+            match (&case.expected, &case.error) {
+                (Some(expected), None) => {
+                    assert_eq!(result.as_ref(), Ok(expected), "{}", case.name)
+                }
+                (None, Some(error)) => assert_eq!(result.as_ref(), Err(error), "{}", case.name),
+                _ => panic!("{}: needs exactly one of expected or error", case.name),
+            }
+        }
+    }
+}

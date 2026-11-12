@@ -1,7 +1,9 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import type { EditorProps } from './Editor'
 import { EditorStartupFallback } from './EditorStartupFallback'
-import { markStartupPhase, waitForStartupPhase } from '../lib/startupPerformance'
+import { markStartupPhase } from '../lib/startupPerformance'
+import { waitForEditorTurn } from './editorLoadTurn'
+import { PhoneNoteBackBar } from './phone/PhoneNoteBackBar'
 
 let editorModulePromise: Promise<{ Editor: ComponentType<EditorProps> }> | null = null
 
@@ -36,7 +38,7 @@ export function LazyEditor(props: EditorProps) {
   useEffect(() => {
     const lifecycle = new AbortController()
     void (async () => {
-      if (!props.activeTabPath) await waitForStartupPhase('react_shell')
+      if (!props.activeTabPath) await waitForEditorTurn()
       if (lifecycle.signal.aborted) return
       const module = await loadEditorModule()
       commitLoadedEditor(lifecycle, (Editor) => { setEditor(() => Editor) }, module.Editor)
@@ -44,5 +46,10 @@ export function LazyEditor(props: EditorProps) {
     return () => { lifecycle.abort() }
   }, [props.activeTabPath])
 
-  return Editor ? <LoadedEditor Editor={Editor} {...props} /> : <EditorStartupFallback {...props} />
+  return (
+    <>
+      <PhoneNoteBackBar locale={props.locale ?? 'en'} />
+      {Editor ? <LoadedEditor Editor={Editor} {...props} /> : <EditorStartupFallback {...props} />}
+    </>
+  )
 }

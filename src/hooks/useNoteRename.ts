@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri, mockInvoke } from '../mock-tauri'
 import type { VaultEntry, WorkspaceIdentity } from '../types'
@@ -6,13 +6,12 @@ import { slugify } from './useNoteCreation'
 import {
   findByNotePath,
   normalizeVaultRelativePath,
-  notePathFilename,
   notePathsMatch,
-  vaultRelativePathLabel,
 } from '../utils/notePathIdentity'
-import { filenameStemToTitle } from '../utils/noteTitle'
 import { vaultPathForEntry } from '../utils/workspaces'
-import { relativePathStem } from '../utils/wikilink'
+import { createVaultBackend, type VaultRenameRequest } from '../lib/vaultBackend'
+import { buildFilenameRenamedEntry, buildRenamedEntry, buildWorkspaceMovedEntry, workspaceMoveReplacementTarget } from './noteRenameEntries'
+import { moveNoteErrorMessage, moveToastMessage, moveWorkspaceToastMessage, renameErrorMessage, renameToastMessage } from './noteRenameMessages'
 
 interface RenameResult {
   new_path: string
@@ -20,7 +19,7 @@ interface RenameResult {
   failed_updates?: number
 }
 
-export { slugify }
+export { buildFilenameRenamedEntry, buildRenamedEntry, buildWorkspaceMovedEntry, renameToastMessage, slugify, workspaceMoveReplacementTarget }
 
 interface RenameRequest {
   path: string
@@ -57,34 +56,7 @@ interface ReloadTabsAfterRenameRequest {
   updateTabContent: (path: string, content: string) => void
 }
 
-type RenameCommand = 'rename_note' | 'rename_note_filename' | 'move_note_to_folder' | 'move_note_to_workspace'
-type NoteCommandExtra = Record<string, unknown>
-
-interface NoteCommandRequest {
-  command: RenameCommand
-  mockExtra: NoteCommandExtra
-  path: string
-  tauriExtra: NoteCommandExtra
-  vaultPath: string
-}
-
-interface SingleValueNoteCommand {
-  command: RenameCommand
-  mockKey: string
-  tauriKey: string
-}
-
-const FILENAME_RENAME_COMMAND: SingleValueNoteCommand = {
-  command: 'rename_note_filename',
-  mockKey: 'new_filename_stem',
-  tauriKey: 'newFilenameStem',
-}
-
-const FOLDER_MOVE_COMMAND: SingleValueNoteCommand = {
-  command: 'move_note_to_folder',
-  mockKey: 'folder_path',
-  tauriKey: 'folderPath',
-}
+type RenameCommand = 'move_note_to_workspace'
 
 /** Check if a note's filename doesn't match the slug of its current title. */
 export function needsRenameOnSave(title: string, filename: string): boolean {
@@ -92,15 +64,14 @@ export function needsRenameOnSave(title: string, filename: string): boolean {
   return `${slugify(title)}.md` !== filename
 }
 
+/** Renames through the vault's backend: Tauri on desktop, the server on a Tolaria remote, mock data otherwise. */
+async function renameThroughBackend(vaultPath: string, request: VaultRenameRequest): Promise<RenameResult> {
+  const { newPath, updatedFiles, failedUpdates } = await createVaultBackend(vaultPath).files.rename(request)
+  return { new_path: newPath, updated_files: updatedFiles, failed_updates: failedUpdates }
+}
+
 export async function performRename({ path, newTitle, vaultPath, oldTitle }: RenameRequest): Promise<RenameResult> {
-  const oldTitleArg = oldTitle ?? null
-  return invokeNoteCommand({
-    command: 'rename_note',
-    path,
-    vaultPath,
-    tauriExtra: { newTitle, oldTitle: oldTitleArg },
-    mockExtra: { new_title: newTitle, old_title: oldTitleArg },
-  })
+  return renameThroughBackend(vaultPath, { path, newTitle, oldTitle })
 }
 
 function invokeRenameCommand(params: {
@@ -113,75 +84,12 @@ function invokeRenameCommand(params: {
     : mockInvoke<RenameResult>(params.command, params.mockArgs)
 }
 
-function invokeStructuredRenameCommand(params: {
-  command: RenameCommand
-  args: Record<string, unknown>
-  mockArgs: Record<string, unknown>
-}): Promise<RenameResult> {
-  return invokeRenameCommand({
-    command: params.command,
-    tauriArgs: { args: params.args },
-    mockArgs: params.mockArgs,
-  })
-}
-
-function noteCommandArgs({
-  mockExtra,
-  path,
-  style,
-  tauriExtra,
-  vaultPath,
-}: {
-  mockExtra: NoteCommandExtra
-  path: string
-  style: 'mock' | 'tauri'
-  tauriExtra: NoteCommandExtra
-  vaultPath: string
-}) {
-  return style === 'tauri'
-    ? { vaultPath, oldPath: path, ...tauriExtra }
-    : { vault_path: vaultPath, old_path: path, ...mockExtra }
-}
-
-function invokeNoteCommand(params: NoteCommandRequest): Promise<RenameResult> {
-  return invokeStructuredRenameCommand({
-    command: params.command,
-    args: noteCommandArgs({ ...params, style: 'tauri' }),
-    mockArgs: noteCommandArgs({ ...params, style: 'mock' }),
-  })
-}
-
-function performSingleValueNoteCommand({
-  descriptor,
-  path,
-  value,
-  vaultPath,
-}: {
-  descriptor: SingleValueNoteCommand
-  path: string
-  value: string
-  vaultPath: string
-}) {
-  return invokeNoteCommand({
-    command: descriptor.command,
-    path,
-    vaultPath,
-    tauriExtra: { [descriptor.tauriKey]: value },
-    mockExtra: { [descriptor.mockKey]: value },
-  })
-}
-
 export async function performFilenameRename({
   path,
   newFilenameStem,
   vaultPath,
 }: FilenameRenameRequest): Promise<RenameResult> {
-  return performSingleValueNoteCommand({
-    descriptor: FILENAME_RENAME_COMMAND,
-    path,
-    value: newFilenameStem,
-    vaultPath,
-  })
+  return renameThroughBackend(vaultPath, { path, newFilenameStem })
 }
 
 export async function performMoveNoteToFolder({
@@ -189,12 +97,7 @@ export async function performMoveNoteToFolder({
   folderPath,
   vaultPath,
 }: FolderMoveRequest): Promise<RenameResult> {
-  return performSingleValueNoteCommand({
-    descriptor: FOLDER_MOVE_COMMAND,
-    path,
-    value: folderPath,
-    vaultPath,
-  })
+  return renameThroughBackend(vaultPath, { path, folderPath })
 }
 
 export async function performMoveNoteToWorkspace({
@@ -223,103 +126,8 @@ export async function performMoveNoteToWorkspace({
   })
 }
 
-export function buildRenamedEntry(entry: VaultEntry, newTitle: string, newPath: string): VaultEntry {
-  const filename = notePathFilename(newPath)
-  return { ...entry, path: newPath, filename, title: newTitle }
-}
-
-export function buildFilenameRenamedEntry(entry: VaultEntry, newPath: string): VaultEntry {
-  const filename = notePathFilename(newPath)
-  const oldFallbackTitle = filenameStemToTitle(entry.filename)
-  const title = !entry.hasH1 && entry.title === oldFallbackTitle ? filenameStemToTitle(filename) : entry.title
-  return { ...entry, path: newPath, filename, title }
-}
-
-export function buildWorkspaceMovedEntry(entry: VaultEntry, newPath: string, workspace: WorkspaceIdentity): VaultEntry {
-  return {
-    ...buildFilenameRenamedEntry(entry, newPath),
-    workspace,
-  }
-}
-
-export function workspaceMoveReplacementTarget({
-  entry,
-  sourceVaultPath,
-  destinationWorkspace,
-}: {
-  entry: VaultEntry
-  sourceVaultPath: string
-  destinationWorkspace: WorkspaceIdentity
-}): string {
-  const localTarget = relativePathStem(entry.path, sourceVaultPath)
-  const sourceAlias = entry.workspace?.alias
-  return destinationWorkspace.alias && destinationWorkspace.alias !== sourceAlias
-    ? `${destinationWorkspace.alias}/${localTarget}`
-    : localTarget
-}
-
 export async function loadNoteContent({ path }: LoadNoteContentRequest): Promise<string> {
-  return isTauri() ? invoke<string>('get_note_content', { path }) : mockInvoke<string>('get_note_content', { path })
-}
-
-function rewriteSummaryLabel(params: { updatedFiles: number }): string {
-  return params.updatedFiles === 1 ? 'Updated 1 note' : `Updated ${params.updatedFiles} notes`
-}
-
-function manualUpdateWarning(params: { failedUpdates: number }): string {
-  const { failedUpdates } = params
-  return `${failedUpdates} linked note${failedUpdates > 1 ? 's' : ''} need${failedUpdates === 1 ? 's' : ''} manual updates`
-}
-
-function formatRewriteToast(params: {
-    action: string
-    updatedFiles: number
-    failedUpdates?: number
-    preferBareUpdate?: boolean
-}): string {
-  const { action, updatedFiles, failedUpdates = 0, preferBareUpdate = false } = params
-  if (failedUpdates > 0) {
-    if (updatedFiles === 0) {
-      return `${action}, but ${manualUpdateWarning({ failedUpdates })}`
-    }
-    if (preferBareUpdate) {
-      return `${rewriteSummaryLabel({ updatedFiles })}, but ${manualUpdateWarning({ failedUpdates })}`
-    }
-    return `${action} and ${rewriteSummaryLabel({ updatedFiles }).toLowerCase()}, but ${manualUpdateWarning({ failedUpdates })}`
-  }
-  if (updatedFiles === 0) return action
-  return preferBareUpdate
-    ? rewriteSummaryLabel({ updatedFiles })
-    : `${action} and ${rewriteSummaryLabel({ updatedFiles }).toLowerCase()}`
-}
-
-export function renameToastMessage(updatedFiles: number, failedUpdates = 0): string {
-  return formatRewriteToast({
-    action: 'Renamed',
-    updatedFiles,
-    failedUpdates,
-    preferBareUpdate: true,
-  })
-}
-
-function folderLabel(params: { folderPath: string }): string {
-  return vaultRelativePathLabel(params.folderPath)
-}
-
-function moveToastMessage(folderPath: string, updatedFiles: number, failedUpdates = 0): string {
-  return formatRewriteToast({
-    action: `Moved to "${folderLabel({ folderPath })}"`,
-    updatedFiles,
-    failedUpdates,
-  })
-}
-
-function moveWorkspaceToastMessage(workspaceLabel: string, updatedFiles: number, failedUpdates = 0): string {
-  return formatRewriteToast({
-    action: `Moved to "${workspaceLabel}"`,
-    updatedFiles,
-    failedUpdates,
-  })
+  return (await createVaultBackend().files.read(path)).content
 }
 
 export async function reloadVaultAfterRename(reloadVault?: () => Promise<unknown>): Promise<void> {
@@ -358,19 +166,6 @@ function resolveRenameVaultPath(entry: VaultEntry | undefined, fallbackVaultPath
   return entry ? vaultPathForEntry(entry, fallbackVaultPath) : fallbackVaultPath
 }
 
-function renameErrorMessage(err: unknown): string {
-  const message = typeof err === 'string' ? err.trim() : err instanceof Error ? err.message.trim() : ''
-  if (message === 'A note with that name already exists' || message === 'Invalid filename') {
-    return message
-  }
-  return 'Failed to rename note'
-}
-
-function moveNoteErrorMessage(err: unknown): string {
-  const message = typeof err === 'string' ? err.trim() : err instanceof Error ? err.message.trim() : ''
-  return message || 'Failed to move note'
-}
-
 export interface NoteRenameConfig {
   entries: VaultEntry[]
   setToastMessage: (msg: string | null) => void
@@ -395,8 +190,9 @@ function useRenameResultApplier(config: NoteRenameConfig, tabDeps: RenameTabDeps
   const { setTabs, activeTabPathRef, handleSwitchTab, updateTabContent } = tabDeps
 
   const tabsRef = useRef(tabDeps.tabs)
-  // eslint-disable-next-line react-hooks/refs
-  tabsRef.current = tabDeps.tabs
+  useLayoutEffect(() => {
+    tabsRef.current = tabDeps.tabs
+  }, [tabDeps.tabs])
 
   const applyRenameResult = useCallback(
     async (

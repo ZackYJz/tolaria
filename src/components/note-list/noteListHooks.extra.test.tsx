@@ -9,6 +9,7 @@ import {
   useNoteListInteractions,
   useNoteListSearch,
   useNoteListSort,
+  useVisibleNotesSync,
 } from './noteListHooks'
 
 const localStorageMock = (() => {
@@ -488,12 +489,11 @@ describe('noteListHooks extra', () => {
     const { result } = renderHook(() =>
       useNoteListInteractions({
         searched: [deletedEntry, liveEntry],
-        searchedGroups: [],
+        visibleEntries: [deletedEntry, liveEntry],
         selectedNotePath: deletedEntry.path,
         selection: { kind: 'filter', filter: 'changes' },
         noteListFilter: 'open',
         isChangesView: true,
-        entityEntry: null,
         searchVisible: false,
         toggleSearch: vi.fn(),
         onReplaceActiveTab,
@@ -552,12 +552,11 @@ describe('noteListHooks extra', () => {
     const { result } = renderHook(() =>
       useNoteListInteractions({
         searched: [deletedEntry, liveEntry],
-        searchedGroups: [],
+        visibleEntries: [deletedEntry, liveEntry],
         selectedNotePath: liveEntry.path,
         selection: { kind: 'filter', filter: 'changes' },
         noteListFilter: 'open',
         isChangesView: true,
-        entityEntry: null,
         searchVisible: false,
         toggleSearch: vi.fn(),
         onReplaceActiveTab,
@@ -583,3 +582,30 @@ describe('noteListHooks extra', () => {
     expect(onOpenDeletedNote).toHaveBeenCalledWith(deletedEntry)
   })
 })
+
+describe("shared visible note order", () => {
+	it("keeps neighborhood order stable and filters deleted entries only for app consumers", () => {
+		const entity = makeEntry({ path: "/vault/entity.md" });
+		const first = makeEntry({ path: "/vault/first.md" });
+		const deleted = makeDeletedEntry();
+		const visibleNotesRef = { current: [] as VaultEntry[] };
+		const options = {
+			visibleNotesRef,
+			isEntityView: true,
+			entityEntry: entity,
+			searched: [first],
+			searchedGroups: [{ entries: [deleted, first] }],
+		};
+		const hook = renderHook((props) => useVisibleNotesSync(props), {
+			initialProps: options,
+		});
+		const order = hook.result.current;
+		expect(order).toEqual([entity, deleted, first]);
+		expect(visibleNotesRef.current).toEqual([entity, first]);
+		hook.rerender({ ...options });
+		expect(hook.result.current).toBe(order);
+		hook.rerender({ ...options, isEntityView: false });
+		expect(hook.result.current).toBe(options.searched);
+		expect(visibleNotesRef.current).toEqual([first]);
+	});
+});

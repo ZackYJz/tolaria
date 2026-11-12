@@ -1,4 +1,4 @@
-import { lazy, StrictMode, Suspense } from 'react'
+import { lazy, StrictMode, Suspense, type ReactNode } from 'react'
 import * as Sentry from '@sentry/react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/inter/wght.css'
@@ -31,8 +31,21 @@ import { isRecoveredActionTooltipError } from './components/ui/actionTooltipReco
 import { isMac, shouldUseCustomWindowChrome } from './utils/platform'
 import { reloadFrontendOnceIfStartupFailed } from './utils/frontendReady'
 import { markStartupPhase } from './lib/startupPerformance'
+import {
+  clearOfflineDataOnAccountExit,
+  hasOfflineRead,
+  scheduleOfflineServiceWorkerRegistration,
+} from './lib/offline/offlineMode'
+import { prefetchCache } from '../packages/collab-client/src/entriesCachePrefetch'
+import { entriesCacheKey } from '../packages/collab-client/src/entriesCache'
+import { applySharedVaultBase, remoteVaultConfig } from './lib/vaultBackend/remoteConfig'
+import { installTouchInput } from './lib/touchInput'
 
 markStartupPhase('renderer_module_loaded')
+// Web only (TOL-206): the cached note list is read while the rest of the shell loads; a
+// shared vault (TOL-237) is served under its own prefix and has a list of its own.
+applySharedVaultBase()
+if (hasOfflineRead()) prefetchCache(entriesCacheKey(remoteVaultConfig()?.baseUrl ?? ''))
 
 const TLDRAW_CONTEXT_MENU_SELECTOR = '.tldraw-whiteboard'
 const MACOS_FULLSCREEN_CHROME_CLASS = 'mac-chrome-fullscreen'
@@ -62,12 +75,16 @@ async function installMacosFullscreenChromeTracking(): Promise<void> {
   }
 }
 
-const RootApp = lazy(async () => {
+const IS_WEB_BUILD = import.meta.env.VITE_TOLARIA_WEB_BUILD === 'true'
+
+async function loadAppModule() {
   markStartupPhase('app_module_requested')
   const appModule = await import('./App.tsx')
   markStartupPhase('app_module_loaded')
   return appModule
-})
+}
+
+const RootApp = lazy(loadAppModule)
 
 function dataTransferHasFiles(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer) return false
@@ -262,18 +279,52 @@ function getRequiredRootElement(): HTMLElement {
   return root
 }
 
-createRoot(getRequiredRootElement(), {
+const root = createRoot(getRequiredRootElement(), {
   onCaughtError: captureRecoverableReactRootError,
   onUncaughtError: captureReactRootError,
   onRecoverableError: captureRecoverableReactRootError,
-}).render(
-  <StrictMode>
-    <TooltipProvider>
-      <LinuxTitlebar />
-      <Suspense fallback={<StartupShellFallback />}>
-        <RootApp />
-        <FrontendReadyMarker />
-      </Suspense>
-    </TooltipProvider>
-  </StrictMode>,
-)
+})
+
+function renderRoot(content: ReactNode): void {
+  root.render(
+    <StrictMode>
+      <TooltipProvider>
+        <LinuxTitlebar />
+        <Suspense fallback={<StartupShellFallback />}>
+          {content}
+        </Suspense>
+      </TooltipProvider>
+    </StrictMode>,
+  )
+}
+
+function renderLazyRoot(): void {
+  renderRoot(<><RootApp /><FrontendReadyMarker /></>)
+}
+
+/**
+ * Web (TOL-206): the app mounts as soon as its module arrives. Behind a lazy boundary React
+ * holds the reveal until 300 ms after the fallback appeared, which delayed the cached list.
+ * A failed import goes through the lazy boundary, so it is reported like on desktop.
+ */
+function renderWebRoot(): void {
+  renderRoot(<StartupShellFallback />)
+  loadAppModule().then(
+    ({ default: App }) => { renderRoot(<><App /><FrontendReadyMarker /></>) },
+    renderLazyRoot,
+  )
+}
+
+// Web only (TOL-24): touch targets and long-press menus, set before the first paint.
+if (IS_WEB_BUILD) installTouchInput()
+if (IS_WEB_BUILD) renderWebRoot()
+else renderLazyRoot()
+
+// Web only (TOL-198): offline read. Inert on desktop, where neither the capability nor the
+// web build flag is set; registration waits until the app has painted.
+if (hasOfflineRead()) clearOfflineDataOnAccountExit(window)
+scheduleOfflineServiceWorkerRegistration({
+  isWebBuild: IS_WEB_BUILD,
+  isTauri: isTauriRuntime(),
+  window,
+})

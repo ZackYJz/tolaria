@@ -436,7 +436,10 @@ describe('useNoteCreation hook', () => {
 
   it('handleCreateType blocks the built-in Note type when stale entries omit existing note.md', async () => {
     vi.mocked(isTauri).mockReturnValue(true)
-    vi.mocked(invoke).mockResolvedValueOnce('---\ntype: Type\n---\n# Note\n')
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'get_note_content') return '---\ntype: Type\n---\n# Note\n'
+      return undefined
+    })
     const { result } = renderHook(() => useNoteCreation(makeConfig(), tabDeps))
 
     let created = true
@@ -457,9 +460,11 @@ describe('useNoteCreation hook', () => {
 
   it('handleCreateType creates the built-in Note type when notes.md is an existing ordinary note', async () => {
     vi.mocked(isTauri).mockReturnValue(true)
-    vi.mocked(invoke)
-      .mockRejectedValueOnce(new Error('not found'))
-      .mockResolvedValueOnce(undefined)
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'get_note_content') throw new Error('not found')
+      if (command === 'create_note_content') return undefined
+      return undefined
+    })
     const existingNotes = makeEntry({
       path: '/test/vault/notes.md',
       filename: 'notes.md',

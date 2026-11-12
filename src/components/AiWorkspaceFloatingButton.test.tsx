@@ -1,82 +1,91 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { APP_COMMAND_IDS, getAppCommandShortcutDisplay } from '../hooks/appCommandCatalog'
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
-  createAiAgentAvailability,
-  createMissingAiAgentsStatus,
-  type AiAgentsStatus,
-} from '../lib/aiAgents'
-import { AiWorkspaceFloatingButton } from './AiWorkspaceFloatingButton'
+	APP_COMMAND_IDS,
+	getAppCommandShortcutDisplay,
+} from "../hooks/appCommandCatalog";
+import {
+	type AiAgentsStatus,
+	createAiAgentAvailability,
+	createMissingAiAgentsStatus,
+} from "../lib/aiAgents";
+import { AiWorkspaceFloatingButton } from "./AiWorkspaceFloatingButton";
 
 function createCodexReadyStatus(): AiAgentsStatus {
-  return {
-    ...createMissingAiAgentsStatus(),
-    codex: createAiAgentAvailability('installed', '0.12.0'),
-  }
+	return {
+		...createMissingAiAgentsStatus(),
+		codex: createAiAgentAvailability("installed", "0.12.0"),
+	};
 }
 
 function renderButton({
-  statuses = createCodexReadyStatus(),
-  updateBannerVisible = false,
+	statuses = createCodexReadyStatus(),
+	updateBannerVisible = false,
 }: {
-  statuses?: AiAgentsStatus
-  updateBannerVisible?: boolean
+	statuses?: AiAgentsStatus;
+	updateBannerVisible?: boolean;
 } = {}) {
-  return render(
-    <TooltipProvider>
-      <AiWorkspaceFloatingButton
-        defaultAgent="codex"
-        statuses={statuses}
-        updateBannerVisible={updateBannerVisible}
-        onOpen={vi.fn()}
-      />
-    </TooltipProvider>,
-  )
+	return render(
+		<TooltipProvider>
+			<AiWorkspaceFloatingButton
+				defaultAgent="codex"
+				statuses={statuses}
+				updateBannerVisible={updateBannerVisible}
+				onOpen={vi.fn()}
+			/>
+		</TooltipProvider>,
+	);
 }
 
-describe('AiWorkspaceFloatingButton', () => {
-  it('uses the normal bottom offset when no update banner is visible', () => {
-    renderButton()
+describe("AiWorkspaceFloatingButton", () => {
+	it("uses the app shell banner offset with a safe bottom fallback", () => {
+		renderButton();
 
-    expect(screen.getByTestId('ai-workspace-floating-button')).toHaveClass('bottom-11')
-  })
+		expect(screen.getByTestId("ai-workspace-floating-button")).toHaveStyle({
+			bottom: "var(--ai-workspace-floating-button-bottom, 2.75rem)",
+		});
+	});
 
-  it('moves above the update banner when one is visible', () => {
-    renderButton({ updateBannerVisible: true })
+	it("anchors the launcher at the bottom-right of the app window", () => {
+		renderButton();
 
-    expect(screen.getByTestId('ai-workspace-floating-button')).toHaveClass('bottom-[80px]')
-  })
+		expect(screen.getByTestId("ai-workspace-floating-button")).toHaveClass(
+			"right-5",
+		);
+		expect(screen.getByTestId("ai-workspace-floating-button")).not.toHaveClass(
+			"right-80",
+		);
+	});
 
-  it('anchors the launcher at the bottom-right of the app window', () => {
-    renderButton()
+	it("uses the selected agent icon when that agent is installed", () => {
+		renderButton();
 
-    expect(screen.getByTestId('ai-workspace-floating-button')).toHaveClass('right-5')
-    expect(screen.getByTestId('ai-workspace-floating-button')).not.toHaveClass('right-80')
-  })
+		const iconImage = screen
+			.getByTestId("ai-workspace-floating-button")
+			.querySelector("img");
+		expect(iconImage).toHaveAttribute("src", "/ai-agent-icons/codex.svg");
+	});
 
-  it('uses the selected agent icon when that agent is installed', () => {
-    renderButton()
+	it("falls back to sparkles when no selected agent is available", () => {
+		renderButton({ statuses: createMissingAiAgentsStatus() });
 
-    const iconImage = screen.getByTestId('ai-workspace-floating-button').querySelector('img')
-    expect(iconImage).toHaveAttribute('src', '/ai-agent-icons/codex.svg')
-  })
+		expect(
+			screen.getByTestId("ai-workspace-floating-button").querySelector("img"),
+		).toBeNull();
+	});
 
-  it('falls back to sparkles when no selected agent is available', () => {
-    renderButton({ statuses: createMissingAiAgentsStatus() })
+	it("shows the AI panel shortcut in the tooltip", async () => {
+		renderButton();
 
-    expect(screen.getByTestId('ai-workspace-floating-button').querySelector('img')).toBeNull()
-  })
+		act(() => {
+			fireEvent.focus(screen.getByTestId("ai-workspace-floating-button"));
+		});
 
-  it('shows the AI panel shortcut in the tooltip', async () => {
-    renderButton()
-
-    act(() => {
-      fireEvent.focus(screen.getByTestId('ai-workspace-floating-button'))
-    })
-
-    const tooltip = await screen.findByRole('tooltip')
-    expect(tooltip).toHaveTextContent('Open the AI panel')
-    expect(tooltip).toHaveTextContent(getAppCommandShortcutDisplay(APP_COMMAND_IDS.viewToggleAiChat) ?? '')
-  })
-})
+		const tooltip = await screen.findByRole("tooltip");
+		expect(tooltip).toHaveTextContent("Open the AI panel");
+		expect(tooltip).toHaveTextContent(
+			getAppCommandShortcutDisplay(APP_COMMAND_IDS.viewToggleAiChat) ?? "",
+		);
+	});
+});

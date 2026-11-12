@@ -7,6 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ROUTES } from '../../../packages/protocol/src/index.ts'
+import { ChangeEmitter } from '../src/changeEmitter.ts'
 import { createVaultServer } from '../src/server.ts'
 import { LocalDiskStore } from '../src/store.ts'
 import { Vault } from '../src/vault.ts'
@@ -80,7 +81,7 @@ async function bench(remoteUrl: string, saves: number): Promise<void> {
   const data = await mkdtemp(join(tmpdir(), 'tolaria-bench-'))
   const vault = await Vault.open({ dir: join(data, 'vault'), remoteUrl })
   const store = new LocalDiskStore(join(data, 'state'))
-  const server = await createVaultServer({ vault, store, token: TOKEN, maxBodyBytes: 1024 * 1024 })
+  const server = await createVaultServer({ vault, store, token: TOKEN, maxBodyBytes: 1024 * 1024, changes: new ChangeEmitter() })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
     const base = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)

@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react'
-import { resolveFrontendTelemetryConfig } from './telemetryConfig'
+import { resolveFrontendTelemetryConfig, type FrontendTelemetryConfig } from './telemetryConfig'
+import { WEB_PLATFORM_TAG, withWebPrivacy } from './webSentry'
 import { redactPathText } from './sensitiveTextRedaction'
 import {
   hasActiveWhiteboardPlatformPermissionGuard,
@@ -267,25 +268,39 @@ let posthogInstance: typeof import('posthog-js').default | null = null
 export function initSentry(anonymousId: AnonymousTelemetryId): void {
   if (sentryInitialized) return
 
-  const { sentryDsn, sentryBuildVersion, sentryRelease } = resolveFrontendTelemetryConfig()
-  if (!sentryDsn) return
+  const config = resolveFrontendTelemetryConfig()
+  if (!config.sentryDsn) return
 
-  Sentry.init({
+  Sentry.init(sentryOptions(config))
+  Sentry.setUser({ id: anonymousId })
+  applySentryTags(config)
+  sentryInitialized = true
+}
+
+function sentryOptions({ platform, sentryDsn, sentryRelease }: FrontendTelemetryConfig): Sentry.BrowserOptions {
+  const options = {
     dsn: sentryDsn,
     release: sentryRelease || undefined,
     sendDefaultPii: false,
     beforeSend: scrubSentryEvent,
-  })
-  Sentry.setUser({ id: anonymousId })
-  if (sentryBuildVersion) {
-    const releaseKind = sentryRelease
-      ? 'stable'
-      : sentryBuildVersion.includes('-') ? 'prerelease' : 'internal'
-
-    Sentry.setTag('tolaria.build_version', sentryBuildVersion)
-    Sentry.setTag('tolaria.release_kind', releaseKind)
   }
-  sentryInitialized = true
+  return platform === 'web' ? withWebPrivacy(options) : options
+}
+
+function applySentryTags({ platform, sentryBuildVersion, sentryRelease }: FrontendTelemetryConfig): void {
+  // Web (TOL-232): the release names the commit; the tag separates web from desktop events.
+  if (platform === 'web') {
+    Sentry.setTag('platform', WEB_PLATFORM_TAG)
+    return
+  }
+  if (!sentryBuildVersion) return
+
+  const releaseKind = sentryRelease
+    ? 'stable'
+    : sentryBuildVersion.includes('-') ? 'prerelease' : 'internal'
+
+  Sentry.setTag('tolaria.build_version', sentryBuildVersion)
+  Sentry.setTag('tolaria.release_kind', releaseKind)
 }
 
 export function teardownSentry(): void {

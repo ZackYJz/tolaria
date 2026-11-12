@@ -17,7 +17,7 @@ import { useDocumentThemeMode } from '../hooks/useDocumentThemeMode'
 import { resolveEffectiveLocale, translate, type AppLocale } from '../lib/i18n'
 import { trackEvent } from '../lib/telemetry'
 import type { ResolvedThemeMode } from '../lib/themeMode'
-import { GuardedTldrawCanvas } from './GuardedTldrawCanvas'
+import { useWhiteboardUi, whiteboardUiOverrides } from './useWhiteboardUi'
 import { Button } from './ui/button'
 import { ActionTooltip } from './ui/action-tooltip'
 import { installWhiteboardRuntimeGuards } from './tldrawRuntimeGuards'
@@ -485,10 +485,7 @@ function useWhiteboardRuntime({
     setUserPreferences: ignoreTldrawUserPreferencesUpdate,
     userPreferences,
   })
-  const tldrawUiComponents = useMemo(() => ({
-    Canvas: GuardedTldrawCanvas,
-    Dialogs: TolariaTldrawDialogs,
-  }), [])
+  const whiteboardUi = useWhiteboardUi({ locale, Dialogs: TolariaTldrawDialogs })
   const handleTldrawMount = useCallback((editor: Editor) =>
     installWhiteboardRuntimeGuards(editor, {
       onIncompatiblePaste: () => {
@@ -506,6 +503,7 @@ function useWhiteboardRuntime({
   })
 
   return {
+    ...whiteboardUi,
     boardRef,
     fullscreen,
     fullscreenLabel,
@@ -515,7 +513,6 @@ function useWhiteboardRuntime({
     platformPermissionDenied,
     startResize,
     store,
-    tldrawUiComponents,
     tldrawUser,
     toggleFullscreen,
     visibleSize,
@@ -524,7 +521,7 @@ function useWhiteboardRuntime({
 
 export function TldrawWhiteboard(props: TldrawWhiteboardProps) {
   const {
-    boardRef, fullscreen, fullscreenLabel, handleTldrawMount, locale, pasteError,
+    attempt, boardRef, fullscreen, fullscreenLabel, handleTldrawMount, locale, pasteError,
     platformPermissionDenied, startResize, store, tldrawUiComponents, tldrawUser,
     toggleFullscreen, visibleSize,
   } = useWhiteboardRuntime(props)
@@ -540,7 +537,8 @@ export function TldrawWhiteboard(props: TldrawWhiteboardProps) {
       <Tldraw
         assetUrls={tldrawAssetUrls}
         components={tldrawUiComponents}
-        key={props.boardId}
+        key={`${props.boardId}:${attempt}`}
+        overrides={whiteboardUiOverrides}
         onMount={handleTldrawMount}
         store={store}
         user={tldrawUser}

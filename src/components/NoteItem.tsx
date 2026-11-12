@@ -37,6 +37,7 @@ import { PropertyChips } from './note-item/PropertyChips'
 import { ChangeNoteContent } from './note-item/ChangeNoteContent'
 import { workspaceForEntry } from '../utils/workspaces'
 import { WorkspaceInitialsBadge } from './WorkspaceInitialsBadge'
+import { ConflictCopyBadge } from './ConflictCopyBadge'
 import { useDateDisplayFormat } from '../hooks/useAppPreferences'
 import { writeNoteDragData } from '../utils/noteDragDrop'
 
@@ -373,6 +374,7 @@ function NoteTitleRow({
       <NoteTitleIcon icon={entry.icon} size={15} className="mr-1" testId="note-title-icon" />
       {entry.title}
       {!isBinary && <StateBadge archived={entry.archived} />}
+      {!isBinary && <ConflictCopyBadge path={entry.path} />}
     </div>
   )
 }
@@ -622,44 +624,19 @@ function NoteItemContent(options: {
   typeEntryMap: Record<string, VaultEntry>
   onClickNote: NoteItemProps['onClickNote']
 }) {
-  const {
-    entry,
-    isBinary,
-    isUnavailableBinary,
-    isSelected,
-    noteStatus,
-    changeStatus,
-    typeColor,
-    displayProps,
-    allEntries,
-    typeEntryMap,
-    onClickNote,
-  } = options
+  const { changeStatus, ...standard } = options
   if (changeStatus) {
     return (
       <ChangeNoteContent
-        entry={entry}
+        entry={standard.entry}
         changeStatus={changeStatus}
-        isSelected={isSelected}
+        isSelected={standard.isSelected}
         isDeletedChange={changeStatus === 'deleted'}
       />
     )
   }
 
-  return (
-    <StandardNoteContent
-      entry={entry}
-      isBinary={isBinary}
-      isUnavailableBinary={isUnavailableBinary}
-      noteStatus={noteStatus}
-      isSelected={isSelected}
-      typeColor={typeColor}
-      displayProps={displayProps}
-      allEntries={allEntries}
-      typeEntryMap={typeEntryMap}
-      onClickNote={onClickNote}
-    />
-  )
+  return <StandardNoteContent {...standard} />
 }
 
 export function NoteItem(options: NoteItemProps) {

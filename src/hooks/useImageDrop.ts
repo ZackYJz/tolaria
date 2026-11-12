@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { Event as TauriEvent, UnlistenFn } from '@tauri-apps/api/event'
 import type { DragDropEvent as TauriDragDropPayload } from '@tauri-apps/api/webview'
 import { isTauri } from '../mock-tauri'
+import { hasRemoteVault } from '../lib/vaultBackend'
 import { cleanupTauriEventListeners } from '../utils/tauriEventCleanup'
 import { attachmentAssetUrlFromPath } from '../utils/vaultAttachments'
 import { createImageDropClaim } from '../utils/imageDropClaim'
@@ -183,25 +184,38 @@ function readBrowserImageFile(file: File): Promise<string> {
   })
 }
 
-/** Upload an image file — saves to vault/attachments in Tauri, returns data URL in browser */
+/** On a Tolaria remote the image becomes a file on the server; the note links its path (TOL-204). */
+async function uploadRemoteImageFile(file: File): Promise<string> {
+  const { uploadRemoteImage } = await import('../lib/remoteAttachments')
+  return uploadRemoteImage(file)
+}
+
+async function saveImageWithTauri(file: File, vaultPath: string): Promise<UploadImageFileResult> {
+  const buf = await file.arrayBuffer()
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes.at(i) ?? 0)
+  const base64 = btoa(binary)
+  const savedPath = await invoke<string>('save_image', {
+    vaultPath,
+    filename: file.name,
+    data: base64,
+  })
+  return uploadedImageAssetUrl(file, savedPath)
+}
+
+function storeImageFile(file: File, vaultPath?: string): Promise<UploadImageFileResult> {
+  if (hasRemoteVault()) return uploadRemoteImageFile(file)
+  if (isTauri() && vaultPath) return saveImageWithTauri(file, vaultPath)
+  return readBrowserImageFile(file)
+}
+
+/** Upload an image file — saves to vault/attachments in Tauri or on the remote, returns data URL in the mock browser */
 export async function uploadImageFile(file: File, vaultPath?: string): Promise<UploadImageFileResult> {
   if (isUnsupportedHeicFile(file)) throw new UnsupportedImageFormatError(file.name)
 
   try {
-    if (isTauri() && vaultPath) {
-      const buf = await file.arrayBuffer()
-      const bytes = new Uint8Array(buf)
-      let binary = ''
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes.at(i) ?? 0)
-      const base64 = btoa(binary)
-      const savedPath = await invoke<string>('save_image', {
-        vaultPath,
-        filename: file.name,
-        data: base64,
-      })
-      return uploadedImageAssetUrl(file, savedPath)
-    }
-    return await readBrowserImageFile(file)
+    return await storeImageFile(file, vaultPath)
   } catch (error) {
     return handleUploadFailure(file, error)
   }

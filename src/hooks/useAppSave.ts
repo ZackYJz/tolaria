@@ -1,5 +1,8 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { createVaultBackend } from '../lib/vaultBackend'
+import { autoRenameRemoteNote, hasRemoteVault } from '../lib/remoteNotes'
+import { onLiveNoteTitle } from '../lib/liveNoteTitle'
 import { useEditorSaveWithLinks } from './useEditorSaveWithLinks'
 import { flushEditorContent } from '../utils/autoSave'
 import { extractH1TitleFromContent } from '../utils/noteTitle'
@@ -109,17 +112,28 @@ function isUntitledRenameCandidate(path: string): boolean {
   return stem.startsWith('untitled-') && /\d+$/.test(stem)
 }
 
-function schedulableUntitledRenameTitle({
-  path,
-  content,
-  initialH1AutoRenameEnabled,
-}: {
-  path: string
-  content: string
-  initialH1AutoRenameEnabled: boolean
-}): string | null {
-  if (!isTauri() || !initialH1AutoRenameEnabled || !isUntitledRenameCandidate(path)) return null
-  return extractH1TitleFromContent(content)
+function canAutoRenameUntitled(path: string, initialH1AutoRenameEnabled: boolean): boolean {
+  const hasVaultFiles = isTauri() || hasRemoteVault()
+  return hasVaultFiles && initialH1AutoRenameEnabled && isUntitledRenameCandidate(path)
+}
+
+interface AutoRenamedNote {
+  newPath: string
+  /** The renamed entry when the backend already knows it, instead of reloading it. */
+  entry?: Partial<VaultEntry> & { path: string }
+}
+
+/** Renames an untitled note after its first H1. Null when the note keeps its name. */
+async function renameUntitledNote(options: { vaultPath: string; path: string; title: string }): Promise<AutoRenamedNote | null> {
+  const { vaultPath, path, title } = options
+  if (hasRemoteVault()) return autoRenameRemoteNote(path, title)
+  const result = await invoke<{
+    new_path: string
+    updated_files: number
+  } | null>('auto_rename_untitled', {
+    args: { vaultPath, notePath: path },
+  })
+  return result ? { newPath: result.new_path } : null
 }
 
 function matchingPendingRename({
@@ -160,14 +174,14 @@ function schedulePendingRename({
   pendingRenameRef: MutableRefObject<PendingUntitledRename | null>
   path: string
   title: string
-  onFire: (path: string) => void
+  onFire: (path: string, title: string) => void
 }): void {
   const currentPending = pendingRenameRef.current
   if (currentPending?.path === path && currentPending.title === title) return
   takePendingRename({ pendingRenameRef })
   const timer = setTimeout(() => {
     const pending = takePendingRename({ pendingRenameRef, path })
-    if (pending) onFire(pending.path)
+    if (pending) onFire(pending.path, pending.title)
   }, UNTITLED_RENAME_DEBOUNCE_MS)
   pendingRenameRef.current = { path, title, timer }
 }
@@ -187,6 +201,8 @@ function pendingRenameOutsideActiveTab({
 async function reloadAutoRenamedNote(options: {
     oldPath: string
     newPath: string
+    renamedEntry?: Partial<VaultEntry> & { path: string }
+    vaultPath: string
     tabsRef: MutableRefObject<TabState[]>
     activeTabPathRef: MutableRefObject<string | null>
     setTabs: AppSaveDeps['setTabs']
@@ -194,13 +210,12 @@ async function reloadAutoRenamedNote(options: {
     replaceEntry: AppSaveDeps['replaceEntry']
     loadModifiedFiles: AppSaveDeps['loadModifiedFiles']
 }): Promise<void> {
-  const { oldPath, newPath, tabsRef, activeTabPathRef, setTabs, handleSwitchTab, replaceEntry, loadModifiedFiles } = options
-  const newEntry = await invoke<VaultEntry>('reload_vault_entry', {
-    path: newPath,
-  })
+  const { oldPath, newPath, renamedEntry, vaultPath, tabsRef, activeTabPathRef, setTabs, handleSwitchTab, replaceEntry, loadModifiedFiles } = options
+  const backend = createVaultBackend(vaultPath)
+  const newEntry = renamedEntry ?? (await backend.files.reloadEntry(newPath))
   const preservedContent =
     tabsRef.current.find((tab) => tab.entry.path === oldPath)?.content ??
-    (await invoke<string>('get_note_content', { path: newPath }))
+    (await backend.files.read(newPath)).content
 
   const otherTabPaths = tabsRef.current
     .filter((tab) => tab.entry.path !== oldPath && tab.entry.path !== newPath)
@@ -223,7 +238,7 @@ async function reloadAutoRenamedNote(options: {
 
   void Promise.all(
     otherTabPaths.map(async (path) => {
-    const content = await invoke<string>('get_note_content', { path })
+      const { content } = await backend.files.read(path)
     startTransition(() => {
         setTabs((prev: TabState[]) => prev.map((tab) => (tab.entry.path === path ? { ...tab, content } : tab)))
     })
@@ -285,26 +300,23 @@ function useUntitledRenameExecutor(options: {
 }) {
   const { resolvedPath, tabsRef, activeTabPathRef, setTabs, handleSwitchTab, replaceEntry, loadModifiedFiles, onInternalVaultWrite, renamedPathsRef, inFlightUntitledRenameRef } = options
   return useCallback(
-    async (path: string) => {
+    async (path: string, title: string) => {
     const existingRename = inFlightUntitledRenameRef.current.get(path)
     if (existingRename) return (await existingRename) !== path
 
     const renamePromise = (async () => {
       try {
         const renameVaultPath = vaultPathForTabPath(tabsRef.current, path, resolvedPath)
-          const result = await invoke<{
-            new_path: string
-            updated_files: number
-          } | null>('auto_rename_untitled', {
-          args: { vaultPath: renameVaultPath, notePath: path },
-        })
+        const result = await renameUntitledNote({ vaultPath: renameVaultPath, path, title })
         if (!result) return path
         onInternalVaultWrite?.(path)
-        onInternalVaultWrite?.(result.new_path)
-        trackRenamedPath(renamedPathsRef.current, path, result.new_path)
+        onInternalVaultWrite?.(result.newPath)
+        trackRenamedPath(renamedPathsRef.current, path, result.newPath)
         await reloadAutoRenamedNote({
           oldPath: path,
-          newPath: result.new_path,
+          newPath: result.newPath,
+          renamedEntry: result.entry,
+          vaultPath: renameVaultPath,
           tabsRef,
           activeTabPathRef,
           setTabs,
@@ -312,7 +324,7 @@ function useUntitledRenameExecutor(options: {
           replaceEntry,
           loadModifiedFiles,
         })
-        return result.new_path
+        return result.newPath
       } catch {
         return path
       } finally {
@@ -342,7 +354,7 @@ function useUntitledRenameScheduler({
   executeUntitledRename,
   initialH1AutoRenameEnabled,
 }: {
-  executeUntitledRename: (path: string) => Promise<boolean>
+  executeUntitledRename: (path: string, title: string) => Promise<boolean>
   initialH1AutoRenameEnabled: boolean
 }) {
   const pendingUntitledRenameRef = useRef<PendingUntitledRename | null>(null)
@@ -363,19 +375,14 @@ function useUntitledRenameScheduler({
         path,
       })
     if (!pending) return false
-    return executeUntitledRename(pending.path)
+    return executeUntitledRename(pending.path, pending.title)
     },
     [executeUntitledRename],
   )
 
-  const scheduleUntitledRename = useCallback(
-    (path: string, content: string) => {
-      const title = schedulableUntitledRenameTitle({
-        path,
-        content,
-        initialH1AutoRenameEnabled,
-      })
-    if (!title) {
+  const scheduleUntitledRenameTitle = useCallback(
+    (path: string, title: string | null) => {
+    if (!title || !canAutoRenameUntitled(path, initialH1AutoRenameEnabled)) {
       cancelPendingUntitledRename(path)
       return
     }
@@ -384,12 +391,17 @@ function useUntitledRenameScheduler({
       pendingRenameRef: pendingUntitledRenameRef,
       path,
       title,
-      onFire: (pendingPath) => {
-        void executeUntitledRename(pendingPath)
+      onFire: (pendingPath, pendingTitle) => {
+        void executeUntitledRename(pendingPath, pendingTitle)
       },
     })
     },
     [cancelPendingUntitledRename, executeUntitledRename, initialH1AutoRenameEnabled],
+  )
+
+  const scheduleUntitledRename = useCallback(
+    (path: string, content: string) => scheduleUntitledRenameTitle(path, extractH1TitleFromContent(content)),
+    [scheduleUntitledRenameTitle],
   )
 
   const refreshPendingUntitledRename = useCallback(
@@ -406,7 +418,7 @@ function useUntitledRenameScheduler({
     [scheduleUntitledRename],
   )
 
-  return { pendingUntitledRenameRef, cancelPendingUntitledRename, flushPendingUntitledRename, refreshPendingUntitledRename, scheduleUntitledRename }
+  return { pendingUntitledRenameRef, cancelPendingUntitledRename, flushPendingUntitledRename, refreshPendingUntitledRename, scheduleUntitledRename, scheduleUntitledRenameTitle }
 }
 
 function useUntitledRenameCoordinator(options: {
@@ -441,10 +453,12 @@ function useUntitledRenameCoordinator(options: {
         flushPendingUntitledRename,
         refreshPendingUntitledRename,
         scheduleUntitledRename,
+        scheduleUntitledRenameTitle,
       } = useUntitledRenameScheduler({
         executeUntitledRename,
         initialH1AutoRenameEnabled,
       })
+      useLiveTitleRename(scheduleUntitledRenameTitle, resolveCurrentPath)
 
       return {
         pendingUntitledRenameRef,
@@ -928,6 +942,20 @@ function useAppSaveServices(
     replaceEntry,
   })
   return { pendingUntitledRenameRef, cancelPendingUntitledRename, registerRenamedPath, resolveCurrentPath, resolvePathBeforeSave, flushPendingUntitledRename, handleSaveRaw, handleContentChange, savePendingForPath, savePending, replaceRenamedEntry }
+}
+
+/**
+ * A note edited as a live document is saved by the document, not through
+ * handleContentChange, so its untitled rename is scheduled from the title the editor reports.
+ */
+function useLiveTitleRename(
+  scheduleUntitledRenameTitle: (path: string, title: string | null) => void,
+  resolveCurrentPath: (path: string) => string,
+) {
+  useEffect(
+    () => onLiveNoteTitle((path, title) => scheduleUntitledRenameTitle(resolveCurrentPath(path), title)),
+    [scheduleUntitledRenameTitle, resolveCurrentPath],
+  )
 }
 
 export function useAppSave(options: AppSaveDeps) {

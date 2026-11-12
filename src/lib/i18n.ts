@@ -1,4 +1,5 @@
 import EN_TRANSLATIONS from './locales/en.json'
+import { BUNDLED_LOCALE_MODULES, LAZY_LOCALE_MODULES } from './localeCatalogSources'
 
 export const DEFAULT_APP_LOCALE = 'en'
 export const SYSTEM_UI_LANGUAGE = 'system'
@@ -226,8 +227,8 @@ for (const locale of APP_LOCALES) {
   }
 }
 
-const LOCALE_MODULES = import.meta.glob('./locales/*.json', { eager: true, import: 'default' }) as Record<string, TranslationCatalog>
 const TRANSLATIONS: Partial<Record<AppLocale, Partial<Record<TranslationKey, string>>>> = buildTranslations()
+const catalogListeners = new Set<() => void>()
 
 export const APP_LOCALE_DEFINITIONS = APP_LOCALES.map((locale) => getLocaleDefinition(locale))
 export { EN_TRANSLATIONS }
@@ -237,17 +238,42 @@ function buildTranslations() {
     en: EN_TRANSLATIONS,
   }
 
-  for (const [path, catalog] of Object.entries(LOCALE_MODULES)) {
-    const match = path.match(/\/([^/]+)\.json$/)
-    if (!match) continue
-
-    const locale = normalizeLocaleCode(match[1])
+  for (const [path, catalog] of Object.entries(BUNDLED_LOCALE_MODULES)) {
+    const locale = catalogPathLocale(path)
     if (!locale || locale === 'en') continue
 
     Reflect.set(translations, locale, catalog)
   }
 
   return translations
+}
+
+function catalogPathLocale(path: string): AppLocale | null {
+  const match = path.match(/\/([^/]+)\.json$/)
+  return match ? normalizeLocaleCode(match[1]) : null
+}
+
+function lazyCatalogLoader(locale: AppLocale) {
+  const entry = Object.entries(LAZY_LOCALE_MODULES).find(([path]) => catalogPathLocale(path) === locale)
+  return entry?.[1]
+}
+
+/** A catalog this build loads on demand and has not loaded yet (web only). */
+export function isLocaleCatalogPending(locale: AppLocale): boolean {
+  return !hasLocaleCatalog(locale) && lazyCatalogLoader(locale) !== undefined
+}
+
+/** Loads a catalog the build left out of the first chunk; tells subscribers once it is in. */
+export async function loadLocaleCatalog(locale: AppLocale): Promise<void> {
+  const load = isLocaleCatalogPending(locale) ? lazyCatalogLoader(locale) : undefined
+  if (!load) return
+  Reflect.set(TRANSLATIONS, locale, await load())
+  for (const listener of catalogListeners) listener()
+}
+
+export function subscribeLocaleCatalogs(listener: () => void): () => void {
+  catalogListeners.add(listener)
+  return () => { catalogListeners.delete(listener) }
 }
 
 function isAppLocale(value: string): value is AppLocale {

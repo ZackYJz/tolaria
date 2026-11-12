@@ -64,7 +64,9 @@ async function withVault(check) {
 			api,
 		});
 	} catch (error) {
-		throw new Error("Dev vault contract check failed", { cause: error });
+		throw new Error(`Dev vault contract check failed: ${error.message}`, {
+			cause: error,
+		});
 	} finally {
 		await server.close();
 		await rm(vault, { recursive: true, force: true });
@@ -124,6 +126,19 @@ test("dev vault entries preserve outline display and outgoing links after extrac
 			).display,
 			"outline",
 		);
+	}));
+
+test("dev vault note timestamps are seconds", () =>
+	withVault(async ({ api, note }) => {
+		const { body } = await api("/api/vault/entry", { path: note }, "GET");
+		const nowInSeconds = Date.now() / 1000;
+
+		for (const timestamp of [body.modifiedAt, body.createdAt]) {
+			assert.ok(
+				timestamp > nowInSeconds - 60 && timestamp < nowInSeconds + 60,
+				`expected a timestamp in seconds near ${nowInSeconds}, received ${timestamp}`,
+			);
+		}
 	}));
 
 test("dev vault renames preserve legacy target handling and save/delete responses", () =>

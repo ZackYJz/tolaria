@@ -10,6 +10,8 @@ interface LastActiveNoteOptions {
   entries: VaultEntry[]
   isVaultLoading: boolean
   openNote: (entry: VaultEntry) => Promise<void>
+  /** Wins over the stored note when it names one, e.g. the note in a shared web URL. */
+  preferredEntry?: (entries: VaultEntry[]) => VaultEntry | undefined
 }
 
 type CompleteRestoration = () => void
@@ -34,8 +36,12 @@ function saveLastActiveNotePath(path: string | null): void {
   }
 }
 
+function findStoredEntry(entries: VaultEntry[], storedPath: string | null): VaultEntry | undefined {
+  return storedPath ? entries.find((entry) => notePathsMatch(entry.path, storedPath)) : undefined
+}
+
 function restoreLastActiveNote(
-  options: Pick<LastActiveNoteOptions, 'activeTabPath' | 'entries' | 'openNote'>,
+  options: Pick<LastActiveNoteOptions, 'activeTabPath' | 'entries' | 'openNote' | 'preferredEntry'>,
   complete: CompleteRestoration,
 ): void {
   if (options.activeTabPath) {
@@ -44,9 +50,7 @@ function restoreLastActiveNote(
   }
 
   const storedPath = loadLastActiveNotePath()
-  const storedEntry = storedPath
-    ? options.entries.find((entry) => notePathsMatch(entry.path, storedPath))
-    : undefined
+  const storedEntry = options.preferredEntry?.(options.entries) ?? findStoredEntry(options.entries, storedPath)
   if (!storedEntry) {
     if (storedPath) saveLastActiveNotePath(null)
     complete()
@@ -69,7 +73,8 @@ export function useLastActiveNote({
   entries,
   isVaultLoading,
   openNote,
-}: LastActiveNoteOptions): void {
+  preferredEntry,
+}: LastActiveNoteOptions): boolean {
   const restoreAttemptedRef = useRef(!enabled)
   const [restorationComplete, setRestorationComplete] = useState(!enabled)
 
@@ -79,16 +84,18 @@ export function useLastActiveNote({
     const timer = window.setTimeout(() => {
       restoreAttemptedRef.current = true
       restoreLastActiveNote(
-        { activeTabPath, entries, openNote },
+        { activeTabPath, entries, openNote, preferredEntry },
         () => { setRestorationComplete(true); },
       )
     }, 0)
 
     return () => { window.clearTimeout(timer); }
-  }, [activeTabPath, enabled, entries, isVaultLoading, openNote])
+  }, [activeTabPath, enabled, entries, isVaultLoading, openNote, preferredEntry])
 
   useEffect(() => {
     if (!enabled || !restorationComplete) return
     saveLastActiveNotePath(activeTabPath)
   }, [activeTabPath, enabled, restorationComplete])
+
+  return restorationComplete
 }

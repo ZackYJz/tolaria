@@ -7,6 +7,7 @@ import {
   type RawEditorAutocompleteState,
 } from '../utils/rawEditorUtils'
 import { useCodeMirror } from '../hooks/useCodeMirror'
+import { useCodeMirrorReadOnly } from '../hooks/useCodeMirrorReadOnly'
 import type { VaultEntry } from '../types'
 import type { AppLocale } from '../lib/i18n'
 import { RawEditorFindBar, type RawEditorFindRequest } from './RawEditorFindBar'
@@ -46,6 +47,8 @@ export interface RawEditorViewProps {
   locale?: AppLocale
   findRequest?: RawEditorFindRequest | null
   onImageImportResult?: (result: Pick<RemoteImageImportResult, 'failedCount' | 'totalCount'>) => void
+  /** Offline on the web: the source stays readable and selectable, but cannot change. */
+  readOnly?: boolean
 }
 
 const DEBOUNCE_MS = 500
@@ -508,6 +511,7 @@ function useRawEditorEffects(
 
 export function RawEditorView(options: RawEditorViewProps) {
   const state = useRawEditorState(options)
+  useCodeMirrorReadOnly(state.viewRef, options.readOnly === true)
   const { handleRemoteImagePaste } = useRawEditorEffects(options, state)
 
   return (

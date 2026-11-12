@@ -2,7 +2,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
-import { yjsAlias } from './yjsResolution.ts'
 
 // Tests of the Tolaria remote: Node, real git, no jsdom. Run with `pnpm test:server`.
 // Kept apart from the root Vite config so the desktop test and coverage runs are unchanged.
@@ -10,7 +9,6 @@ const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
 
 export default defineConfig({
   root: REPO_ROOT,
-  resolve: { alias: [yjsAlias()] },
   test: {
     environment: 'node',
     include: ['apps/server/test/**/*.test.ts', 'packages/*/test/**/*.test.ts'],

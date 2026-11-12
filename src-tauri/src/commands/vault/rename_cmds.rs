@@ -293,9 +293,10 @@ pub async fn auto_rename_untitled(
 #[tauri::command]
 pub async fn detect_renames(args: VaultPathCommandArgs) -> Result<Vec<DetectedRename>, String> {
     let vault_path = expand_tilde(&args.vault_path).into_owned();
-    tokio::task::spawn_blocking(move || vault::detect_renames(Path::new(&vault_path)))
-        .await
-        .map_err(|error| format!("Rename detection task panicked: {error}"))?
+    crate::commands::blocking::run_blocking_labeled("Rename detection task panicked", move || {
+        vault::detect_renames(Path::new(&vault_path))
+    })
+    .await?
 }
 
 pub(crate) fn update_wikilinks_for_renames_blocking(

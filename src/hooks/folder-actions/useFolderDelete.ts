@@ -3,6 +3,8 @@ import type { SidebarSelection, VaultEntry } from '../../types'
 import {
   clearDeletedFolderTabs,
   type ConfirmFolderDeleteState,
+  entryVaultPath,
+  folderActionError,
   type FolderTab,
   folderLabel,
   invokeDeleteFolder,
@@ -22,8 +24,45 @@ interface UseFolderDeleteInput {
   vaultPath: string
 }
 
+type FollowFolderDeleteInput = Omit<UseFolderDeleteInput, 'clearFolderRename' | 'setToastMessage'>
+
+/** Closes the folder's notes and reloads, after this tab or another one deleted the folder. */
+function useFollowFolderDelete(options: FollowFolderDeleteInput) {
+  const { activeTabPathRef, closeAllTabs, reloadFolders, reloadVault, selection, setSelection, setTabs, vaultPath } = options
+
+  return useCallback(async (folderPath: string) => {
+    const entriesPath = entryVaultPath(vaultPath)
+    clearDeletedFolderTabs({
+      activeTabPathRef,
+      closeAllTabs,
+      folderPath,
+      setTabs,
+      vaultPath: entriesPath,
+    })
+    await reloadFolders()
+    const refreshedEntries = await reloadVault()
+    resetSelectionIfFolderDeleted({
+      folderPath,
+      refreshedEntries,
+      selection,
+      setSelection,
+      vaultPath: entriesPath,
+    })
+  }, [
+    activeTabPathRef,
+    closeAllTabs,
+    reloadFolders,
+    reloadVault,
+    selection,
+    setSelection,
+    setTabs,
+    vaultPath,
+  ])
+}
+
 export function useFolderDelete(options: UseFolderDeleteInput) {
-  const { activeTabPathRef, clearFolderRename, closeAllTabs, reloadFolders, reloadVault, selection, setSelection, setTabs, setToastMessage, vaultPath } = options
+  const { clearFolderRename, selection, setToastMessage, vaultPath } = options
+  const followFolderDelete = useFollowFolderDelete(options)
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<ConfirmFolderDeleteState | null>(null)
 
   const requestDeleteFolder = useCallback(
@@ -49,38 +88,12 @@ export function useFolderDelete(options: UseFolderDeleteInput) {
     try {
       setConfirmDeleteFolder(null)
       await invokeDeleteFolder({ vaultPath, folderPath })
-      clearDeletedFolderTabs({
-        activeTabPathRef,
-        closeAllTabs,
-        folderPath,
-        setTabs,
-        vaultPath,
-      })
-      await reloadFolders()
-      const refreshedEntries = await reloadVault()
-      resetSelectionIfFolderDeleted({
-        folderPath,
-        refreshedEntries,
-        selection,
-        setSelection,
-        vaultPath,
-      })
+      await followFolderDelete(folderPath)
       setToastMessage(`Deleted folder "${folderLabel({ folderPath })}"`)
     } catch (error) {
-      setToastMessage(`Failed to delete folder: ${error}`)
+      setToastMessage(`Failed to delete folder: ${folderActionError(error)}`)
     }
-  }, [
-    activeTabPathRef,
-    closeAllTabs,
-    confirmDeleteFolder,
-    reloadFolders,
-    reloadVault,
-    selection,
-    setSelection,
-    setTabs,
-    setToastMessage,
-    vaultPath,
-  ])
+  }, [confirmDeleteFolder, followFolderDelete, setToastMessage, vaultPath])
 
   const deleteSelectedFolder = useCallback(() => {
     if (selection.kind !== 'folder' || !selection.path) return
@@ -92,6 +105,7 @@ export function useFolderDelete(options: UseFolderDeleteInput) {
     confirmDeleteFolder,
     confirmDeleteSelectedFolder,
     deleteSelectedFolder,
+    followFolderDelete,
     requestDeleteFolder,
   }
 }

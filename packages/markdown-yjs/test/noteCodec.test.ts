@@ -81,6 +81,57 @@ describe('NoteCodec', () => {
   })
 })
 
+describe('NoteCodec round trip of the layout around the body (TOL-222)', () => {
+  // Shaped like demo-vault-v2/24q4.md, the note of the report, which an edit took from 320 bytes to 318.
+  const FIXTURE = [
+    '---',
+    'type: Quarter',
+    'aliases:',
+    '  - "[[Q4 2024]]"',
+    'status: Done',
+    '---',
+    '',
+    '# Q4 2024',
+    '',
+    'The quarter where the prototype became real.',
+    '',
+    '- Started [[24q4-laputa-start]] as the first working app spike.',
+    '- Captured the initial panel layout and editor decisions.',
+    '',
+    '',
+  ].join('\n')
+
+  async function savedAfter(source: string, edit: (markdown: string) => string): Promise<string> {
+    const doc = await docOf(source)
+    const canonicalSource = codec.read(doc)
+    await codec.write(doc, { markdown: edit(canonicalSource), revision: 'etag-2' })
+    const { markdown } = await codec.fileContent({ source, canonicalSource, canonical: codec.read(doc) })
+    return markdown
+  }
+
+  it('reads an unedited note back as its own bytes', async () => {
+    expect(await savedAfter(FIXTURE, (markdown) => markdown)).toBe(FIXTURE)
+  })
+
+  it.each([
+    ['a paragraph added at the end', (markdown: string) => markdown.replace('editor decisions.', 'editor decisions.\n\nAdded at the end.')],
+    ['a paragraph added above the heading', (markdown: string) => markdown.replace('# Q4 2024', 'Added on top.\n\n# Q4 2024')],
+    ['a list item edited', (markdown: string) => markdown.replace('editor decisions.', 'editor decisions, edited.')],
+  ])('saves %s with every other byte kept', async (_name, edit) => {
+    expect(await savedAfter(FIXTURE, edit)).toBe(edit(FIXTURE))
+  })
+
+  it.each([
+    ['no frontmatter', '# Title\n\nLast line.\n'],
+    ['no trailing newline', '---\ntype: Note\n---\n# Title\n\nLast line.'],
+  ])('adds no bytes to a note with %s', async (_name, source) => {
+    expect(await savedAfter(source, (markdown) => markdown)).toBe(source)
+    expect(await savedAfter(source, (markdown) => markdown.replace('Last line.', 'Last line, edited.'))).toBe(
+      source.replace('Last line.', 'Last line, edited.'),
+    )
+  })
+})
+
 describe('patchText', () => {
   it.each([
     ['a change in the middle', 'status: Open\nowner: me\n', 'status: Done\nowner: me\n'],

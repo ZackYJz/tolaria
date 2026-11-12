@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react'
+import { DiscordLogo } from '@phosphor-icons/react'
+import { ActionTooltip } from '@/components/ui/action-tooltip'
+import { Button } from '@/components/ui/button'
 import type { McpStatus } from '../hooks/useMcpStatus'
 import type { ThemeMode } from '../lib/themeMode'
-import type { AppLocale } from '../lib/i18n'
+import { translate, type AppLocale } from '../lib/i18n'
 import type { GitRemoteStatus, SyncStatus } from '../types'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { GitRepositoryOption } from '../utils/gitRepositories'
 import { StatusBarPrimarySection, StatusBarSecondarySection } from './status-bar/StatusBarSections'
+import { isRemoteBrowserShell } from './status-bar/syncPillState'
+import { WebSyncPill } from './status-bar/WebSyncPill'
+import { SharingStatusButton } from './sharing/SharingStatusButton'
 import type { VaultOption } from './status-bar/types'
+import { CONTRIBUTION_ANALYTICS_EVENT, TOLARIA_DISCORD_INVITE_URL } from '../constants/feedback'
+import { trackEvent } from '../lib/telemetry'
+import { openExternalUrl } from '../utils/url'
 
 export type { VaultOption } from './status-bar/types'
 
@@ -104,6 +113,13 @@ interface StatusBarProps {
 interface StatusBarFooterProps extends StatusBarProps {
   compact: boolean
   stacked: boolean
+  /** The web build: one sync pill stands in for the git controls. */
+  webSync: boolean
+}
+
+function webSyncPill({ webSync, isOffline, isVaultReloading, locale = 'en' }: StatusBarFooterProps) {
+  if (!webSync) return undefined
+  return <WebSyncPill isOffline={isOffline === true} isReloading={isVaultReloading === true} locale={locale} />
 }
 
 function StatusBarPrimaryFromFooter(options: StatusBarFooterProps) {
@@ -115,6 +131,7 @@ function StatusBarPrimaryFromFooter(options: StatusBarFooterProps) {
       lastSyncTime={options.lastSyncTime ?? null}
       conflictCount={options.conflictCount ?? 0}
       mcpStatus={options.aiFeaturesEnabled === false ? undefined : options.mcpStatus}
+      syncPill={webSyncPill(options)}
     />
   )
 }
@@ -132,8 +149,11 @@ function StatusBarSecondaryFromFooter(options: StatusBarFooterProps) {
     locale = 'en',
     compact,
     stacked,
+    webSync,
   } = options
   return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, width: stacked ? '100%' : 'auto' }}>
+      {webSync && <SharingStatusButton locale={locale} />}
       <StatusBarSecondarySection
         noteCount={noteCount}
         zoomLevel={zoomLevel}
@@ -147,6 +167,23 @@ function StatusBarSecondaryFromFooter(options: StatusBarFooterProps) {
         stacked={stacked}
         compact={compact}
       />
+      <ActionTooltip copy={{ label: translate(locale, 'feedback.community.title') }} side="top" align="end">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+          onClick={() => {
+            trackEvent(CONTRIBUTION_ANALYTICS_EVENT, { action: 'discord', surface: 'status_bar' })
+            void openExternalUrl(TOLARIA_DISCORD_INVITE_URL)
+          }}
+          aria-label={translate(locale, 'feedback.community.title')}
+          data-testid="status-discord"
+        >
+          <DiscordLogo size={14} weight="regular" />
+        </Button>
+      </ActionTooltip>
+    </div>
   )
 }
 
@@ -184,10 +221,11 @@ function StatusBarFooter(props: StatusBarFooterProps) {
 export function StatusBar(props: StatusBarProps) {
   useStatusBarTicker()
   const { compact, stacked } = useStatusBarLayout()
+  const [webSync] = useState(isRemoteBrowserShell)
 
   return (
     <TooltipProvider>
-      <StatusBarFooter {...props} compact={compact} stacked={stacked} />
+      <StatusBarFooter {...props} compact={compact} stacked={stacked} webSync={webSync} />
     </TooltipProvider>
   )
 }

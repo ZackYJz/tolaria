@@ -101,6 +101,16 @@ describe('initSentry', () => {
     expect(sentryMocks.setTag).toHaveBeenCalledWith('tolaria.release_kind', releaseKind)
   })
 
+  it('keeps the desktop options free of the web additions', () => {
+    vi.stubEnv('VITE_SENTRY_DSN', 'https://public@example.ingest.sentry.io/123456')
+
+    initSentry('anonymous-user')
+
+    const options = sentryMocks.init.mock.calls[0]?.[0]
+    expect(Object.keys(options).sort()).toEqual(['beforeSend', 'dsn', 'release', 'sendDefaultPii'])
+    expect(sentryMocks.setTag).not.toHaveBeenCalledWith('platform', 'web')
+  })
+
   it('drops active whiteboard platform permission rejections before sending them to Sentry', () => {
     const beforeSend = initSentryBeforeSend()
     const releaseGuard = retainWhiteboardPlatformPermissionGuard()

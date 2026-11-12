@@ -23,6 +23,18 @@ function folderPathForRelativePath(relativePath: string): string {
   return lastSlashIndex >= 0 ? normalizedPath.slice(0, lastSlashIndex) : ''
 }
 
+/** The desktop lists notes by absolute path; a Tolaria remote by vault-relative path. */
+const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:\/)/
+
+/** The note's path inside the vault; its bare file name when it lives outside it. */
+function relativeEntryPath(entry: VaultEntry, vaultPath: string): string {
+  const normalizedVaultPath = normalizeBasePath(vaultPath)
+  const entryPath = normalizePathSeparators(entry.path)
+  const vaultPrefix = `${normalizedVaultPath}/`
+  if (normalizedVaultPath && entryPath.startsWith(vaultPrefix)) return entryPath.slice(vaultPrefix.length)
+  return ABSOLUTE_PATH.test(entryPath) ? entry.filename : entryPath
+}
+
 export function folderPathForRetargetEntry({
   entry,
   vaultPath,
@@ -30,13 +42,7 @@ export function folderPathForRetargetEntry({
   entry: VaultEntry
   vaultPath: string
 }): string {
-  const normalizedVaultPath = normalizeBasePath(vaultPath)
-  const normalizedEntryPath = normalizePathSeparators(entry.path)
-  const vaultPrefix = `${normalizedVaultPath}/`
-  const relativePath = normalizedVaultPath && normalizedEntryPath.startsWith(vaultPrefix)
-    ? normalizedEntryPath.slice(vaultPrefix.length)
-    : entry.filename
-  return folderPathForRelativePath(relativePath)
+  return folderPathForRelativePath(relativeEntryPath(entry, vaultPath))
 }
 
 export function flattenRetargetFolders(nodes: FolderNode[]): RetargetFolderOption[] {

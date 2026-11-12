@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { isTauri, mockInvoke } from '../mock-tauri'
+import { createVaultBackend } from '../lib/vaultBackend'
+import { isTauri } from '../mock-tauri'
 import type { VaultEntry } from '../types'
 import {
   getNoteWindowPathCandidates,
@@ -32,12 +33,10 @@ interface OpenResolvedNoteWindowEntryArgs extends Omit<OpenNoteWindowArgs, 'setT
 }
 
 async function resolveNoteWindowEntry(noteWindowParams: NoteWindowParams): Promise<VaultEntry | undefined> {
+  const backend = createVaultBackend(noteWindowParams.vaultPath)
   for (const path of getNoteWindowPathCandidates(noteWindowParams)) {
     try {
-      const request = { path, vaultPath: noteWindowParams.vaultPath }
-      const entry = isTauri()
-        ? await invoke<VaultEntry | null>('reload_vault_entry', request)
-        : await mockInvoke<VaultEntry | null>('reload_vault_entry', request)
+      const entry = await backend.files.reloadEntry(path)
       if (entry) return entry
     } catch (error) {
       console.warn('Failed to resolve note window candidate:', error)
@@ -46,11 +45,9 @@ async function resolveNoteWindowEntry(noteWindowParams: NoteWindowParams): Promi
 }
 
 async function loadNoteWindowContent(path: string, vaultPath: string): Promise<string> {
-  const request = { path, vaultPath }
-  if (!isTauri()) return mockInvoke<string>('get_note_content', request)
-
-  await syncVaultAssetScope(vaultPath)
-  return invoke<string>('get_note_content', request)
+  if (isTauri()) await syncVaultAssetScope(vaultPath)
+  const backend = createVaultBackend(vaultPath)
+  return (await backend.files.read(path)).content
 }
 
 export async function syncVaultAssetScope(vaultPath: string): Promise<void> {

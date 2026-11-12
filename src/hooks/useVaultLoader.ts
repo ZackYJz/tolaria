@@ -22,6 +22,7 @@ import {
 } from './vaultLoaderCommands'
 import { normalizeVaultEntry } from '../utils/vaultMetadataNormalization'
 import { isNoteWindow } from '../utils/windowMode'
+import { useVaultEntriesStaleReload } from '../lib/vaultEntriesStale'
 import {
   recordActiveVaultSnapshot,
   recordActiveVaultUsable,
@@ -579,7 +580,8 @@ function useEntryMutations(
 
 function removeEntryByPath(entries: VaultEntry[], path: string): VaultEntry[] {
   const nextEntries = entries.filter((entry) => entry.path !== path)
-  return nextEntries.length === entries.length ? entries : nextEntries
+  if (nextEntries.length === entries.length) return entries
+  return nextEntries
 }
 
 function removeEntriesByPath(entries: VaultEntry[], paths: string[]): VaultEntry[] {
@@ -587,7 +589,8 @@ function removeEntriesByPath(entries: VaultEntry[], paths: string[]): VaultEntry
 
   const pathSet = new Set(paths)
   const nextEntries = entries.filter((entry) => !pathSet.has(entry.path))
-  return nextEntries.length === entries.length ? entries : nextEntries
+  if (nextEntries.length === entries.length) return entries
+  return nextEntries
 }
 
 function replaceEntryByPath(
@@ -1237,6 +1240,7 @@ export function useVaultLoader(
   })
 
   useGitignoredVisibilityReloads(vaultReloads)
+  useVaultEntriesStaleReload(vaultReloads.reloadVault)
   useVaultChromeReloadEffect(vaultPath, vaultReloads.reloadFolders, vaultReloads.reloadViews)
 
   useVaultLoaderStartup({

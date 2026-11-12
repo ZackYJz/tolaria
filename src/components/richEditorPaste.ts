@@ -1,13 +1,12 @@
 import { trackEvent } from '../lib/telemetry'
 import { injectLinkedCodeInBlocks, preProcessLinkedCodeMarkdown } from '../utils/linkedCodeMarkdown'
-import {
-  clipboardRemoteImages,
-  importRemoteImages,
-  type RemoteImageImportResult,
-  type RemotePasteImage,
-} from '../utils/remoteImagePaste'
-import { vaultAttachmentAssetUrl } from '../utils/vaultAttachments'
+import { clipboardRemoteImages, type RemoteImageImportResult } from '../utils/remoteImagePaste'
 import { createTolariaCodeBlockOptions } from './codeBlockOptions'
+import {
+  type ImportRemoteImages,
+  type RemoteImageImportTarget,
+  remoteImageImportTarget,
+} from './richPasteImageImport'
 
 type PasteHandlerOptions = {
   plainTextAsMarkdown?: boolean
@@ -95,11 +94,6 @@ const MARKDOWN_REFERENCE_LINK_RE = /\[[^\]\n]+\]\[[^\]\n]+\]/u
 const LONG_MARKDOWN_STRONG_RE = /(\*\*|__)(?!\s)[\s\S]{1,2000}?\S\1/u
 const LINK_PASTE_PROTOCOLS = new Set(['http:', 'https:'])
 
-type ImportRemoteImages = (request: {
-  images: RemotePasteImage[]
-  vaultPath: string
-}) => Promise<RemoteImageImportResult>
-
 type RichPasteHandlerOptions = {
   canApply?: () => boolean
   getVaultPath: () => string | undefined
@@ -110,6 +104,7 @@ type RichPasteHandlerOptions = {
 type ActiveRichPasteHandlerOptions = Omit<RichPasteHandlerOptions, 'getVaultPath'> & {
   vaultPath?: string
 }
+
 
 function hasExplicitMarkdownPayload(clipboardData: DataTransfer): boolean {
   return Array.from(clipboardData.types).some(type => EXPLICIT_MARKDOWN_TYPES.has(type))
@@ -459,20 +454,18 @@ function replaceRichImageBlockUrls(
   blocks: PasteBlock[],
   replacements: ReadonlyMap<string, string>,
   updateBlock: NonNullable<RichPasteEditor['updateBlock']>,
-  vaultPath: string,
+  attachmentUrl: RemoteImageImportTarget['attachmentUrl'],
 ): void {
   for (const block of blocks) {
     const url = block.type === 'image' ? block.props?.url : undefined
     if (typeof url === 'string' && typeof block.id === 'string') {
       const attachmentPath = replacements.get(url)
       if (attachmentPath) {
-        updateBlock(block.id, {
-          props: { url: vaultAttachmentAssetUrl({ attachmentPath, vaultPath }) },
-        })
+        updateBlock(block.id, { props: { url: attachmentUrl(attachmentPath) } })
       }
     }
     if (block.children) {
-      replaceRichImageBlockUrls(block.children, replacements, updateBlock, vaultPath)
+      replaceRichImageBlockUrls(block.children, replacements, updateBlock, attachmentUrl)
     }
   }
 }
@@ -481,7 +474,7 @@ function finishRichRemoteImageImport(
   context: RichEditorPasteContext,
   options: ActiveRichPasteHandlerOptions,
   result: RemoteImageImportResult,
-  vaultPath: string,
+  attachmentUrl: RemoteImageImportTarget['attachmentUrl'],
 ): void {
   const target = richImageRewriteTarget(context, options)
   if (target) {
@@ -489,7 +482,7 @@ function finishRichRemoteImageImport(
       target.blocks,
       result.replacements,
       target.updateBlock,
-      vaultPath,
+      attachmentUrl,
     )
   }
   options.onImportResult?.({
@@ -534,12 +527,12 @@ export function handleRemoteRichEditorPaste(
     ? clipboardRemoteImages(context.event.clipboardData)
     : []
   const handled = handleRichEditorPaste(context)
-  if (images.length === 0 || !options.vaultPath) return handled
+  const target = remoteImageImportTarget(options)
+  if (images.length === 0 || !target) return handled
 
-  const importImages = options.importImages ?? importRemoteImages
-  const vaultPath = options.vaultPath
-  void importImages({ images, vaultPath }).then(result => {
-    finishRichRemoteImageImport(context, options, result, vaultPath)
+  void target.importImages(images).then(result => {
+    finishRichRemoteImageImport(context, options, result, target.attachmentUrl)
   })
   return handled
 }
+

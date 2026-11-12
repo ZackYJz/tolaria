@@ -109,3 +109,33 @@ describe('preserveSource', () => {
     expect(preserveSource({ source, canonicalSource, canonical })).toBe(source.replace('image ![a](a.png)', 'picture ![a](./a.png)'))
   })
 })
+
+describe('preserveSource around the body', () => {
+  const source = '---\ntype: Note\n---\n\n# Title\n\nlast\n\n'
+  const canonicalSource = '---\ntype: Note\n---\n# Title\n\nlast\n'
+
+  it.each([
+    ['a paragraph added at the end', (text: string) => text.replace('last\n', 'last\n\nadded\n')],
+    ['a paragraph added at the top', (text: string) => text.replace('# Title', 'added\n\n# Title')],
+    ['the last line edited', (text: string) => text.replace('last', 'last words')],
+    ['a property added', (text: string) => text.replace('type: Note\n', 'type: Note\nstatus: Open\n')],
+  ])('keeps the blank line after the frontmatter and the trailing blank line for %s', (_name, edit) => {
+    expect(preserveSource({ source, canonicalSource, canonical: edit(canonicalSource) })).toBe(edit(source))
+  })
+
+  it.each([
+    ['no frontmatter', '# Title\n\nlast\n', '# Title\n\nlast\n'],
+    ['no trailing newline', '# Title\n\nlast', '# Title\n\nlast\n'],
+    ['blank lines before the body and no frontmatter', '\n\n# Title\n\nlast', '# Title\n\nlast\n'],
+  ])('adds no bytes to a note with %s', (_name, noteSource, noteCanonical) => {
+    const edit = (text: string) => text.replace('last', 'last\n\nadded')
+
+    expect(preserveSource({ source: noteSource, canonicalSource: noteCanonical, canonical: edit(noteCanonical) })).toBe(edit(noteSource))
+  })
+
+  it('writes the serializer form of a body that was emptied', () => {
+    const canonical = '---\ntype: Note\n---\n'
+
+    expect(preserveSource({ source, canonicalSource, canonical })).toBe(canonical)
+  })
+})

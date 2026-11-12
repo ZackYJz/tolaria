@@ -67,6 +67,19 @@ describe('detectPropertyType', () => {
     expect(detectPropertyType('scheduled', '2026-02-25')).toBe('date')
   })
 
+  it('detects empty semantic date properties by key', () => {
+    for (const key of ['date', 'start date', 'due_date', 'deadline', 'due', 'start', 'end', 'scheduled']) {
+      expect(detectPropertyType(key, null)).toBe('date')
+      expect(detectPropertyType(key, '')).toBe('date')
+    }
+    for (const key of ['sender', 'backend', 'weekend', 'candidate', 'updated by']) {
+      expect(detectPropertyType(key, null)).toBe('text')
+      expect(detectPropertyType(key, '')).toBe('text')
+    }
+    expect(detectPropertyType('owner', null)).toBe('text')
+    expect(detectPropertyType('owner', '')).toBe('text')
+  })
+
   it('detects date from ISO string even without date key', () => {
     expect(detectPropertyType('custom_field', '2026-03-31')).toBe('date')
   })

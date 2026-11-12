@@ -17,6 +17,7 @@ import type { AiAgentsStatus } from '../lib/aiAgents'
 import { useDocumentThemeMode } from './useDocumentThemeMode'
 import { useTelemetry } from './useTelemetry'
 import { useThemeMode } from './useThemeMode'
+import { useLoadedLocale } from './useLoadedLocale'
 
 interface AppPreferencesConfig {
   aiAgentsStatus: AiAgentsStatus
@@ -70,10 +71,10 @@ export function useAppPreferences({
     () => resolveEffectiveLocale(SYSTEM_UI_LANGUAGE, getBrowserLanguagePreferences()),
     [],
   )
-  const appLocale = useMemo(
+  const appLocale = useLoadedLocale(useMemo(
     () => resolveEffectiveLocale(settings.ui_language, [systemLocale]),
     [settings.ui_language, systemLocale],
-  )
+  ))
   const dateDisplayFormat = useMemo(
     () => normalizeDateDisplayFormat(settings.date_display_format) ?? DEFAULT_DATE_DISPLAY_FORMAT,
     [settings.date_display_format],

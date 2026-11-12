@@ -69,10 +69,6 @@ files:
     feedback.featureRequests.description: 9583575bdef16e12927b0a5acfa84307
     feedback.featureRequests.cta: c19ef0158349da249920b0d9f67d7d48
     feedback.featureRequests.linkLabel: d125f38d1dc8dbdc7dae3f1778df3a3a
-    feedback.discussions.title: 560f23c77d499c21038c0b4487f03cb2
-    feedback.discussions.description: 2e4da4c5f54c7af3b8db9f3d93ed63c5
-    feedback.discussions.cta: 61ccb6a90ec8037f2926c48c0a90caa3
-    feedback.discussions.linkLabel: 4f85e3343c5e21d2b11812b2baa8ed83
     feedback.contributeCode.title: 8f93fd72b63620711cc118403b85133e
     feedback.contributeCode.description: 53230626356951578842a8cd7233d1f1
     feedback.contributeCode.cta: 900156c5b6af50ce83d772fb8675c3d0
@@ -254,7 +250,7 @@ files:
     settings.workspaces.slugAria: 1d9e314005db037b4a83a220a45f3d77
     settings.workspaces.nameTooltip: 5c12e3507377eadae5c2340462dda553
     settings.workspaces.labelTooltip: b1b87a2affcd504e54bf97100e3d9c34
-    settings.workspaces.slugTooltip: daa690f5855e35d1cfa9dbffe1870d40
+    settings.workspaces.slugTooltip: 26378d4c86b38f100fb5e9ee9796d168
     settings.workspaces.color: cb5feb1b7314637725a2e73bdc9f7295
     settings.workspaces.moveUpAria: 2ade43872ef9432d14af83056304c6d7
     settings.workspaces.moveDownAria: ed1ef4a310797ac84894a224bf4c77a6
@@ -264,6 +260,7 @@ files:
     settings.theme.label: d721757161f7f70c5b0949fdb6ec2c30
     settings.theme.light: 9914a0ce04a7b7b6a8e39bec55064b82
     settings.theme.dark: a18366b217ebf811ad1886e4f4f865b2
+    settings.theme.hybrid: fb1b6e23a3767d2a31ef7899e6dd3f1e
     settings.theme.system: a45da96d0bf6575970f2d27af22be28a
     settings.language.title: 4994a8ffeba4ac3140beb89e8d41f174
     settings.language.description: e2bb9b523067fdc32a494b1d6fd97906
@@ -579,6 +576,7 @@ files:
     sidebar.action.createNoteInFolderMenu: b1dbc8fe9fa4e735ef9d8baacff46377
     sidebar.action.createFolderInFolderMenu: 21a068a0d74b87c91f795d7fb3e52ad6
     sidebar.action.revealFolderMenu: 76f4ed52da9937ae432dcf5a108fabb4
+    sidebar.action.showSidebar: babeac99d3c7fd005b057af8acfc659f
     sidebar.action.copyFolderPathMenu: 1779ec6018a385912c1a5499a1bbf2b2
     sidebar.action.renameFolderMenu: deb1d8fa030292e7eda2c244b313aca2
     sidebar.action.deleteFolderMenu: c78c889ac7396dc148fc859c9221e545
@@ -598,8 +596,12 @@ files:
     noteList.title.view: 4351cfebe4b61d8aa5efa1d020710005
     noteList.title.notes: f4c6f851b00d5518bf888815de279aba
     noteList.searchPlaceholder: 4857cd2689a0a40eb4a77cdc745c518e
+    noteList.mobileSearchPlaceholder: 13348442cc6a27032d2b4aa28b75a5d3
     noteList.searchAction: 5012120fc480c67686dd22ee2f9493cd
     noteList.clearSearch: 9983381c21069a3d6e4432e0aaea0079
+    noteList.recentSearches: 8173dbf786c0d6bc93bdb6f54d6889d3
+    noteList.recentlyOpened: c1c9cdb573086d9ba74d34dba49eb3ef
+    noteList.noResults: c49c29bb6656c1f25f2cfac84f83b5ba
     noteList.quickOpenCreate: a4e964a3bc5b25e7ae87163624731e05
     noteList.createNote: f1484bc40bd3fe3430c13fb89e2ce1af
     noteList.context.renameNote: c31c2b468229232ad6287e734fe67d96
@@ -648,6 +650,7 @@ files:
     noteList.changes.cancel: ea4788705e6873b424c65e91c2846b19
     editor.empty.selectNote: a71ec7c80aefe49c59f6aba033bf453e
     editor.empty.shortcuts: 1133fdf3ecef6a09dd9e2a185e1bd4ec
+    editor.empty.tapNote: 57bf79c985d8fc57f9032430b81042e2
     editor.raw.label: 7a9754c15264b0604aa31dfea32321ea
     editor.sheet.loading: 59df3a3f0bb3834a820e8fbf6a515114
     editor.sheet.unavailable: f0920deeec857fa2251bb073b956364e
@@ -752,6 +755,8 @@ files:
     editor.blockType.numberedList: bf087c065d8d3f2e77bc07a82c07df52
     editor.blockType.checklist: a5d727df2ce2d168bae39c78df4b9054
     editor.blockType.codeBlock: febf6b24daaaeced55c4cc4db7dc931b
+    editor.placeholder: 145afb80fbbaaa665c0a9045cd482223
+    editor.placeholder.title: b78a3223503896721cca1303f776159b
     editor.toolbar.rawReturn: 5ddcf5e0dc8b933b344bb6ca3d8e131d
     editor.toolbar.rawOpen: 89ad60735a649b60dacd2301cda0c4ec
     editor.toolbar.noteWidthNormal: 9bb55413ec536c4a8fa41c4c4464ab44
@@ -923,6 +928,9 @@ files:
     inspector.info.size: 6f6cb72d544962fa333e2e34ce64f719
     update.available: 992477975168b876be8e77ce2975e390
     update.checking: a07813cc05571f23ce8dd7039583d7da
+    update.error.check: bd0a71f91dc93d5dfc4b7102a31e49eb
+    update.error.download: d7fde6036c55373b5cd605d721ca2fb2
+    update.error.package: 0a809a41413d5e51585744e65fc25a52
     update.releaseNotes: 5dd03e8d039863e563e049be198c3fd3
     update.updateNow: 99b1054c0f320be9f109c877a5efd0b2
     update.dismiss: c8a59e7135a20b362f9c768b09454fdb
@@ -996,6 +1004,8 @@ files:
     status.conflict.count: 46293d20ed2071fb30762b71fdaa5894
     status.offline.title: 3bf45a7003646cc4f963810b0b7ac0f5
     status.offline.label: 8d9da4bc0e49a50e09ac9f7e56789d39
+    status.offline.readOnlyTitle: 08ebb02c7326c7e5cf59ae1ed6b166e2
+    status.offline.readOnlyLabel: 4ccb24e416cc4616a63df3e8a128a5ff
     status.changes.view: 6d60d24d8f475ddaef94bbbc58514b5a
     status.changes.label: c112bb3542e98308d12d5ecb10a67abc
     status.commit.local: 6474fe7e2ed525df3da3eb447943bfcd
@@ -1077,7 +1087,301 @@ files:
     collab.status.synced: 9168ea748695dd9405ddceda0caf52d8
     collab.status.offline: d91bd16c8b273210ae6a7e34c7fc55a1
     collab.status.closed: ef70e46fd3bbc21e3e1f0b6815e750c0
-    collab.conflict: b5deac9b01926ea3fcfec8be58dfa199
+    collab.conflictCopy: 19505da9b2a51a832dd8ec71e4d71c47
+    collab.conflictNotice.title: dc10921a908c30e3e243115deb0b7479
+    collab.conflictNotice.close: d3d2e617335f08df83599665eef8a418
     collab.presence.label: bf4d8656b98dec65392089af27b4fe04
     collab.presence.you: 2f42560ef5401cbf55847b22cff66f1a
     collab.error.open: 799ae0bab73d97e81222f9417ef969ed
+    editor.whiteboard.errorTitle: af2d111bad72c2b10bb1489827674cd8
+    editor.whiteboard.errorBody: c4f6b90e08b9d0b594553b191ac2b580
+    editor.whiteboard.retry: fc575851ce7cbf7c4639ddccdc648d70
+    mobile.status.open: c3bf447eabe632720a3aa1a7ce401274
+    mobile.status.minutesAgo: 6c0cef977fba600c9517c8a0c8dff73d
+    mobile.status.hoursAgo: c2ee59305b600b94ed59d4dd88996644
+    mobile.status.daysAgo: 3a5d763b93876c200fdf0bccaa574f94
+    mobile.status.now: 97bc592b27a9ada2d9a4bb418ed0ebed
+    viewDialog.filter.addFilter: 61fe70d0ace83164738433e164bd1987
+    viewDialog.filter.addGroup: 9851adcbf8570b7c667d1a99d541b29b
+    viewDialog.filter.and: 558ffc8f5770d8e4f95f51d822685532
+    viewDialog.filter.fieldLabel: 6f16a5f8ff5d75ab84c018adacdfcbb7
+    viewDialog.filter.matchAll: c57014f392d01152dec9773af80795bc
+    viewDialog.filter.matchAny: eda0fefd18bb2b44eda1e9b1b6ebe761
+    viewDialog.filter.operator.after: 632a2406bbcbcd553eec45ac14b40a0a
+    viewDialog.filter.operator.any_of: 685351b83de52f7e4c65f7ecd84f2b64
+    viewDialog.filter.operator.before: 2f44417567bc123bd7c60de8c2a2b444
+    viewDialog.filter.operator.contains: 857af22f119fefbfa24769ed2ad6d5e7
+    viewDialog.filter.operator.equals: 51c3f59625962b899c03595d6cdfb284
+    viewDialog.filter.operator.is_empty: bf943ad8b2ad1f26745e6236f04b74df
+    viewDialog.filter.operator.is_not_empty: 9de4085ca524c6eb4ab0fcc2171ebdb3
+    viewDialog.filter.operator.none_of: ce089471f2eec807561c4beeabccce48
+    viewDialog.filter.operator.not_contains: 8d7e73dd080ef9034a50c7a7719de26b
+    viewDialog.filter.operator.not_equals: 217b812faa0d80cf2e6d0f6c427bfcf9
+    viewDialog.filter.or: 1d00e7dce692e8dc3f6877f035e3a616
+    viewDialog.filter.regex: 86f600672d32a7be1dd6cb035ac61577
+    viewDialog.filter.valueLabel: 689202409e48743b914713f96d93947c
+    mcp.setup.manual.copy: 6a8c9fe401557c870e3a90bbfab01b25
+    sidebar.action.moveFavoriteUp: 02abf9e58bf4f9ba93cfd4e359c897d3
+    sidebar.action.moveFavoriteDown: 4e634c94e6c2c5ff673d393129f9cd04
+    sidebar.action.moveSectionUp: c68bd41b73e040db23dd5193cd6a7cfe
+    sidebar.action.moveSectionDown: 5c220de5f09ca4673a6dbbf2e50b4e15
+    sidebar.action.createNodeInFolderMenu: 857a479229a4ab0bc62bbfb621d3180a
+    sidebar.section.typeName: 72c4189a4326910705caf5670114d8c5
+    noteList.bulk.selectedCount: ef1b031573031a3eca39e4b16e1eacec
+    noteList.bulk.organize: 4fe16f9723e5e7439b08b4e7f1aee487
+    noteList.bulk.archive: a7dbf2dca186b14deb97e29276fae346
+    noteList.bulk.unarchive: 7b1b9d413d6f5fbeba5efca399e63c3b
+    noteList.bulk.delete: f9b4ed4f762aadfc0be766815ec897fa
+    noteList.bulk.clear: 80ffff123555bd5173345bc8f144edeb
+    editor.toolbar.openFileInDefaultApp: 66e8265021958aa54613b9c17320297e
+    editor.formatting.toolbar: 767042e4dbdd6d8f737786f122d66d4f
+    editor.formatting.hideKeyboard: a032e35e45c5ebfc0315db9b5e61cd8b
+    editor.formatting.headings: 545b1150d9c178bf41eee6c799b715d7
+    editor.formatting.lists: 691d1860ec58dd973e803e209697d065
+    editor.formatting.insert: a458be0f08b7e4ff3c0f633c100176c0
+    editor.formatting.more: c53aa91e986501dad6061ab85b1a2148
+    editor.formatting.attachment: c9c26afac313ee59c05f3e4cd68b64d6
+    editor.formatting.bold: 114c3050111d8b8ddd830b99ccebd246
+    editor.formatting.italic: 1d874710ccdcd46b95397049d2e7500c
+    editor.formatting.strikethrough: 926a51baad949d12035107e5d06e2fdb
+    editor.formatting.code: ca0dbad92a874b2f69b549293387925e
+    editor.formatting.link: 97e7c9a7d06eac006a28bf05467fcc8b
+    editor.formatting.wikilink: e0ee5416c95077b05ea46d40dee513a7
+    editor.formatting.emoji: 68305e25f5788db069d06c54924af087
+    editor.formatting.searchEmoji: 21cb93f165892484afe2431194e15b43
+    editor.formatting.searchEmojiPlaceholder: f5869e8673f8fac0c39d210471b9acec
+    editor.formatting.noMatchingEmoji: d6b4952322c3544d1407af823c643a80
+    editor.formatting.heading1: fd7500ca2aba5ce6ba82e8dee1ffe5f4
+    editor.formatting.heading2: ea59935a58010a876f94374fb2f41d51
+    editor.formatting.heading3: 652864eb81a28bd7164f1605ab52a26a
+    editor.formatting.heading4: 553ddd7695ba37dc6f821067d9f5da30
+    editor.formatting.heading5: 8c08de90796fbc4c4aae36014c40eec4
+    editor.formatting.heading6: a24b3f7226370522c2a0e7ffd542a031
+    editor.formatting.bulletList: 7e0df159e037db49a0ce97098f05b5ac
+    editor.formatting.orderedList: 4b985b57aabbd3110aac1d53b1a921c1
+    editor.formatting.taskList: a5d727df2ce2d168bae39c78df4b9054
+    editor.formatting.indent: 497470e76a40fc53e14c0df9b4e4ec9f
+    editor.formatting.outdent: 016839db155e0468864ef3cd23d1ae44
+    editor.formatting.quote: c48e929b2b1eabba2ba036884433345e
+    editor.formatting.divider: 2908050e771fb91a3afbb7809972e90c
+    editor.formatting.codeBlock: 10a7314bd561c0d130bd189a6f836e5e
+    editor.formatting.mathBlock: a49950aa047c2292e989e368a97a3aae
+    editor.formatting.mermaid: ee9b155b26d2df2a2c103fae24e71222
+    editor.formatting.table: 51c45b795d5d18a3e4e0c37e8b20a141
+    editor.formatting.whiteboard: a709f53fbab6855ced85d9d508fce3aa
+    editor.sourceBlock.content: f15c1cae7882448b3fb0404682e17e61
+    editor.sourceBlock.edit: cf9f2d3316dede262fd075b0c2d397a6
+    editor.sourceBlock.language: 4994a8ffeba4ac3140beb89e8d41f174
+    editor.sourceBlock.metadata: 776ed5e62878361f66b3dcac0146b26a
+    editor.source.yamlErrorLabel: c7627e0c64e26d751336e64af07552c6
+    editor.source.yamlError.tabIndentation: 3956e60729707b1918cad62f121726a5
+    editor.source.yamlError.unclosedFrontmatter: 814a255851b2993aa2113f0288adebc6
+    editor.table.addColumn: b61b8f498d489f2e2b916b887b7062bc
+    editor.table.addRow: 19f6e26702652b72fdc06294ed1594ef
+    editor.table.alignCenter: 4f1f6016fc9f3f2353c0cc7c67b292bd
+    editor.table.alignDefault: 7a1920d61156abc05a60135aefe8bc67
+    editor.table.alignLeft: 945d5e233cf7d6240f6b783b36a374ff
+    editor.table.alignRight: 92b09c7c48c520c3c55e497875da437c
+    editor.table.alignment: a63706eecfa33f67b315f978392ad7ae
+    editor.table.cell: 44669a7cb93d75e9667b59dadb43f89c
+    editor.table.column: 213c10963fd6d5f83f212a655d85d29a
+    editor.table.edit: b9198d8ad9f4be9a51c2ea05711be865
+    editor.table.removeColumn: 04f5301c2becf1179ecb672f3a147071
+    editor.table.removeRow: f22cc12954f8a6326b87efac5ab3bbd4
+    editor.table.row: a9311392ed16fd82f9059709416a2258
+    editor.whiteboard.edit: 0b7d645c0f097cba00955c2a40f40259
+    editor.whiteboard.height: eec6c4bdbd339edf8cbea68becb85244
+    editor.whiteboard.snapshot: 6836f4668b29e713e0584ebdff5f93c4
+    editor.whiteboard.width: 32954654ac8fe66a1d09be19001de2d4
+    filePreview.file: 0b27918290ff5323bea1e3b78a9cf04e
+    filePreview.previewUnavailable: e49849dafe86101d18db2e35e40ce18a
+    filePreview.previewUnavailableDescription: a2c2dc6e43116031e882ab247e4390c3
+    filePreview.textFile: de62d185f177767c1b06714ed2d5a0da
+    inspector.properties.valueKind: 4475920d50a2c224b86ebf6e79d38dc7
+    inspector.properties.valueKind.text: 9dffbf69ffba8bc38bc4e01abf4b1675
+    inspector.properties.valueKind.list: 189f63f277cd73395561651753563065
+    inspector.properties.valueKind.number: b2ee912b91d69b435159c7c3f6df7f5f
+    inspector.properties.valueKind.boolean: 27226c864bac7454a8504f8edb15d95b
+    inspector.properties.valueKind.status: ec53a8c4f07baed5d8825072c89799be
+    inspector.properties.valueKind.date: 44749712dbec183e983dcd78a7736c41
+    inspector.properties.valueKind.url: e6b391a8d2c4d45902a23a8b6585703d
+    inspector.properties.valueKind.color: cb5feb1b7314637725a2e73bdc9f7295
+    status.vault.devBridgeMissingUrl: 4bdc5014ece1669f626eee53acb8f820
+    status.vault.devBridgeFailed: 7e363c19a1615bddf02075956534d1f0
+    mobile.vaults.localOnly: 0dae103909ed6e557fdcf65c22cf8a23
+    mobile.vaults.folderSaved: e3c7b9c05178f30c2c702f22654a3359
+    mobile.vaults.folderLinked: 07df69bbc8a45a1c0ed7b5272d2873b4
+    mobile.vaults.folderOpenHint: 99a81fb10d794ab2f77e4d33414722e0
+    mobile.vaults.folderUnavailable: bbd38c55e4d5a5362d55b7b3eee06258
+    mobile.vaults.folderPickerFailed: 9981fbb7b172e0830556f5aeaeafd402
+    mobile.vaults.folderReadFailed: fa2ceb5de9ed98d9318c17e423416f9b
+    mobile.vaults.folderCatalogFailed: 7748b1cff52344eacd3660a1cee22846
+    mobile.vaults.folderConflict: 7f8ec0868832b7f1d263aa1e861edd2b
+    mobile.vaults.localCopy: aa20c1d667c2ef2eb659ff3c2b11697c
+    mobile.vaults.sessionFolder: 957a1315ef9c0afeb8de62a2e72335c7
+    mobile.vaults.github: d3b7c913cd04ebfec0e9ec32cb6fd58c
+    mobile.vaults.signIn: 9906352b29a82243c688629fd911893e
+    mobile.vaults.signOut: c87aacf5673fada1108c9f809d354311
+    mobile.vaults.notConfigured: 2d33e8a8e25632cf621aafc08d241f78
+    mobile.vaults.repositoryUrl: 03f473f095af3f5db1b6cf6a25dd5cf7
+    mobile.vaults.codeCopied: 6374f6f0a9e670419393ec54958d772a
+    mobile.vaults.copyFailed: 4dd610ff449cd68b7f8cec0365ec0480
+    mobile.vaults.searchRepositories: 48d7b48bf6921b89a9bb19bd554bb471
+    mobile.vaults.privateRepository: 89853b01145b46e87e0c9eb6371eb782
+    mobile.vaults.publicRepository: f97a69e726782005f0d28bbaa678db47
+    mobile.vaults.clone: 47264ada9bf203c6967098ce1bb23d5f
+    mobile.vaults.cloning: b1f52f7c8685c73d7808f5f419448a0b
+    mobile.vaults.cloneCounting: 65849f1caee0f1a53fa80a8f8b528016
+    mobile.vaults.cloneCompressing: 16ac09e94574d5fa0e03a60f76e926a6
+    mobile.vaults.cloneReceiving: 9499b131d533dc526e69464febe45122
+    mobile.vaults.cloneResolving: dce38ad62ffd1c191c9daeddda808766
+    mobile.vaults.cloneAnalyzing: eb5f379a6bcbc2c888da50b1723c599a
+    mobile.vaults.cloneWriting: a6b66993005d4e63e7971c5e31efecfa
+    mobile.vaults.clonePublishing: f3ceef6f5d6efef465aa9b6d280740b8
+    mobile.vaults.cloneCancelling: ef5ba1f8e7df68c8abf64ddeb2ff2a73
+    mobile.vaults.cloneCount: bcef2042c8ef58dd64c467472a0b634c
+    mobile.vaults.repositories: de1f88f6f7789baf4d35f2919f100fc3
+    mobile.vaults.loadRepositories: 8b6144929a0512d94cd191e6283b4cb0
+    mobile.vaults.more: f6b5f35f6564a567f1810df0b730e3dc
+    mobile.vaults.openGitHub: 66ec93052668cd43d0ec1f100bc1824b
+    mobile.vaults.deviceCode: 67f981e4910421e95dc4a88be242397b
+    mobile.vaults.requestFailed: 23d523bd5f38e459cb818abda1045032
+    mobile.vaults.checkoutWriteFailed: 88ce06acdf115cee302b04bbbb3b5606
+    mobile.vaults.catalogFailed: 959d00638eaad955646fa2cafd9002dc
+    mobile.editor.loading: 88d1d76b5e54b416c0103fe99cc7fefa
+    mobile.editor.readFailed: 9c6c94312466ead61546b567527d7d32
+    mobile.editor.spreadsheetUnsupported: f0d61a0152611b1eace1b769260fde01
+    mobile.vaults.diverged: fecddbd32039feed14efe5b7368fa771
+    mobile.vaults.checkpoint: a937d10266de6dce3543aebe7e4b5899
+    mobile.vaults.fetch: ededa7d275710f6c3a8f104844814afd
+    mobile.vaults.checkout: af625c3914c5c3cd45dd16bee7a8cf63
+    mobile.vaults.push: ed642ff7fa8977240a49343a72602b2e
+    mobile.vaults.saving: 16fad28eaaaba7669c199475fd7d9ef0
+    mobile.vaults.authFailed: 6c6512798939546ee12e8d906339906f
+    mobile.vaults.networkFailed: 5ba0a318cc021d75cadd3013a8b38249
+    mobile.vaults.requestTimeout: d477ed8c8eb3ee1e9cd774f05ffc4282
+    mobile.vaults.credentialFailed: 4eba5a7232ecd752be47dc911e50b528
+    mobile.vaults.saveFailed: 842e9ec5582d70d26c2838f147d7049e
+    mobile.vaults.connectedAs: 4b5043f870431a18a158664675e94cc6
+    mobile.settings.saveFailed: 6c7c9c0a5a352435d55583fc3095d6e8
+    mobile.settings.loadFailed: ca5e1b7315367613388915f91785a4cf
+    mobile.updates.running: fa1ac96fdf7926c3139110433662416b
+    mobile.updates.embedded: e9c3feda2e1e27c3d27f01b9de86e5c3
+    mobile.updates.disabled: 5b5b535d5527e4cb1f2790cef14d6fdc
+    mobile.updates.idle: f676cc89b3e11cbf516e55873f82185a
+    mobile.updates.checking: f2bff594bc4c6fcf13337d2b6a10e27e
+    mobile.updates.downloading: cf7b626dc1dfa66a2157a278070d80c6
+    mobile.updates.ready: 90f6fa4a81490ab3c2783dd55761128a
+    mobile.updates.current: 25e744cddd6bf9ae5b14234b121ffc97
+    mobile.updates.unavailable: aebd1588b3431aa2257544ee31248410
+    mobile.updates.failed: 347c1a5ecf02e6d798bdf62bce3a9f7b
+    mobile.updates.restarting: 337c0621fbffe75c357bfd4a73bfde61
+    mobile.updates.nativeBuild: 69ffc5aa2829db8928877fe60e8602a6
+    mobile.updates.runningOta: e07ee48ca31c6f1420465db01d7c0379
+    mobile.updates.runtime: 66406daf2ae2334df881130996d2fd60
+    mobile.updates.unknown: 88183b946cc5f0e8c96b2e66e1c74a7e
+    mobile.updates.checkedAt: 305d0009091f0aa6c097cd66558857a9
+    mobile.settings.autoGitForeground: f3d51fb15349a4ae1ad8daa999a93931
+    mobile.settings.scale: 168bab01e06b4267f0bb861ade5ffd42
+    mobile.settings.scaleDefault: eb6d8ae6f20283755b339c0dc273988b
+    mobile.settings.scaleLarger: 7ae8c2d708f86350f8a623bf6dcb04db
+    mobile.git.commitMessage: 70e1850bd2f17ec3ce4af02796fc7043
+    mobile.git.commitAndSync: 20f5083e1b1f9e9e687f33f0f5c59b12
+    mobile.git.uncommitted: 2c879e52c84a087238096145c82c8fc7
+    mobile.git.emptyCommitMessage: 40cf486fdcafe0a357e44e58f5949fa1
+    mobile.git.localCommit: 70757f4bf8ab23fd7cd2ccf7005ef2f6
+    mobile.git.auto: 086247a9b57fde6eefee2a0c4752242d
+    mobile.git.manual: e1ba155a9f2e8c3be94020eef32a0301
+    mobile.sync.lastSuccess: c0d97dd3c454f8ea9060509b331b07e2
+    mobile.sync.folderDestination: 546c4c473c4d80d504505e526acbd206
+    mobile.sync.notLinked: 887992b5b243662c481c1c3b4970259a
+    mobile.sync.pendingShort: de11da8998b7e40ae3d1cc18c93877ef
+    mobile.sync.never: 45763fe019217d08c8c9463f0ae7b210
+    mobile.sync.unavailable: fea34444f71ba8f84b19d3c569fcb275
+    mobile.sync.lastCommit: 5d16b28fc2aaa6d8956b722f1f69b213
+    mobile.sync.pending: e6227498ede4ff116196b907aa4f2cb5
+    mobile.sync.historyFailed: b86c74941e83e0a0f6d9e0360f990a6a
+    mobile.sync.retry: 778692b1c69433e1654f56e5adb9cd6a
+    mobile.sync.authentication: 39d4e7b7ae3297fa9972b3ec34e20d8f
+    mobile.sync.conflict: 2eb43d27dcc4d6171ac87489626138a4
+    mobile.sync.local: f76c1a28fe7f7d23b72973697475a3f8
+    mobile.sync.keepBoth: c2a3f995f2c86adb7fba6cfba2bc2779
+    mobile.sync.localVersion: 59b7aca6f5d1567ab0a5d1860f729f10
+    mobile.sync.remoteVersion: db748d53805d22986589f5d62bf32dfd
+    mobile.sync.deleted: 5fe6005bf6e415c950c011fb65f12b8f
+    mobile.sync.binary: 135e597f6bd43f323a948b2296b93ed7
+    mobile.sync.continue: 3196881d906d7571b419c7b6487e581b
+    mobile.sync.stale: e2384af720e08b326159c29d5ede7128
+    mobile.sync.review: 49deb1946bf6b0862b740db5b54462dc
+    mobile.sync.noConflicts: f0d1d71496ef1294e0455ad7e1f37f6c
+    mobile.sync.previewTruncated: 7d83d0b9f20dd46ae97db305433bada0
+    mobile.git.commitLocal: b326dbfeb71d581c14b49e6279d38278
+    mobile.sync.action: d8e87c0927539672f54462c837be0b7f
+    mobile.sync.failedAt: 3f2a955506277e0a541b9dbf8c4283e0
+    mobile.properties.addRelationships: 56cd8370bfb1fdb0d0286f625fab354b
+    mobile.workspace.action.deleted: 5fe6005bf6e415c950c011fb65f12b8f
+    mobile.workspace.action.archived: 7d69b3cb4cada18ae61811304f8fbcb5
+    mobile.workspace.action.unarchived: 20fce42367f95d35f0f9ae163848cc58
+    mobile.workspace.action.organized: 91bb171bba89e5ac053d8a5ad90d55d7
+    mobile.workspace.action.unorganized: 7336041546af6d3a34581fac9d822f7f
+    mobile.workspace.action.relationshipRemoved: f9790beb288de958c9aa78147ea2117d
+    mobile.workspace.action.multiple: 9cb9aa460595ca3f9a5b1992a792bd09
+    mobile.workspace.actionFailure.deleted: 99c0ddcab7780a693734a7f85bb3f8f3
+    mobile.workspace.actionFailure.archived: fe39ec7529df67fcf0dc10dca14e408d
+    mobile.workspace.actionFailure.unarchived: 875581b2728987fd0ce570c9754e7128
+    mobile.workspace.actionFailure.organized: 9705c6beb9b61192dca2e1a941bf234c
+    mobile.workspace.actionFailure.unorganized: 33df835c54ec9bac04ad3fdc245e792b
+    mobile.workspace.actionFailure.relationshipRemoved: a39d152cf9b483d106e48617f610cef0
+    mobile.workspace.actionFailure.multiple: b6352ef2b1623ff79cbc7cb6e74f2bc7
+    feedback.community.title: 531631ae7d07851aa53abf507b9a5020
+    feedback.community.description: d1fa9eb431f008ec1f02b24e28ec6351
+    feedback.community.cta: 5c7ef8c320c94884cd78974ecc493846
+    feedback.community.linkLabel: 5c7ef8c320c94884cd78974ecc493846
+    communityBanner.invite: cb07c4eeb6eaaafe3e5a0f42efbb42a9
+    communityBanner.ios: 07bcb93dc92351ae037ecf755676fa0e
+    communityBanner.joinCommunity: 5c7ef8c320c94884cd78974ecc493846
+    communityBanner.dismiss: df9374f4356460c586a8e9c3bae697dc
+    phone.action.notes: f4c6f851b00d5518bf888815de279aba
+    phone.action.backToNotes: 6bb45b1cc12f68ac668f5bc8036e2aa4
+    noteList.conflictCopyBadge: 6c3971119ba0316e6a21bd347295f463
+    sharing.share.button: 5a95a425f74314a96f13a2f136992178
+    sharing.dialog.title: 5a95a425f74314a96f13a2f136992178
+    sharing.dialog.descriptionNote: 090010d63c3cd4b7a400ec0792968477
+    sharing.dialog.descriptionVault: 25f355a57c98c67d727caf636c6c137e
+    sharing.scope.label: a4d4c94f776760a37ec9d1d358b6e78a
+    sharing.scope.note: 0c0270c6c947785502ef5ca584259222
+    sharing.scope.vault: e79f139a98f3d977fc341db8d9abb358
+    sharing.invitee.label: db59712fecdee9c61feadb0c48950f65
+    sharing.invitee.placeholder: 7dd84003c51e33b899696af1ca62a0b1
+    sharing.role.label: bbbabdbe1b262f75d99d62880b953be1
+    sharing.role.editor: 02bde09c886a1ba339ef4768df372281
+    sharing.role.viewer: 0b19e616a6f965a1fee427de877c3fd7
+    sharing.invite.submit: c6a00f137b92ad22c007677fb2113a9f
+    sharing.invite.sent: 6b7ad30230cf2c9870400c1cd453acee
+    sharing.error.invalidInvitee: 05ce36361e61f00be49c5e709e6d3532
+    sharing.error.userNotFound: 7cac98287de1d93e7d90dc1a1714fe6d
+    sharing.error.invalidRequest: f2aebcda0730fbb3134ee6807fbe5c2e
+    sharing.error.shareLimit: b1849ebddb28c9ee9ef171f2465c8335
+    sharing.error.rateLimited: fda4e72287123c9decaf8ed1fad76d4b
+    sharing.error.unavailable: 18cd277e95409c395903270ecf7cb462
+    sharing.error.failed: 52ba852a11bcaf0cb097cdf8c52c8454
+    sharing.people.title: 68b6754aeccbaf9a409a151845344cd1
+    sharing.people.empty: a8883ffe61db48609a50ac1bee6e0691
+    sharing.people.remove: 98dad3659ede0251418d7a22a1df0fdb
+    sharing.people.removeLabel: cc77a2227f753cab2203f0b49add838f
+    sharing.people.roleLabel: 849ee5bf231f2fec7432219a226b2a52
+    sharing.people.scopeVault: e79f139a98f3d977fc341db8d9abb358
+    sharing.sharedWithMe.button: f07e75296c2154ca9a5a5083d0158b85
+    sharing.sharedWithMe.title: f07e75296c2154ca9a5a5083d0158b85
+    sharing.sharedWithMe.description: 9d50390822a23b9c6c1457475ba1967b
+    sharing.sharedWithMe.empty: 8bbe4b2382cdd0be9204f0c3ae7f8d93
+    sharing.sharedWithMe.from: 6a61dc216de63af463bbf564ebc12bb0
+    sharing.sharedWithMe.open: c3bf447eabe632720a3aa1a7ce401274
+    sharing.sharedWithMe.openLabel: a64c86443dd775087f080bc37105a756
+    sharing.sharedWithMe.myVault: 117180f2563a5c458ec0553c94aea3e5
+    sharing.sharedWithMe.shareVault: 92e32720a91f3ac8579e7b15fb168a09
+    sharing.status.editor: 570b51e7fa0bcf20c95a1c2d12b46f9a
+    sharing.status.viewer: ca27716a9affad2ae56052e5e2470099
+    sharing.readOnly.banner: 375ea827f2615ccd503376bfe4123367
+    sharing.revoked.title: a701366b384b7c3f2ee9fecd6d80ae7e
+    sharing.revoked.description: f49060d7f6f4c8292b73e0f2279aeeff

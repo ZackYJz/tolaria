@@ -1,7 +1,9 @@
 import { BlockNoteEditor, type PartialBlock } from '@blocknote/core'
 import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
 import { afterEach, describe, expect, it } from 'vitest'
+import { serializeMarkdownHighlightAwareBlocks } from '../utils/markdownHighlightMarkdown'
 import { schema } from './editorSchema'
+import { toggleDefaultMarkdownHighlight } from './markdownHighlightModel'
 import {
   blockSelectionAfterArrow,
   createRichEditorBlockSelectionExtension,
@@ -298,6 +300,121 @@ describe('rich editor block selection extension', () => {
     expect(result.event.defaultPrevented).toBe(true)
     expect(documentSnapshot(editor)).toBe(before)
     expect(selectedBlockIds(editor)).toEqual(['two'])
+  })
+
+  it.each([
+    { key: 'b', style: 'bold' as const, shift: false },
+    { key: 'i', style: 'italic' as const, shift: false },
+    { key: 'u', style: 'underline' as const, shift: false },
+    { key: 'x', style: 'strike' as const, shift: true },
+    { key: 'e', style: 'code' as const, shift: false },
+  ])('toggles $style on one block selection and keeps it selected', ({ key, style, shift }) => {
+    const editor = mountEditor()
+    selectBlock(editor, 'two')
+
+    const first = dispatchEditorKey(editor, key, { metaKey: true, shiftKey: shift })
+    expect(first.handled).toBe(true)
+    expect(selectedBlockIds(editor)).toEqual(['two'])
+    expect(editor.document[1]?.content).toEqual([{ type: 'text', text: 'Two', styles: { [style]: true } }])
+
+    dispatchEditorKey(editor, key, { metaKey: true, shiftKey: shift })
+    expect(selectedBlockIds(editor)).toEqual(['two'])
+    expect(editor.document[1]?.content).toEqual([{ type: 'text', text: 'Two', styles: {} }])
+  })
+
+  it.each([
+    { key: 'b', style: 'bold' as const },
+    { key: 'i', style: 'italic' as const },
+  ])('toggles $style on a multi-block selection', ({ key, style }) => {
+    const editor = mountEditor()
+    editor.setSelection('one', 'three')
+    dispatchEditorKey(editor, 'Escape')
+
+    dispatchEditorKey(editor, key, { metaKey: true })
+    expect(selectedBlockIds(editor)).toEqual(['one', 'two', 'three'])
+    expect(editor.document.filter((block) => ['one', 'two', 'three'].includes(block.id)).map((block) => block.content)).toEqual(
+      ['One', 'Two', 'Three'].map((text) => [{ type: 'text', text, styles: { [style]: true } }]),
+    )
+
+    dispatchEditorKey(editor, key, { metaKey: true })
+    expect(selectedBlockIds(editor)).toEqual(['one', 'two', 'three'])
+    expect(editor.document.filter((block) => ['one', 'two', 'three'].includes(block.id)).map((block) => block.content)).toEqual(
+      ['One', 'Two', 'Three'].map((text) => [{ type: 'text', text, styles: {} }]),
+    )
+  })
+
+  it.each([
+    { name: 'one block', blockIds: ['two'], expectedMarkdown: 'One\n\n==Two==\n\nThree', plainMarkdown: 'One\n\nTwo\n\nThree' },
+    { name: 'multiple blocks', blockIds: ['one', 'two'], expectedMarkdown: '==One==\n\n==Two==\n\nThree', plainMarkdown: 'One\n\nTwo\n\nThree' },
+  ])('toggles highlight on $name selection and preserves the selection', ({ blockIds, expectedMarkdown, plainMarkdown }) => {
+    const editor = mountEditor()
+    const firstBlockId = blockIds[0]
+    const lastBlockId = blockIds.at(-1)
+    if (!firstBlockId || !lastBlockId) throw new Error('Expected selected block ids')
+
+    if (blockIds.length === 1) {
+      selectBlock(editor, firstBlockId)
+    } else {
+      editor.setSelection(firstBlockId, lastBlockId)
+      dispatchEditorKey(editor, 'Escape')
+    }
+
+    toggleDefaultMarkdownHighlight(editor)
+    expect(selectedBlockIds(editor)).toEqual(blockIds)
+    expect(serializeMarkdownHighlightAwareBlocks(editor, editor.document)).toBe(expectedMarkdown)
+
+    toggleDefaultMarkdownHighlight(editor)
+    expect(selectedBlockIds(editor)).toEqual(blockIds)
+    expect(serializeMarkdownHighlightAwareBlocks(editor, editor.document)).toBe(plainMarkdown)
+  })
+
+  it('highlights every selected block when selection ids are in reverse document order', () => {
+    const editor = mountEditor()
+    editor._tiptapEditor.view.dispatch(
+      editor._tiptapEditor.state.tr.setMeta(richEditorBlockSelectionPluginKey, {
+        type: 'set',
+        blockIds: ['three', 'two', 'one'],
+      }),
+    )
+
+    toggleDefaultMarkdownHighlight(editor)
+
+    expect(selectedBlockIds(editor)).toEqual(['three', 'two', 'one'])
+    expect(serializeMarkdownHighlightAwareBlocks(editor, editor.document)).toBe('==One==\n\n==Two==\n\n==Three==')
+  })
+
+  it('undoes block highlight formatting in one step', () => {
+    const editor = mountEditor()
+    selectBlock(editor, 'two')
+
+    toggleDefaultMarkdownHighlight(editor)
+    expect(editor.document[1]?.content).toEqual([
+      { type: 'text', text: 'Two', styles: { highlight: true } },
+    ])
+
+    editor.undo()
+    expect(editor.document[1]?.content).toEqual([
+      { type: 'text', text: 'Two', styles: {} },
+    ])
+  })
+
+  it('matches text-selection Markdown output and undoes block formatting in one step', () => {
+    const blockSelectedEditor = mountEditor()
+    selectBlock(blockSelectedEditor, 'two')
+    dispatchEditorKey(blockSelectedEditor, 'b', { metaKey: true })
+    const blockMarkdown = blockSelectedEditor.blocksToMarkdownLossy(blockSelectedEditor.document)
+
+    const textSelectedEditor = mountEditor()
+    textSelectedEditor.setTextCursorPosition('two', 'start')
+    const start = textSelectedEditor._tiptapEditor.state.selection.from
+    textSelectedEditor._tiptapEditor.commands.setTextSelection({ from: start, to: start + 3 })
+    textSelectedEditor.toggleStyles({ bold: true })
+    expect(blockMarkdown).toBe(textSelectedEditor.blocksToMarkdownLossy(textSelectedEditor.document))
+
+    blockSelectedEditor.undo()
+    expect(blockSelectedEditor.blocksToMarkdownLossy(blockSelectedEditor.document)).toBe(
+      textSelectedEditor.blocksToMarkdownLossy(textSelectedEditor.document).replace('**Two**', 'Two'),
+    )
   })
 
   it('uses Enter to edit the selected block at the end', () => {

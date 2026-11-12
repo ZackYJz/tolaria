@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WebSocket as NodeWebSocket } from 'ws'
 import * as Y from 'yjs'
 import { CollabProvider, type SocketLike } from '../../../packages/collab-client/src/collabProvider.ts'
-import type { CollabTicketResponse, ListResponse, VaultResponse } from '../../../packages/protocol/src/index.ts'
+import { type CollabTicketResponse, type ListResponse, PROTOCOL_VERSION, type VaultResponse } from '../../../packages/protocol/src/index.ts'
 import { closeVaultServer, createVaultServer } from '../src/server.ts'
 import { LocalDiskStore } from '../src/store.ts'
 import type { Vault } from '../src/vault.ts'
@@ -17,6 +17,7 @@ const NOTE = 'projects/alpha.md'
 
 let fixture: Fixture
 let vault: Vault
+let store: GatedStore
 let server: Server
 let origin: string
 let providers: CollabProvider[]
@@ -28,7 +29,27 @@ interface Call {
 
 /** Every request goes to the server this test started on loopback, with the test token. */
 function call({ path, init }: Call): Promise<Response> {
-  return fetch(new URL(path, origin), { ...init, headers: { authorization: `Bearer ${TOKEN}` } })
+  const authorized = { ...init, headers: { authorization: `Bearer ${TOKEN}` } }
+  return fetch(new URL(path, origin), authorized)
+}
+
+/** The disk store, able to hold the collaboration snapshots back: a document then stays opening. */
+class GatedStore extends LocalDiskStore {
+  private gate: Promise<void> = Promise.resolve()
+
+  /** Holds every snapshot read until the returned function is called. */
+  hold(): () => void {
+    let release = () => {}
+    this.gate = new Promise((resolve) => {
+      release = resolve
+    })
+    return release
+  }
+
+  override async get(key: string): Promise<Uint8Array | null> {
+    if (key.startsWith('collab/')) await this.gate
+    return super.get(key)
+  }
 }
 
 function api(path: string, init: RequestInit = {}): Promise<Response> {
@@ -68,7 +89,7 @@ async function joinNote(path: string, access: 'read' | 'write' = 'write'): Promi
     doc: new Y.Doc(),
     openSocket: async () => {
       const issued = (await (await ticket({ docId, access })).json()) as CollabTicketResponse
-      return new WebSocket(socketUrl(issued.path, `?ticket=${issued.ticket}`)) as unknown as SocketLike
+      return new NodeWebSocket(socketUrl(issued.path, `?ticket=${issued.ticket}`)) as unknown as SocketLike
     },
   })
   providers.push(provider)
@@ -85,12 +106,14 @@ async function converged(a: CollabProvider, b: CollabProvider): Promise<void> {
 }
 
 async function start(collab?: false): Promise<void> {
+  store = new GatedStore(join(fixture.root, 'server', 'state'))
   server = await createVaultServer({
     vault,
-    store: new LocalDiskStore(join(fixture.root, 'server', 'state')),
+    store,
     token: TOKEN,
     maxBodyBytes: 1024 * 1024,
     collab: collab ?? { policy: { idleMs: 30, maxWaitMs: 5_000 }, lingerMs: 10 },
+    changes: new (await import('../src/changeEmitter.ts')).ChangeEmitter(),
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -107,14 +130,15 @@ afterEach(async () => {
   for (const provider of providers) provider.destroy()
   await closeVaultServer(server)
   await vault.idle()
+  await settle(20)
   await fixture.cleanup()
 })
 
 describe('the collaboration channel over websockets', () => {
-  it('is advertised with protocol 1.1 and the collaboration capabilities', async () => {
+  it('is advertised with protocol 1.2 and the collaboration capabilities', async () => {
     const meta = (await (await api('/v1/vault')).json()) as VaultResponse
 
-    expect(meta.protocolVersion).toBe('1.1')
+    expect(meta.protocolVersion).toBe(PROTOCOL_VERSION)
     expect(meta.capabilities).toEqual(expect.arrayContaining(['collab.yjs', 'collab.awareness', 'collab.tickets']))
     expect(meta.collab.available).toBe(true)
   })
@@ -221,12 +245,15 @@ describe('the collaboration channel over websockets', () => {
     const socket = new NodeWebSocket(socketUrl(`/v1/collab/docs/${docId}`), { headers: { authorization: `Bearer ${TOKEN}` } })
     const closed = new Promise<number>((resolve) => socket.on('close', resolve))
     socket.on('error', () => {})
+    const releaseDocument = store.hold()
 
     socket.on('open', () => {
       for (let sent = 0; sent < 3; sent++) socket.send(new Uint8Array(512 * 1024))
     })
+    const code = await closed
+    releaseDocument()
 
-    expect(await closed).toBe(1009)
+    expect(code).toBe(1009)
   })
 
   it('frees the room of a client that disconnects before the document has opened', async () => {
@@ -234,6 +261,7 @@ describe('the collaboration channel over websockets', () => {
     const socket = new NodeWebSocket(socketUrl(`/v1/collab/docs/${docId}`), { headers: { authorization: `Bearer ${TOKEN}` } })
     socket.on('error', () => {})
     socket.terminate()
+    await settle()
 
     expect(codec.read((await joinNote(NOTE)).doc)).toContain('# Alpha')
   })

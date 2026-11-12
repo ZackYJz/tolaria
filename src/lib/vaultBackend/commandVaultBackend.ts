@@ -1,4 +1,4 @@
-import type { SearchResult, VaultEntry } from '../../types'
+import type { FolderNode, SearchResult, VaultEntry, ViewFile } from '../../types'
 import { contentRevision } from './contentRevision'
 import {
   VAULT_BACKEND_INTERFACE_VERSION,
@@ -6,8 +6,12 @@ import {
   type VaultAttachmentUpload,
   type VaultBackend,
   type VaultBackendKind,
+  type VaultChromeOps,
   type VaultFile,
   type VaultFileOps,
+  type VaultFolderCreateRequest,
+  type VaultFolderRenameRequest,
+  type VaultFolderRenameResult,
   type VaultRenameRequest,
   type VaultRenameResult,
   type VaultRevision,
@@ -31,7 +35,8 @@ export type CommandDialect = Extract<VaultBackendKind, 'tauri' | 'mock'>
 export interface CommandVaultBackendOptions {
   dialect: CommandDialect
   invoke: CommandInvoker
-  vaultPath: string
+  /** Without one, desktop commands find the vault from the note's absolute path. */
+  vaultPath?: string
 }
 
 interface NoteDraft {
@@ -89,24 +94,55 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-function renameCommand(request: VaultRenameRequest): 'rename_note' | 'rename_note_filename' {
+type RenameCommand = 'rename_note' | 'rename_note_filename' | 'move_note_to_folder'
+
+function renameCommand(request: VaultRenameRequest): RenameCommand {
+  if ('folderPath' in request) return 'move_note_to_folder'
   return 'newTitle' in request ? 'rename_note' : 'rename_note_filename'
 }
 
 type RenameArgsBuilder = (request: VaultRenameRequest, options: CommandVaultBackendOptions) => Record<string, unknown>
 
-const tauriRenameArgs: RenameArgsBuilder = (request, { vaultPath }) => {
-  const target = 'newTitle' in request
+function tauriRenameTarget(request: VaultRenameRequest): Record<string, unknown> {
+  if ('folderPath' in request) return { folderPath: request.folderPath }
+  return 'newTitle' in request
     ? { newTitle: request.newTitle, oldTitle: request.oldTitle ?? null }
     : { newFilenameStem: request.newFilenameStem }
-  return { args: { vaultPath, oldPath: request.path, ...target } }
 }
 
-const mockRenameArgs: RenameArgsBuilder = (request, { vaultPath }) => {
-  const target = 'newTitle' in request
+function mockRenameTarget(request: VaultRenameRequest): Record<string, unknown> {
+  if ('folderPath' in request) return { folder_path: request.folderPath }
+  return 'newTitle' in request
     ? { new_title: request.newTitle, old_title: request.oldTitle ?? null }
     : { new_filename_stem: request.newFilenameStem }
-  return { vault_path: vaultPath, old_path: request.path, ...target }
+}
+
+const tauriRenameArgs: RenameArgsBuilder = (request, { vaultPath }) =>
+  ({ args: { vaultPath, oldPath: request.path, ...tauriRenameTarget(request) } })
+
+const mockRenameArgs: RenameArgsBuilder = (request, { vaultPath }) =>
+  ({ vault_path: vaultPath, old_path: request.path, ...mockRenameTarget(request) })
+
+interface RawFolderRenameResult {
+  old_path: string
+  new_path: string
+}
+
+/** Both dialects take the same arguments; the desktop rewrites no links on a folder rename. */
+async function renameFolderCommand(
+  { invoke, vaultPath }: CommandVaultBackendOptions,
+  { folderPath, newName }: VaultFolderRenameRequest,
+): Promise<VaultFolderRenameResult> {
+  const raw = await invoke<RawFolderRenameResult>('rename_vault_folder', { vaultPath, folderPath, newName })
+  return { oldPath: raw.old_path, newPath: raw.new_path, updatedFiles: 0 }
+}
+
+/** Both dialects take the same arguments for creating and deleting a folder too. */
+async function createFolderCommand(
+  { invoke, vaultPath }: CommandVaultBackendOptions,
+  { parentPath, name }: VaultFolderCreateRequest,
+): Promise<void> {
+  await invoke<string>('create_vault_folder', { vaultPath, folderName: name, parentPath })
 }
 
 function createFileOps(options: CommandVaultBackendOptions): VaultFileOps {
@@ -167,21 +203,42 @@ function createFileOps(options: CommandVaultBackendOptions): VaultFileOps {
 
   return {
     list: () => invoke<VaultEntry[]>('list_vault', { path: vaultPath }),
+    reload: () => invoke<VaultEntry[]>('reload_vault', { path: vaultPath }),
+    reloadEntry: (path) => invoke<VaultEntry>('reload_vault_entry', { path, vaultPath }),
     read,
     write,
     rename,
+    renameFolder: (request) => renameFolderCommand(options, request),
+    createFolder: (request) => createFolderCommand(options, request),
+    deleteFolder: (folderPath) => invoke<string>('delete_vault_folder', { vaultPath, folderPath }),
     delete: (paths) => invoke<string[]>(isTauri ? 'batch_delete_notes_async' : 'batch_delete_notes', { paths, vaultPath }),
     search,
     saveAttachment,
   }
 }
 
+function createChromeOps(options: CommandVaultBackendOptions): VaultChromeOps {
+  const { invoke, vaultPath } = options
+
+  return {
+    listFolders: () => invoke<FolderNode[]>('list_vault_folders', { path: vaultPath }),
+    listViews: () => invoke<ViewFile[]>('list_views', { vaultPath }),
+  }
+}
+
 export function createCommandVaultBackend(options: CommandVaultBackendOptions): VaultBackend {
+  const { dialect, invoke, vaultPath } = options
+  const isTauri = dialect === 'tauri'
+  
   return {
     kind: options.dialect,
     interfaceVersion: VAULT_BACKEND_INTERFACE_VERSION,
     capabilities: { collaboration: false, atomicRevisions: false, attachments: true },
     files: createFileOps(options),
+    chrome: createChromeOps(options),
     collab: null,
+    snapshot: isTauri
+      ? () => invoke<VaultEntry[] | null>('read_vault_snapshot', { path: vaultPath })
+      : undefined,
   }
 }

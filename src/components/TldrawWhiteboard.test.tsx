@@ -1,7 +1,7 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ComponentType } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Editor } from 'tldraw'
+import type { Editor, TLUiOverrides } from 'tldraw'
 import { TldrawWhiteboard } from './TldrawWhiteboard'
 import { TooltipProvider } from './ui/tooltip'
 
@@ -9,7 +9,12 @@ interface MockTldrawProps {
   assetUrls: MockAssetUrls
   components?: {
     Canvas?: ComponentType
+    DebugMenu?: ComponentType | null
+    DebugPanel?: ComponentType | null
+    ErrorFallback?: ComponentType
   }
+  overrides?: TLUiOverrides
+  store?: MockTldrawStore
   onMount: (editor: Editor) => () => void
   user?: MockTldrawUser
 }
@@ -503,4 +508,40 @@ describe('TldrawWhiteboard', () => {
     expect(tldrawStoreMock.getSnapshot).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
+  it('removes debug tools without removing ordinary menu actions', () => {
+    renderWhiteboard()
+    const props = renderedTldrawProps()
+    expect(props.components?.DebugMenu).toBeNull()
+    expect(props.components?.DebugPanel).toBeNull()
+    const actions = {
+      'toggle-debug-mode': { id: 'toggle-debug-mode' },
+      'export-all-as-svg': { id: 'export-all-as-svg' },
+      'toggle-snap-mode': { id: 'toggle-snap-mode' },
+      'color-scheme': { id: 'color-scheme' },
+    } as Parameters<NonNullable<TLUiOverrides['actions']>>[1]
+    const filtered = props.overrides?.actions?.(mockEditor(), actions, {} as Parameters<NonNullable<TLUiOverrides['actions']>>[2])
+    expect(filtered).not.toHaveProperty('toggle-debug-mode')
+    expect(filtered).toMatchObject({
+      'export-all-as-svg': actions['export-all-as-svg'],
+      'toggle-snap-mode': actions['toggle-snap-mode'],
+      'color-scheme': actions['color-scheme'],
+    })
+    expect(actions).toHaveProperty('toggle-debug-mode')
+  })
+
+  it('offers a board-only recovery that preserves the document store', () => {
+    renderWhiteboard()
+    const before = renderedTldrawProps()
+    const canvas = screen.getByTestId('mock-tldraw')
+    const Fallback = before.components?.ErrorFallback
+    expect(Fallback).toEqual(expect.any(Function))
+    if (!Fallback) throw new Error('Missing whiteboard fallback')
+    render(<Fallback />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Whiteboard could not be displayed')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry whiteboard' }))
+    expect(renderedTldrawProps().store).toBe(before.store)
+    expect(screen.getByTestId('mock-tldraw')).not.toBe(canvas)
+  })
+
+
 })

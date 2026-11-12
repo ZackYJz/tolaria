@@ -1,13 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
-import { isTauri, mockInvoke } from '../mock-tauri'
-import type { VaultEntry, VaultPropertyValue } from '../types'
 import type { FrontmatterValue } from '../components/Inspector'
-import { updateMockFrontmatter, deleteMockFrontmatterProperty } from './mockFrontmatterHelpers'
-import { updateMockContent, trackMockChange } from '../mock-tauri'
+import { updateFrontmatterContent } from '../lib/frontmatterText'
+import { assertVaultWritable } from '../lib/offline/offlineMode'
+import { editRemoteFrontmatter } from '../lib/remoteFrontmatter'
+import { createVaultBackend, hasRemoteVault, type VaultFileOps } from '../lib/vaultBackend'
+import { isTauri, trackMockChange, updateMockContent } from '../mock-tauri'
+import type { VaultEntry, VaultPropertyValue } from '../types'
 import { parseFrontmatter } from '../utils/frontmatter'
 import { normalizeNoteFormat } from '../utils/noteFormat'
-import { canonicalFrontmatterKey, isSystemMetadataKey } from '../utils/systemMetadata'
 import { normalizeNoteWidthMode } from '../utils/noteWidth'
+import { canonicalFrontmatterKey, isSystemMetadataKey } from '../utils/systemMetadata'
 
 type FrontmatterCommand = 'update_frontmatter' | 'delete_frontmatter_property'
 type FrontmatterKey = string
@@ -203,70 +205,74 @@ function seedMockContent(path: VaultPath, content: MarkdownContent): void {
   updateMockContent(path, content)
 }
 
-async function loadMockContent(path: VaultPath): Promise<MarkdownContent> {
+/** The browser's in-memory copy of a note, when reading it failed. */
+function windowMockContent(path: VaultPath): MarkdownContent {
+  if (typeof window === 'undefined' || !window.__mockContent) return ''
+  return (Reflect.get(window.__mockContent, path) as string | undefined) ?? ''
+}
+
+async function loadMockContent(files: VaultFileOps, path: VaultPath): Promise<MarkdownContent> {
   try {
-    return await mockInvoke<MarkdownContent>('get_note_content', { path })
-  } catch {
-    return typeof window === 'undefined'
-      ? ''
-      : (window.__mockContent ? Reflect.get(window.__mockContent, path) as string | undefined : undefined) ?? ''
+    return (await files.read(path)).content
+  } catch (error) {
+    void error
+    return windowMockContent(path)
   }
 }
 
-async function persistMockContent(path: VaultPath, content: MarkdownContent): Promise<void> {
-  try {
-    await mockInvoke('save_note_content', { path, content })
-  } catch (error) {
-    updateMockContent(path, content)
-    trackMockChange(path)
-    throw error
-  }
+/** Keeps the browser's in-memory copy, saved or not, so the edit is not lost. */
+function rememberMockContent(path: VaultPath, content: MarkdownContent): void {
   updateMockContent(path, content)
   trackMockChange(path)
 }
 
-function applyMockFrontmatterUpdate(path: VaultPath, key: FrontmatterKey, value: FrontmatterValue): MarkdownContent {
-  const content = updateMockFrontmatter(path, key, value)
-  return content
-}
-
-function applyMockFrontmatterDelete(path: VaultPath, key: FrontmatterKey): MarkdownContent {
-  const content = deleteMockFrontmatterProperty(path, key)
-  return content
-}
-
-async function executeMockFrontmatterOp(
-  op: FrontmatterOp,
-  path: VaultPath,
-  key: FrontmatterKey,
-  value?: FrontmatterValue,
-): Promise<MarkdownContent> {
-  seedMockContent(path, await loadMockContent(path))
-  let content: MarkdownContent
-  if (op === 'update') {
-    if (value === undefined) throw new Error('A frontmatter update requires a value')
-    content = applyMockFrontmatterUpdate(path, key, value)
-  } else {
-    content = applyMockFrontmatterDelete(path, key)
+async function persistMockContent(files: VaultFileOps, path: VaultPath, content: MarkdownContent): Promise<void> {
+  try {
+    await files.write(path, content)
+  } catch (error) {
+    rememberMockContent(path, content)
+    throw error
   }
-  await persistMockContent(path, content)
+  rememberMockContent(path, content)
+}
+
+interface FrontmatterOpRequest {
+  op: FrontmatterOp
+  path: VaultPath
+  key: FrontmatterKey
+  value?: FrontmatterValue
+  vaultPath?: string
+}
+
+async function executeMockFrontmatterOp(files: VaultFileOps, { op, path, key, value }: FrontmatterOpRequest): Promise<MarkdownContent> {
+  assertVaultWritable('editing properties')
+  const loadedContent = await loadMockContent(files, path)
+  seedMockContent(path, loadedContent)
+  const content = updateFrontmatterContent(loadedContent, key, op === 'delete' ? undefined : requireUpdateValue(value))
+  await persistMockContent(files, path, content)
   return content
 }
 
-async function executeFrontmatterOp(
-  op: FrontmatterOp,
-  path: VaultPath,
-  key: FrontmatterKey,
-  value?: FrontmatterValue,
-): Promise<MarkdownContent> {
-  if (op === 'update') {
-    return isTauri()
+function requireUpdateValue(value: FrontmatterValue | undefined): FrontmatterValue {
+  if (value === undefined) throw new Error('A frontmatter update requires a value')
+  return value
+}
+
+/** The web with a Tolaria remote: the edit goes into the note's live document or its file. */
+async function executeRemoteFrontmatterOp(files: VaultFileOps, { op, path, key, value }: FrontmatterOpRequest): Promise<MarkdownContent> {
+  assertVaultWritable('editing properties')
+  return editRemoteFrontmatter(files, { path, key, value: op === 'delete' ? undefined : requireUpdateValue(value) })
+}
+
+async function executeFrontmatterOp(request: FrontmatterOpRequest): Promise<MarkdownContent> {
+  const { op, path, key, value } = request
+  if (isTauri()) {
+    return op === 'update'
       ? invokeFrontmatter('update_frontmatter', { path, key, value })
-      : executeMockFrontmatterOp(op, path, key, value)
+      : invokeFrontmatter('delete_frontmatter_property', { path, key })
   }
-  return isTauri()
-    ? invokeFrontmatter('delete_frontmatter_property', { path, key })
-    : executeMockFrontmatterOp(op, path, key)
+  const { files } = createVaultBackend(request.vaultPath)
+  return hasRemoteVault() ? executeRemoteFrontmatterOp(files, request) : executeMockFrontmatterOp(files, request)
 }
 
 export interface FrontmatterOpOptions {
@@ -367,8 +373,8 @@ async function runMissingNotePathCallback(
 ): Promise<void> {
   try {
     await callbacks.onMissingNotePath?.(path, error)
-  } catch (callbackError) {
-    console.warn('Failed to handle missing frontmatter target:', callbackError)
+  } catch (err) {
+    console.warn('Failed to handle missing frontmatter target:', err)
   }
 }
 
@@ -404,7 +410,7 @@ async function handleFrontmatterFailure({
 export async function runFrontmatterAndApply(request: FrontmatterRunRequest): Promise<MarkdownContent | undefined> {
   const { op, path, key, value, callbacks, options } = request
   try {
-    const newContent = await executeFrontmatterOp(op, path, key, value)
+    const newContent = await executeFrontmatterOp({ op, path, key, value })
     callbacks.cacheContent?.(path, newContent)
     if (callbacks.shouldApply && !callbacks.shouldApply(path)) return undefined
     callbacks.updateTab(path, newContent)

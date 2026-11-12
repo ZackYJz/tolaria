@@ -61,6 +61,22 @@ describe('createCommandVaultBackend', () => {
     expect(calls).toEqual([{ command: 'list_vault', args: { path: VAULT } }])
   })
 
+  it('forces a full vault rescan', async () => {
+    const entries = [{ path: NOTE, title: 'Note' }]
+    const { backend, calls } = harness('tauri', { reload_vault: () => entries })
+
+    await expect(backend.files.reload()).resolves.toBe(entries)
+    expect(calls).toEqual([{ command: 'reload_vault', args: { path: VAULT } }])
+  })
+
+  it('reloads a single entry', async () => {
+    const entry = { path: NOTE, title: 'Note' }
+    const { backend, calls } = harness('tauri', { reload_vault_entry: () => entry })
+
+    await expect(backend.files.reloadEntry(NOTE)).resolves.toBe(entry)
+    expect(calls).toEqual([{ command: 'reload_vault_entry', args: { path: NOTE, vaultPath: VAULT } }])
+  })
+
   it('reads a file with a revision derived from its content', async () => {
     const { backend, calls } = harness('mock', { get_note_content: () => '# Note' })
 
@@ -195,6 +211,46 @@ describe('createCommandVaultBackend', () => {
     })
   })
 
+  describe('moves and folder renames (TOL-227)', () => {
+    it('moves a note into a folder in each dialect', async () => {
+      const moved = () => ({ new_path: '/vault/archive/note.md', updated_files: 1 })
+      const tauri = harness('tauri', { move_note_to_folder: moved })
+      const mock = harness('mock', { move_note_to_folder: moved })
+
+      const result = await tauri.backend.files.rename({ path: NOTE, folderPath: 'archive' })
+      await mock.backend.files.rename({ path: NOTE, folderPath: 'archive' })
+
+      expect(tauri.calls[0].args).toEqual({ args: { vaultPath: VAULT, oldPath: NOTE, folderPath: 'archive' } })
+      expect(mock.calls[0].args).toEqual({ vault_path: VAULT, old_path: NOTE, folder_path: 'archive' })
+      expect(result).toEqual({ newPath: '/vault/archive/note.md', updatedFiles: 1, failedUpdates: 0 })
+    })
+
+    it.each(['tauri', 'mock'] as const)('renames a folder through rename_vault_folder in the %s dialect', async (dialect) => {
+      const { backend, calls } = harness(dialect, { rename_vault_folder: () => ({ old_path: 'projects', new_path: 'work' }) })
+
+      const result = await backend.files.renameFolder({ folderPath: 'projects', newName: 'work' })
+
+      expect(calls).toEqual([{ command: 'rename_vault_folder', args: { vaultPath: VAULT, folderPath: 'projects', newName: 'work' } }])
+      expect(result).toEqual({ oldPath: 'projects', newPath: 'work', updatedFiles: 0 })
+    })
+
+    it.each(['tauri', 'mock'] as const)('creates a folder through create_vault_folder in the %s dialect', async (dialect) => {
+      const { backend, calls } = harness(dialect, { create_vault_folder: () => 'Drafts' })
+
+      await backend.files.createFolder({ parentPath: 'projects', name: 'Drafts' })
+
+      expect(calls).toEqual([{ command: 'create_vault_folder', args: { vaultPath: VAULT, folderName: 'Drafts', parentPath: 'projects' } }])
+    })
+
+    it.each(['tauri', 'mock'] as const)('deletes a folder through delete_vault_folder in the %s dialect', async (dialect) => {
+      const { backend, calls } = harness(dialect, { delete_vault_folder: () => 'projects' })
+
+      await expect(backend.files.deleteFolder('projects')).resolves.toBe('projects')
+
+      expect(calls).toEqual([{ command: 'delete_vault_folder', args: { vaultPath: VAULT, folderPath: 'projects' } }])
+    })
+  })
+
   it('deletes through the dialect-specific batch command', async () => {
     const echo: Responder = (args) => args.paths
     const desktop = harness('tauri', { batch_delete_notes_async: echo })
@@ -255,5 +311,40 @@ describe('bytesToBase64', () => {
 
   it('encodes an empty payload', () => {
     expect(bytesToBase64(new Uint8Array())).toBe('')
+  })
+})
+
+describe('snapshot', () => {
+  it('is available for Tauri backends', async () => {
+    const entries = [{ path: NOTE, title: 'Note' }]
+    const { backend, calls } = harness('tauri', { read_vault_snapshot: () => entries })
+
+    expect(backend.snapshot).toBeDefined()
+    await expect(backend.snapshot?.()).resolves.toBe(entries)
+    expect(calls).toEqual([{ command: 'read_vault_snapshot', args: { path: VAULT } }])
+  })
+
+  it('is unavailable for mock backends', () => {
+    const { backend } = harness('mock')
+
+    expect(backend.snapshot).toBeUndefined()
+  })
+})
+
+describe('chrome operations', () => {
+  it('lists folders from the vault', async () => {
+    const folders = [{ name: 'Inbox', path: 'Inbox', children: [] }]
+    const { backend, calls } = harness('tauri', { list_vault_folders: () => folders })
+
+    await expect(backend.chrome.listFolders()).resolves.toBe(folders)
+    expect(calls).toEqual([{ command: 'list_vault_folders', args: { path: VAULT } }])
+  })
+
+  it('lists views from the vault', async () => {
+    const views = [{ filename: 'active.yml', definition: { name: 'Active', filters: {} } }]
+    const { backend, calls } = harness('tauri', { list_views: () => views })
+
+    await expect(backend.chrome.listViews()).resolves.toBe(views)
+    expect(calls).toEqual([{ command: 'list_views', args: { vaultPath: VAULT } }])
   })
 })

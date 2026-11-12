@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { isTauri } from './index'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { isTauri, mockInvoke } from './index'
 
 const originalIsTauri = (globalThis as { isTauri?: unknown }).isTauri
 const windowWithLegacyMarkers = window as Window & {
@@ -37,5 +37,34 @@ describe('isTauri', () => {
     windowWithLegacyMarkers.__TAURI_INTERNALS__ = {}
 
     expect(isTauri()).toBe(true)
+  })
+})
+
+describe('mockInvoke latency', () => {
+  const remoteGlobals = window as Window & { TOLARIA_REMOTE_URL?: string; TOLARIA_REMOTE_TOKEN?: string }
+
+  afterEach(() => {
+    delete remoteGlobals.TOLARIA_REMOTE_URL
+    delete remoteGlobals.TOLARIA_REMOTE_TOKEN
+    vi.useRealTimers()
+  })
+
+  async function settlesWithoutTimers(): Promise<boolean> {
+    vi.useFakeTimers()
+    let settled = false
+    void mockInvoke('get_build_number').then(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(0)
+    return settled
+  }
+
+  it('keeps simulating IPC latency for demo data', async () => {
+    expect(await settlesWithoutTimers()).toBe(false)
+  })
+
+  it('answers at once on a Tolaria remote, so startup is not held back (TOL-206)', async () => {
+    remoteGlobals.TOLARIA_REMOTE_URL = 'https://tolaria.example'
+    remoteGlobals.TOLARIA_REMOTE_TOKEN = 'token-not-a-secret'
+
+    expect(await settlesWithoutTimers()).toBe(true)
   })
 })
